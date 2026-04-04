@@ -1,7 +1,10 @@
+import shutil
 from unittest import TestCase
 
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.notifier import NullNotifier, build_job_card_message, build_missing_job_reply, resolve_review_action
+from job_hunter_agent.repository import SqliteJobRepository
+from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
 def sample_job(status: str = "collected") -> JobPosting:
@@ -64,3 +67,28 @@ class NullNotifierTests(TestCase):
         notifier = NullNotifier()
 
         self.assertIsNotNone(notifier)
+
+
+class PersistenceAndReviewIntegrationTests(TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = prepare_workspace_tmp_dir("review-integration")
+        self.repository = SqliteJobRepository(self.temp_dir / "jobs.db")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_persistence_and_review_work_together(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job()])
+        self.assertEqual(len(saved), 1)
+
+        job = self.repository.get_job(saved[0].id)
+        self.assertIsNotNone(job)
+        next_status, _ = resolve_review_action(job, "approve")
+
+        self.assertEqual(next_status, "approved")
+        self.repository.mark_status(saved[0].id, next_status)
+
+        updated = self.repository.get_job(saved[0].id)
+        self.assertIsNotNone(updated)
+        self.assertEqual(updated.status, "approved")
+        self.assertEqual(self.repository.summary()["approved"], 1)

@@ -223,7 +223,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] dependencias locais
 - [x] fluxo operacional
 - [x] limites conhecidos
-- [ ] como adicionar novo adapter
+- [x] como adicionar novo adapter
 - [x] Se usar `.env`, criar `.env.example`.
 - [x] Resultado esperado:
 - [x] documentacao coerente com o runtime
@@ -272,7 +272,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] callback duplicado e idempotente
 - [ ] Testes de integracao:
 - [x] ciclo `--agora` com doubles
-- [ ] persistencia e revisao funcionando juntas
+- [x] persistencia e revisao funcionando juntas
 - [ ] Checagens estaticas:
 - [x] `py_compile` dos modulos ativos
 - [x] `unittest` rodando no workspace

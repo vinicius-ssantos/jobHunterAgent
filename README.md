@@ -200,6 +200,31 @@ python main.py
 - O SQLite registra vagas, logs de coleta e execucoes de coleta.
 - Falhas por portal nao interrompem as demais fontes.
 
+## Como adicionar um novo adapter
+
+1. Defina um `SiteConfig` novo em `Settings` ou no ambiente, com `name` e `search_url`.
+2. Crie um adapter pequeno em `job_hunter_agent/collector.py` implementando o contrato `PortalCollectorAdapter`.
+3. Faça o adapter:
+   - responder `supports(site)`
+   - construir o task em `build_task(...)`
+   - converter o payload em `RawJob` em `normalize(...)`
+4. Se o portal precisar de fluxo mais confiavel que o agent genérico, prefira um coletor determinístico separado, como o LinkedIn.
+5. Registre o adapter na tupla `portal_adapters` de `BrowserUseSiteCollector`.
+6. Adicione testes cobrindo:
+   - `supports`
+   - `normalize`
+   - `RawJob` minimo valido
+   - falha isolada do portal
+
+Checklist mínimo do `RawJob`:
+
+- `title`
+- `company`
+- `url`
+- `source_site`
+
+Os demais campos podem usar fallback textual controlado, mas nao devem ser inventados.
+
 ## Testes
 
 ```bash
