@@ -794,8 +794,10 @@ class LinkedInDeterministicCollector:
     async def _stabilize_results_page(self, page: object) -> None:
         stable_rounds = 0
         previous_count = -1
+        initial_count = 0
         final_count = 0
         final_target = "desconhecido"
+        footer_reached = False
         executed_passes = 0
         for _ in range(self.scroll_stabilization_passes):
             state = await page.evaluate(
@@ -817,39 +819,46 @@ class LinkedInDeterministicCollector:
                     const href = anchor.getAttribute("href") || anchor.href || "";
                     if (href) unique.add(href);
                   }
+                  const pageElement = document.scrollingElement || document.documentElement;
+                  const pagePreviousTop = pageElement ? pageElement.scrollTop : window.scrollY;
+                  const pageMaxTop = Math.max(0, (pageElement?.scrollHeight || document.body.scrollHeight) - (window.innerHeight || 0));
+                  const nextPageTop = pageMaxTop;
+                  window.scrollTo(0, nextPageTop);
+
                   const container = document.querySelector(".jobs-search-results-list")
                     || document.querySelector(".jobs-search-results__list")
                     || document.querySelector(".scaffold-layout__list-container")
                     || findScrollableAncestor(anchors[0] || null);
+                  let target = "pagina";
+                  let moved = nextPageTop > pagePreviousTop;
+                  let listAtEnd = true;
                   if (container) {
                     const previousTop = container.scrollTop;
-                    const step = Math.max(container.clientHeight || 0, 400);
-                    container.scrollTop = Math.min(container.scrollTop + step, container.scrollHeight);
-                    return {
-                      count: unique.size,
-                      target: "lista",
-                      moved: container.scrollTop > previousTop,
-                    };
+                    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+                    container.scrollTop = maxTop;
+                    target = "lista+pagina";
+                    moved = moved || container.scrollTop > previousTop;
+                    listAtEnd = container.scrollTop >= Math.max(0, maxTop - 16);
                   }
-                  const scrollingElement = document.scrollingElement || document.documentElement;
-                  const previousTop = scrollingElement ? scrollingElement.scrollTop : window.scrollY;
-                  const step = Math.max(window.innerHeight || 0, 400);
-                  window.scrollTo(0, previousTop + step);
-                  const nextTop = scrollingElement ? scrollingElement.scrollTop : window.scrollY;
                   return {
                     count: unique.size,
-                    target: "pagina",
-                    moved: nextTop > previousTop,
+                    target,
+                    moved,
+                    pageAtEnd: nextPageTop >= Math.max(0, pageMaxTop - 16),
+                    listAtEnd,
                   };
                 }
                 """
             )
             current_count = int(state.get("count", 0))
+            if executed_passes == 0:
+                initial_count = current_count
             final_count = current_count
             final_target = str(state.get("target", "desconhecido"))
+            footer_reached = bool(state.get("pageAtEnd")) and bool(state.get("listAtEnd", True))
             executed_passes += 1
-            await page.wait_for_timeout(600)
-            if current_count == previous_count or not bool(state.get("moved")):
+            await page.wait_for_timeout(800)
+            if footer_reached and (current_count == previous_count or not bool(state.get("moved"))):
                 stable_rounds += 1
                 if stable_rounds >= 1:
                     break
@@ -857,10 +866,12 @@ class LinkedInDeterministicCollector:
                 stable_rounds = 0
             previous_count = current_count
         logger.info(
-            "LinkedIn estabilizacao da pagina alvo=%s cards=%s passagens=%s",
+            "LinkedIn estabilizacao da pagina alvo=%s cards_antes=%s cards_depois=%s passagens=%s rodape=%s",
             final_target,
+            initial_count,
             final_count,
             executed_passes,
+            "sim" if footer_reached else "nao",
         )
 
     async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:

@@ -993,9 +993,9 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         class FakePage:
             def __init__(self) -> None:
                 self.states = [
-                    {"count": 4, "target": "lista", "moved": True},
-                    {"count": 7, "target": "lista", "moved": True},
-                    {"count": 7, "target": "lista", "moved": False},
+                    {"count": 4, "target": "lista+pagina", "moved": True, "pageAtEnd": False, "listAtEnd": False},
+                    {"count": 7, "target": "lista+pagina", "moved": True, "pageAtEnd": True, "listAtEnd": True},
+                    {"count": 7, "target": "lista+pagina", "moved": False, "pageAtEnd": True, "listAtEnd": True},
                 ]
                 self.waited_timeouts: list[int] = []
                 self.evaluate_calls = 0
@@ -1017,7 +1017,7 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         asyncio.run(collector._stabilize_results_page(page))
 
         self.assertEqual(page.evaluate_calls, 3)
-        self.assertEqual(page.waited_timeouts, [600, 600, 600])
+        self.assertEqual(page.waited_timeouts, [800, 800, 800])
 
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()

@@ -182,15 +182,15 @@ A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario
 - `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES=3`
 
 O recomendado para a fase atual e manter essa janela pequena por ciclo.
-Cada ciclo sempre comeca pela pagina `1`, tenta esgotar a lista visivel daquela pagina com scroll incremental no painel de resultados e so depois avanca pela paginacao da propria interface do LinkedIn para a pagina seguinte.
+Cada ciclo sempre comeca pela pagina `1`, desce a pagina ate o rodape enquanto tenta esgotar a lista interna de resultados e so depois avanca pela paginacao da propria interface do LinkedIn para a pagina seguinte.
 
 Na pratica, com `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`, o comportamento esperado por ciclo e:
 
 - abrir a busca padrao
-- estabilizar a pagina `1` com scroll da lista
+- estabilizar a pagina `1` com scroll ate o rodape e da lista interna
 - extrair os cards visiveis da pagina `1`
 - clicar na pagina `2` pela UI
-- estabilizar a pagina `2`
+- estabilizar a pagina `2` com o mesmo processo
 - extrair os cards visiveis da pagina `2`
 
 `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH` continua como limite de seguranca para nao aprofundar demais a navegacao dentro de um unico ciclo.
