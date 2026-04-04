@@ -7,6 +7,7 @@ from job_hunter_agent.applicant import (
     ApplicationPreflightService,
     OllamaApplicationSupportAssessor,
 )
+from job_hunter_agent.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.job_requirements import OllamaJobRequirementsExtractor
@@ -56,6 +57,15 @@ def create_job_requirements_extractor(settings: Settings) -> OllamaJobRequiremen
     )
 
 
+def create_application_priority_assessor(settings: Settings) -> OllamaApplicationPriorityAssessor | None:
+    if not settings.application_priority_llm_enabled:
+        return None
+    return OllamaApplicationPriorityAssessor(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_url,
+    )
+
+
 def create_application_preparation_service(
     repository: JobRepository,
     settings: Settings,
@@ -64,6 +74,7 @@ def create_application_preparation_service(
         repository,
         support_assessor=create_application_support_assessor(settings),
         requirements_extractor=create_job_requirements_extractor(settings),
+        priority_assessor=create_application_priority_assessor(settings),
     )
 
 

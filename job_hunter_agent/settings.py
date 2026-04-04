@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     application_support_llm_enabled: bool = True
     job_requirements_llm_enabled: bool = True
     review_rationale_llm_enabled: bool = True
+    application_priority_llm_enabled: bool = True
     max_jobs_per_site: int = 20
     portal_collection_timeout_seconds: int = 180
     review_polling_grace_seconds: int = 120

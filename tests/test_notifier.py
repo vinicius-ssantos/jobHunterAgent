@@ -106,6 +106,7 @@ class ReviewActionTests(TestCase):
             saved = repository.save_new_jobs([sample_job(status="approved")])[0]
             draft = repository.create_application_draft(
                 saved.id,
+                notes="prioridade sugerida: alta | motivo: aderencia forte",
                 support_level="manual_review",
                 support_rationale="linkedin interno ainda requer confirmacao",
             )
@@ -113,7 +114,7 @@ class ReviewActionTests(TestCase):
             line = build_application_preview_line(repository, draft)
 
             self.assertIn("Senior Kotlin Engineer", line)
-            self.assertIn("[draft | manual_review]", line)
+            self.assertIn("[draft | manual_review | prioridade alta]", line)
             self.assertIn("manual_review", line)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -214,7 +215,7 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.repository.mark_status(approved_job.id, "approved")
         application = self.repository.create_application_draft(
             approved_job.id,
-            notes="rascunho criado apos aprovacao humana",
+            notes="rascunho criado apos aprovacao humana\nprioridade sugerida: alta | motivo: aderencia forte",
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
@@ -224,14 +225,55 @@ class PersistenceAndReviewIntegrationTests(TestCase):
 
         self.assertIn("Candidaturas:", message)
         self.assertIn("Prontas para revisao: 1", message)
-        self.assertIn("Senior Kotlin Engineer - ACME [ready_for_review | manual_review]", message)
+        self.assertIn("Senior Kotlin Engineer - ACME [ready_for_review | manual_review | prioridade alta]", message)
+
+    def test_build_application_queue_message_orders_by_priority(self) -> None:
+        first_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
+        second_job = self.repository.save_new_jobs(
+            [
+                JobPosting(
+                    title="Backend Java Pleno",
+                    company="BETA",
+                    location="Brasil",
+                    work_mode="hibrido",
+                    salary_text="Nao informado",
+                    url="https://example.com/job-2",
+                    source_site="LinkedIn",
+                    summary="Resumo",
+                    relevance=7,
+                    rationale="Boa aderencia",
+                    external_key="key-2",
+                    status="approved",
+                )
+            ]
+        )[0]
+        self.repository.mark_status(first_job.id, "approved")
+        self.repository.mark_status(second_job.id, "approved")
+        self.repository.create_application_draft(
+            first_job.id,
+            notes="prioridade sugerida: baixa | motivo: revisar depois",
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.create_application_draft(
+            second_job.id,
+            notes="prioridade sugerida: alta | motivo: revisar primeiro",
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+
+        message = build_application_queue_message(self.repository)
+        beta_index = message.index("Backend Java Pleno - BETA")
+        acme_index = message.index("Senior Kotlin Engineer - ACME")
+
+        self.assertLess(beta_index, acme_index)
 
     def test_build_application_card_message_contains_support_and_notes(self) -> None:
         approved_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
         self.repository.mark_status(approved_job.id, "approved")
         application = self.repository.create_application_draft(
             approved_job.id,
-            notes="rascunho criado apos aprovacao humana",
+            notes="rascunho criado apos aprovacao humana\nprioridade sugerida: media | motivo: revisar em seguida",
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
@@ -241,4 +283,5 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Candidatura", message)
         self.assertIn("Vaga: Senior Kotlin Engineer", message)
         self.assertIn("Suporte: manual_review", message)
+        self.assertIn("Prioridade: media", message)
         self.assertIn("Observacoes: rascunho criado apos aprovacao humana", message)

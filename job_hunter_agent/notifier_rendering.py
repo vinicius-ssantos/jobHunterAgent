@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from job_hunter_agent.application_priority import extract_application_priority_level
 from job_hunter_agent.domain import JobApplication, JobPosting
 from job_hunter_agent.repository import JobRepository
 from job_hunter_agent.review_rationale import StructuredReviewRationale, render_review_rationale
@@ -34,7 +35,7 @@ def build_application_queue_message(repository: JobRepository) -> str:
     tracked_statuses = ("draft", "ready_for_review", "confirmed")
     preview_lines: list[str] = []
     for status in tracked_statuses:
-        applications = repository.list_applications_by_status(status)
+        applications = _sort_applications_by_priority(repository.list_applications_by_status(status))
         for application in applications[:3]:
             preview_lines.append(build_application_preview_line(repository, application))
     lines = [
@@ -59,22 +60,25 @@ def build_application_queue_message(repository: JobRepository) -> str:
 
 def build_application_preview_line(repository: JobRepository, application: JobApplication) -> str:
     job = repository.get_job(application.job_id)
+    priority = extract_application_priority_level(application.notes)
     if not job:
-        return f"{application.job_id}: vaga ausente [{application.status}]"
+        return f"{application.job_id}: vaga ausente [{application.status} | prioridade {priority}]"
     return (
         f"{job.id}: {job.title} - {job.company} "
-        f"[{application.status} | {application.support_level}]"
+        f"[{application.status} | {application.support_level} | prioridade {priority}]"
     )
 
 
 def build_application_card_message(repository: JobRepository, application: JobApplication) -> str:
     job = repository.get_job(application.job_id)
+    priority = extract_application_priority_level(application.notes)
     if not job:
         return (
             f"Candidatura {application.id}\n"
             f"Job id: {application.job_id}\n"
             f"Status: {application.status}\n"
             f"Suporte: {application.support_level}\n"
+            f"Prioridade: {priority}\n"
             f"Racional: {application.support_rationale or 'Nao informado'}"
         )
     return (
@@ -83,6 +87,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
         f"Empresa: {job.company}\n"
         f"Status: {application.status}\n"
         f"Suporte: {application.support_level}\n"
+        f"Prioridade: {priority}\n"
         f"Racional: {application.support_rationale or 'Nao informado'}\n"
         f"Observacoes: {application.notes or 'Nenhuma'}\n"
         f"Abrir vaga: {job.url}"
@@ -112,4 +117,12 @@ def build_application_action_rows(application: JobApplication, button_factory) -
             ]
         ]
     return []
+
+
+def _sort_applications_by_priority(applications: list[JobApplication]) -> list[JobApplication]:
+    priority_order = {"alta": 0, "media": 1, "baixa": 2}
+    return sorted(
+        applications,
+        key=lambda application: (priority_order.get(extract_application_priority_level(application.notes), 3), application.id),
+    )
 

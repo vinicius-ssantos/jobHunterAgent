@@ -24,6 +24,7 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.linkedin_max_pages_per_cycle, 2)
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
+        self.assertTrue(settings.application_priority_llm_enabled)
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")

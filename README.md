@@ -117,6 +117,7 @@ Variaveis principais:
 - `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
 - `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED`
 - `JOB_HUNTER_REVIEW_RATIONALE_LLM_ENABLED`
+- `JOB_HUNTER_APPLICATION_PRIORITY_LLM_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -164,6 +165,12 @@ Tambem existe um formatter opcional de rationale para revisao humana:
 - `JOB_HUNTER_REVIEW_RATIONALE_LLM_ENABLED=true`
 
 Ele reestrutura o motivo da vaga em pontos a favor, pontos contra e risco principal na hora de montar o card do Telegram. Se o modelo falhar ou estiver desligado, o texto original continua sendo usado.
+
+Tambem existe um assessor opcional de prioridade operacional para candidaturas:
+
+- `JOB_HUNTER_APPLICATION_PRIORITY_LLM_ENABLED=true`
+
+Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fila de rascunhos e candidaturas em andamento. Se o modelo falhar ou estiver desligado, o sistema usa uma heuristica local conservadora.
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 

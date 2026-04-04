@@ -8,6 +8,12 @@ from job_hunter_agent.applicant import (
     classify_job_application_support,
     parse_application_support_response,
 )
+from job_hunter_agent.application_priority import (
+    DeterministicApplicationPriorityAssessor,
+    extract_application_priority_level,
+    format_application_priority_note,
+    parse_application_priority_response,
+)
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.job_requirements import (
@@ -319,6 +325,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(len(drafts), 1)
         self.assertIn("rascunho criado apos aprovacao humana", drafts[0].notes)
         self.assertIn("sinais estruturados:", drafts[0].notes)
+        self.assertIn("prioridade sugerida:", drafts[0].notes)
 
     def test_application_preparation_service_uses_assessor_when_available(self) -> None:
         approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
@@ -425,6 +432,28 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertIn("senioridade=pleno", rendered)
         self.assertIn("stack_principal=java, spring", rendered)
         self.assertIn("ingles=intermediario", rendered)
+
+    def test_parse_application_priority_response_accepts_valid_json(self) -> None:
+        assessment = parse_application_priority_response(
+            '{"level":"alta","rationale":"aderencia forte e modalidade favoravel"}'
+        )
+
+        self.assertEqual(assessment.level, "alta")
+        self.assertEqual(assessment.rationale, "aderencia forte e modalidade favoravel")
+
+    def test_parse_application_priority_response_rejects_invalid_level(self) -> None:
+        assessment = parse_application_priority_response('{"level":"urgente"}')
+
+        self.assertEqual(assessment.level, "baixa")
+        self.assertIn("invalido", assessment.rationale)
+
+    def test_format_and_extract_application_priority_note(self) -> None:
+        note = format_application_priority_note(
+            DeterministicApplicationPriorityAssessor().assess(sample_job("https://example.com/job-1", "key-1"))
+        )
+
+        self.assertIn("prioridade sugerida: alta", note)
+        self.assertEqual(extract_application_priority_level(note), "alta")
 
     def test_create_application_draft_persists_support_metadata(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]

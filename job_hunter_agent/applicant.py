@@ -4,6 +4,11 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from job_hunter_agent.browser_support import extract_json_object
+from job_hunter_agent.application_priority import (
+    ApplicationPriorityAssessor,
+    DeterministicApplicationPriorityAssessor,
+    format_application_priority_note,
+)
 from job_hunter_agent.domain import JobApplication, JobPosting
 from job_hunter_agent.job_requirements import (
     DeterministicJobRequirementsExtractor,
@@ -51,10 +56,12 @@ class ApplicationPreparationService:
         repository: JobRepository,
         support_assessor: ApplicationSupportAssessor | None = None,
         requirements_extractor: JobRequirementsExtractor | None = None,
+        priority_assessor: ApplicationPriorityAssessor | None = None,
     ) -> None:
         self.repository = repository
         self.support_assessor = support_assessor
         self.requirements_extractor = requirements_extractor
+        self.priority_assessor = priority_assessor
 
     def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = "") -> list[JobApplication]:
         drafts: list[JobApplication] = []
@@ -64,7 +71,12 @@ class ApplicationPreparationService:
                 continue
             assessment = self._assess_support(job)
             note_bundle = self._build_requirement_notes(job)
-            draft_notes = _append_note(notes, note_bundle) if note_bundle else notes
+            priority_note = self._build_priority_note(job)
+            draft_notes = notes
+            if note_bundle:
+                draft_notes = _append_note(draft_notes, note_bundle)
+            if priority_note:
+                draft_notes = _append_note(draft_notes, priority_note)
             drafts.append(
                 self.repository.create_application_draft(
                     job_id,
@@ -120,6 +132,20 @@ class ApplicationPreparationService:
             leadership_signals=extracted.leadership_signals or fallback.leadership_signals,
             rationale=extracted.rationale or fallback.rationale,
         )
+
+    def _build_priority_note(self, job: JobPosting) -> str:
+        fallback = DeterministicApplicationPriorityAssessor().assess(job)
+        if self.priority_assessor is None:
+            return format_application_priority_note(fallback)
+        try:
+            assessed = self.priority_assessor.assess(job)
+        except Exception:
+            assessed = fallback
+        if assessed.level not in {"alta", "media", "baixa"}:
+            assessed = fallback
+        if not assessed.rationale.strip():
+            assessed = fallback
+        return format_application_priority_note(assessed)
 
 
 class ApplicationPreflightService:
