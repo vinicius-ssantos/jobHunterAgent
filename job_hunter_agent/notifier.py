@@ -4,13 +4,38 @@ import logging
 from typing import Awaitable, Callable, Optional, Protocol
 
 from job_hunter_agent.domain import JobApplication, JobPosting
+from job_hunter_agent.notifier_rendering import (
+    build_application_action_rows as rendering_build_application_action_rows,
+    build_application_card_message as rendering_build_application_card_message,
+    build_application_preview_line as rendering_build_application_preview_line,
+    build_application_queue_message as rendering_build_application_queue_message,
+    build_job_card_message as rendering_build_job_card_message,
+    build_missing_application_reply as rendering_build_missing_application_reply,
+    build_missing_job_reply as rendering_build_missing_job_reply,
+)
 from job_hunter_agent.repository import JobRepository
+from job_hunter_agent.review_workflow import (
+    resolve_application_action as workflow_resolve_application_action,
+    resolve_application_preflight_request as workflow_resolve_application_preflight_request,
+    resolve_review_action as workflow_resolve_review_action,
+)
 from job_hunter_agent.settings import Settings
 
 
 logger = logging.getLogger(__name__)
 ApprovalCallback = Callable[[list[int]], Awaitable[None]]
 ApplicationPreflightCallback = Callable[[int], Awaitable[str]]
+
+build_job_card_message = rendering_build_job_card_message
+build_missing_job_reply = rendering_build_missing_job_reply
+build_missing_application_reply = rendering_build_missing_application_reply
+build_application_queue_message = rendering_build_application_queue_message
+build_application_preview_line = rendering_build_application_preview_line
+build_application_card_message = rendering_build_application_card_message
+build_application_action_rows = rendering_build_application_action_rows
+resolve_review_action = workflow_resolve_review_action
+resolve_application_preflight_request = workflow_resolve_application_preflight_request
+resolve_application_action = workflow_resolve_application_action
 
 
 class ReviewNotifier(Protocol):
@@ -233,163 +258,3 @@ class TelegramNotifier:
             reply_markup=keyboard,
         )
 
-
-def resolve_review_action(job: JobPosting, action: str) -> tuple[str | None, str]:
-    if action == "approve":
-        if job.status == "approved":
-            return None, f"Vaga ja estava aprovada: {job.title} - {job.company}"
-        if job.status == "rejected":
-            return None, f"Vaga ja estava rejeitada: {job.title} - {job.company}"
-        return "approved", f"Vaga aprovada: {job.title} - {job.company}"
-
-    if action == "reject":
-        if job.status == "rejected":
-            return None, f"Vaga ja estava rejeitada: {job.title} - {job.company}"
-        if job.status == "approved":
-            return None, f"Vaga ja estava aprovada: {job.title} - {job.company}"
-        return "rejected", f"Vaga ignorada: {job.title} - {job.company}"
-
-    return None, "Acao de revisao invalida."
-
-
-def build_job_card_message(job: JobPosting) -> str:
-    return (
-        f"*{job.title}*\n"
-        f"Empresa: {job.company}\n"
-        f"Local: {job.location} | Modalidade: {job.work_mode}\n"
-        f"Salario: {job.salary_text}\n"
-        f"Relevancia: {job.relevance}/10\n"
-        f"Motivo: {job.rationale}\n"
-        f"Resumo: {job.summary}\n"
-        f"[Abrir vaga]({job.url})"
-    )
-
-
-def build_missing_job_reply(job_id: int) -> str:
-    return f"Vaga nao encontrada ou ja removida. id={job_id}"
-
-
-def build_missing_application_reply(application_id: int) -> str:
-    return f"Candidatura nao encontrada ou ja removida. id={application_id}"
-
-
-def build_application_queue_message(repository: JobRepository) -> str:
-    summary = repository.application_summary()
-    tracked_statuses = ("draft", "ready_for_review", "confirmed")
-    preview_lines: list[str] = []
-    for status in tracked_statuses:
-        applications = repository.list_applications_by_status(status)
-        for application in applications[:3]:
-            preview_lines.append(build_application_preview_line(repository, application))
-    lines = [
-        "Candidaturas:",
-        f"Total: {summary['total']}",
-        f"Rascunhos: {summary['draft']}",
-        f"Prontas para revisao: {summary['ready_for_review']}",
-        f"Confirmadas: {summary['confirmed']}",
-        f"Enviadas: {summary['submitted']}",
-        f"Com erro: {summary['error_submit']}",
-        f"Canceladas: {summary['cancelled']}",
-    ]
-    if preview_lines:
-        lines.append("")
-        lines.append("Fila atual:")
-        lines.extend(preview_lines)
-    else:
-        lines.append("")
-        lines.append("Nao ha rascunhos ou candidaturas em andamento.")
-    return "\n".join(lines)
-
-
-def build_application_preview_line(repository: JobRepository, application: JobApplication) -> str:
-    job = repository.get_job(application.job_id)
-    if not job:
-        return f"{application.job_id}: vaga ausente [{application.status}]"
-    return (
-        f"{job.id}: {job.title} - {job.company} "
-        f"[{application.status} | {application.support_level}]"
-    )
-
-
-def build_application_card_message(repository: JobRepository, application: JobApplication) -> str:
-    job = repository.get_job(application.job_id)
-    if not job:
-        return (
-            f"Candidatura {application.id}\n"
-            f"Job id: {application.job_id}\n"
-            f"Status: {application.status}\n"
-            f"Suporte: {application.support_level}\n"
-            f"Racional: {application.support_rationale or 'Nao informado'}"
-        )
-    return (
-        f"Candidatura {application.id}\n"
-        f"Vaga: {job.title}\n"
-        f"Empresa: {job.company}\n"
-        f"Status: {application.status}\n"
-        f"Suporte: {application.support_level}\n"
-        f"Racional: {application.support_rationale or 'Nao informado'}\n"
-        f"Observacoes: {application.notes or 'Nenhuma'}\n"
-        f"Abrir vaga: {job.url}"
-    )
-
-
-def build_application_action_rows(application: JobApplication, button_factory) -> list[list[object]]:
-    if application.status == "draft":
-        return [
-            [
-                button_factory("Preparar", callback_data=f"app_prepare:{application.id}"),
-                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
-            ]
-        ]
-    if application.status == "ready_for_review":
-        return [
-            [
-                button_factory("Confirmar", callback_data=f"app_confirm:{application.id}"),
-                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
-            ]
-        ]
-    if application.status == "confirmed":
-        return [
-            [
-                button_factory("Validar fluxo", callback_data=f"app_preflight:{application.id}"),
-                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
-            ]
-        ]
-    return []
-
-
-def resolve_application_preflight_request(application: JobApplication) -> tuple[bool, str]:
-    if application.status == "confirmed":
-        return True, f"Executando preflight da candidatura: id={application.id}"
-    if application.status == "cancelled":
-        return False, f"Candidatura ja estava cancelada: id={application.id}"
-    if application.status == "error_submit":
-        return False, f"Candidatura esta em erro de submissao: id={application.id}"
-    return False, f"Candidatura ainda nao foi confirmada para preflight: id={application.id}"
-
-
-def resolve_application_action(application: JobApplication, action: str) -> tuple[str | None, str]:
-    if action == "app_prepare":
-        if application.status == "draft":
-            return "ready_for_review", f"Candidatura pronta para revisao: id={application.id}"
-        if application.status == "ready_for_review":
-            return None, f"Candidatura ja estava pronta para revisao: id={application.id}"
-        if application.status == "confirmed":
-            return None, f"Candidatura ja estava confirmada: id={application.id}"
-        if application.status == "cancelled":
-            return None, f"Candidatura ja estava cancelada: id={application.id}"
-    if action == "app_confirm":
-        if application.status == "ready_for_review":
-            return "confirmed", f"Candidatura confirmada: id={application.id}"
-        if application.status == "draft":
-            return None, f"Candidatura ainda nao foi preparada para revisao: id={application.id}"
-        if application.status == "confirmed":
-            return None, f"Candidatura ja estava confirmada: id={application.id}"
-        if application.status == "cancelled":
-            return None, f"Candidatura ja estava cancelada: id={application.id}"
-    if action == "app_cancel":
-        if application.status == "cancelled":
-            return None, f"Candidatura ja estava cancelada: id={application.id}"
-        if application.status in {"draft", "ready_for_review", "confirmed"}:
-            return "cancelled", f"Candidatura cancelada: id={application.id}"
-    return None, "Acao de candidatura invalida."

@@ -68,7 +68,7 @@ Definicao de pronto:
 - `JobHunterApplication.__init__` menor e mais legivel
 - menos detalhes de infraestrutura concretos no constructor
 
-### Fase 2 - `notifier.py`
+### Fase 2 - `notifier.py` (concluida)
 
 Objetivo:
 - separar transporte, renderizacao e politica de transicao
@@ -119,7 +119,7 @@ Definicao de pronto:
 ## Checklist De Refatoracao
 
 - [x] Fase 1 concluida
-- [ ] Fase 2 concluida
+- [x] Fase 2 concluida
 - [ ] Fase 3 concluida
 - [ ] Fase 4 concluida
 - [ ] README atualizado se a estrutura publica mudar
