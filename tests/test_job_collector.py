@@ -715,6 +715,23 @@ class ExternalKeyTests(TestCase):
         self.assertEqual(normalized["company"], "Verx Tecnologia e Inovação")
         self.assertEqual(normalized["location"], "São Paulo, São Paulo, Brasil")
 
+    def test_normalize_linkedin_card_strips_title_prefix_from_company(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor full stack",
+                "company": "Desenvolvedor full stack Vivo (Telefônica Brasil)",
+                "location": "São Paulo, Brasil (Híbrido)",
+                "work_mode": "hibrido",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Desenvolvedor full stack Vivo (Telefônica Brasil) São Paulo, Brasil (Híbrido)",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Vivo (Telefônica Brasil)")
+        self.assertEqual(normalized["location"], "São Paulo, Brasil (Híbrido)")
+
     def test_normalize_linkedin_card_replaces_social_proof_company_with_inferred_company(self) -> None:
         normalized = normalize_linkedin_card(
             {

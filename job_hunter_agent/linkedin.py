@@ -137,6 +137,9 @@ def strip_title_suffix_from_company(company: str, title: str) -> str:
         return normalized_company
     lowered_company = normalized_company.lower()
     lowered_title = normalized_title.lower()
+    if lowered_company.startswith(lowered_title + " "):
+        normalized_company = _normalize_whitespace(normalized_company[len(normalized_title) :])
+        lowered_company = normalized_company.lower()
     if lowered_company.endswith(" " + lowered_title):
         normalized_company = _normalize_whitespace(normalized_company[: -len(normalized_title)])
     return clean_linkedin_company(normalized_company)
