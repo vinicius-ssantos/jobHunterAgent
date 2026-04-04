@@ -122,6 +122,6 @@ Definicao de pronto:
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
 - [x] Fase 4 concluida
-- [ ] README atualizado se a estrutura publica mudar
+- [x] README atualizado se a estrutura publica mudar
 - [ ] AGENTS atualizado se a politica operacional mudar
 - [x] loop principal validado ao final

@@ -10,7 +10,14 @@ O runtime ativo mora no pacote `job_hunter_agent/`.
 - `job_hunter_agent/domain.py`
 - `job_hunter_agent/repository.py`
 - `job_hunter_agent/collector.py`
+- `job_hunter_agent/portal_collectors.py`
+- `job_hunter_agent/scoring.py`
+- `job_hunter_agent/linkedin.py`
 - `job_hunter_agent/notifier.py`
+- `job_hunter_agent/notifier_rendering.py`
+- `job_hunter_agent/review_workflow.py`
+- `job_hunter_agent/composition.py`
+- `job_hunter_agent/job_identity.py`
 - `job_hunter_agent/app.py`
 - `main.py` apenas como entrypoint fino
 
@@ -273,13 +280,13 @@ Esse preflight:
 ## Como adicionar um novo adapter
 
 1. Defina um `SiteConfig` novo em `Settings` ou no ambiente, com `name` e `search_url`.
-2. Crie um adapter pequeno em `job_hunter_agent/collector.py` implementando o contrato `PortalCollectorAdapter`.
+2. Crie um adapter pequeno em `job_hunter_agent/portal_collectors.py` implementando o contrato `PortalCollectorAdapter`.
 3. Faça o adapter:
    - responder `supports(site)`
    - construir o task em `build_task(...)`
    - converter o payload em `RawJob` em `normalize(...)`
 4. Se o portal precisar de fluxo mais confiavel que o agent genérico, prefira um coletor determinístico separado, como o LinkedIn.
-5. Registre o adapter na tupla `portal_adapters` de `BrowserUseSiteCollector`.
+5. Registre o adapter na tupla `portal_adapters` de `BrowserUseSiteCollector` em `job_hunter_agent/portal_collectors.py`.
 6. Adicione testes cobrindo:
    - `supports`
    - `normalize`
