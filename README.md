@@ -26,6 +26,15 @@ O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
 Candidatura automatica esta fora do caminho critico desta versao.
 
+Ja existe uma pre-fase de candidatura assistida preparada na arquitetura:
+
+- contratos em `job_hunter_agent/applicant.py`
+- persistencia separada de candidaturas em `job_applications`
+- criacao de rascunho quando uma vaga e aprovada no Telegram
+- classificacao conservadora de suporte: `auto_supported`, `manual_review` ou `unsupported`
+
+Isso ainda nao dispara aplicacao automatica. Serve apenas para preparar a proxima fase sem contaminar o loop atual de coleta e revisao.
+
 Para o primeiro teste real controlado, o projeto fica reduzido por padrao a `1 portal`:
 
 - `LinkedIn`
@@ -85,6 +94,7 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_PERSISTENT_PROFILE_DIR`
 - `JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH`
 - `JOB_HUNTER_BROWSER_HEADLESS`
+- `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
 - `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
 - `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
@@ -120,6 +130,12 @@ Tambem existe um fallback opcional de reparo local de campos do LinkedIn:
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED=true`
 
 Ele so atua em casos residuais e suspeitos, depois da extracao deterministica e da tentativa de enriquecimento pela pagina de detalhe.
+
+A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
+
+- `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
+
+O recomendado para a fase atual e manter esse limite pequeno.
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:
@@ -164,6 +180,18 @@ Rodar um ciclo imediatamente sem inicializar Telegram:
 python main.py --agora --sem-telegram
 ```
 
+Rodar um numero finito de ciclos imediatamente, sem cair no agendamento diario:
+
+```bash
+python main.py --ciclos 3
+```
+
+Se quiser manter um intervalo entre esses ciclos:
+
+```bash
+python main.py --ciclos 3 --intervalo-ciclos-segundos 60
+```
+
 Exportar a sessao autenticada do LinkedIn para `storage_state`:
 
 ```bash
@@ -193,12 +221,48 @@ python main.py
 - `/status` mostra os contadores atuais
 - `/pendentes` lista vagas aguardando revisao
 - `/recentes` mostra as ultimas vagas registradas
+- `/candidaturas` mostra rascunhos e candidaturas em andamento
+  - `Preparar` move `draft -> ready_for_review`
+  - `Confirmar` move `ready_for_review -> confirmed`
+  - `Validar fluxo` executa um preflight manual em candidaturas `confirmed`
+  - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
 
 - Cada ciclo de coleta gera logs por fonte.
 - O SQLite registra vagas, logs de coleta e execucoes de coleta.
 - Falhas por portal nao interrompem as demais fontes.
+
+## Pre-fase de candidatura assistida
+
+O projeto agora possui a base estrutural para uma fase futura de candidatura assistida, sem ativar submissao automatica ainda.
+
+Estados de candidatura ficam separados dos estados de vaga:
+
+- `draft`
+- `ready_for_review`
+- `confirmed`
+- `submitted`
+- `error_submit`
+- `cancelled`
+
+Esses estados vivem em uma tabela separada (`job_applications`) para evitar misturar revisao humana de vaga com tentativa de candidatura.
+
+Cada rascunho de candidatura tambem recebe uma classificacao de suporte:
+
+- `auto_supported`
+- `manual_review`
+- `unsupported`
+
+No estado atual, essa classificacao e conservadora e serve para filtrar o que pode entrar numa futura automacao, sem ainda disparar submissao real.
+
+Depois da confirmacao humana, a candidatura tambem pode passar por um `preflight` manual.
+Esse preflight:
+
+- nao envia candidatura
+- valida se o fluxo esta num portal minimamente suportado
+- registra sucesso mantendo `confirmed`
+- ou registra bloqueio em `error_submit` quando o fluxo nao e suportado
 
 ## Como adicionar um novo adapter
 

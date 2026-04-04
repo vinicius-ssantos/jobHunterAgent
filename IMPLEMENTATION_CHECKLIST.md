@@ -184,6 +184,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] `/status` com resumo completo
 - [x] `/pendentes` com amostra dos itens
 - [x] `/recentes` opcional
+- [x] `/candidaturas` com visibilidade dos rascunhos e candidaturas em andamento
 - [x] Nao acoplar callbacks a acoes fora do escopo do MVP.
 - [ ] Resultado esperado:
   - [x] revisao humana operacional via Telegram
@@ -287,6 +288,29 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] O primeiro portal priorizado e LinkedIn.
 - [x] SQLite continua suficiente para a v1.
 
+## Pre-fase de candidatura assistida
+
+- [x] Separar candidatura dos estados de revisao de vaga.
+- [x] Criar contrato proprio para submissao futura em `job_hunter_agent/applicant.py`.
+- [x] Persistir rascunhos e tentativas de candidatura em tabela separada.
+- [x] Manter candidatura fora do loop principal ate haver confirmacao humana forte.
+- [x] Preservar estados proprios de candidatura:
+- [x] `draft`
+- [x] `ready_for_review`
+- [x] `confirmed`
+- [x] `submitted`
+- [x] `error_submit`
+- [x] `cancelled`
+- [x] Garantir consultas operacionais basicas:
+- [x] busca por candidatura via `job_id`
+- [x] listagem por status
+- [x] resumo agregado
+- [x] Integrar candidatura assistida ao fluxo humano de revisao.
+- [x] Classificar rascunhos entre `auto_supported`, `manual_review` e `unsupported`.
+- [x] Permitir confirmacao humana explicita da candidatura antes de qualquer submissao.
+- [x] Permitir preflight manual da candidatura confirmada antes da submissao real.
+- [ ] Implementar automacao real de candidatura por portal.
+
 ## Modelo de comentario de finalizacao
 
 - [x] Use sempre este padrao ao concluir qualquer fase ou bloco:
@@ -358,3 +382,21 @@ Comentario: as fases centrais do MVP foram consolidadas na checklist com base no
 
 Concluido em: 2026-04-04
 Comentario: a checklist foi alinhada ao estado real do MVP e o parser residual do LinkedIn foi endurecido para evitar fragmentos de local como empresa, preservar localizacoes explicitas validas e acionar repair local apenas nos casos realmente suspeitos; o run real 53 persistiu vagas novas com campos limpos.
+
+Concluido em: 2026-04-04
+Comentario: a pre-fase de candidatura assistida foi aberta com contratos proprios, tabela separada de persistencia e testes de repositorio cobrindo rascunho, transicoes de status, listagem e resumo; nada foi acoplado ao loop principal nem habilitou candidatura automatica.
+
+Concluido em: 2026-04-04
+Comentario: a aprovacao humana no Telegram agora cria rascunhos de candidatura apenas para vagas `approved`, usando um servico proprio de preparacao; isso integra a pre-fase ao fluxo real sem habilitar submissao automatica.
+
+Concluido em: 2026-04-04
+Comentario: o Telegram ganhou visibilidade da pre-fase de candidatura via comando `/candidaturas`, mostrando resumo e fila de rascunhos/candidaturas em andamento sem adicionar automacao de submissao.
+
+Concluido em: 2026-04-04
+Comentario: a pre-fase de candidatura passou a classificar cada rascunho como `auto_supported`, `manual_review` ou `unsupported`, e o comando `/candidaturas` agora expõe essa classificacao para orientar a futura automacao por portal.
+
+Concluido em: 2026-04-04
+Comentario: a classificacao conservadora de aplicabilidade foi integrada ao fluxo real dos rascunhos de candidatura e passou a ficar visivel no Telegram, distinguindo claramente o que pode entrar em automacao futura do que deve permanecer manual ou nao suportado.
+
+Concluido em: 2026-04-04
+Comentario: o Telegram passou a permitir a progressao humana explicita dos rascunhos de candidatura entre `draft`, `ready_for_review`, `confirmed` e `cancelled`, mantendo a submissao automatica ainda fora do fluxo.

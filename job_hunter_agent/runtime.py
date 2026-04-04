@@ -14,12 +14,19 @@ import psutil
 logger = logging.getLogger(__name__)
 
 
+def _process_info_value(process: psutil.Process, key: str):
+    info = getattr(process, "info", None)
+    if isinstance(info, dict):
+        return info.get(key)
+    return None
+
+
 def is_project_python_process(process: psutil.Process, project_root: Path, current_pid: int) -> bool:
     if process.pid == current_pid:
         return False
 
     try:
-        name = (process.info.get("name") or process.name()).lower()
+        name = (_process_info_value(process, "name") or process.name()).lower()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
 
@@ -39,7 +46,7 @@ def is_project_python_process(process: psutil.Process, project_root: Path, curre
             pass
 
     try:
-        cmdline = process.info.get("cmdline") or process.cmdline()
+        cmdline = _process_info_value(process, "cmdline") or process.cmdline()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         cmdline = []
 
@@ -61,7 +68,7 @@ def iter_project_processes(project_root: Path, current_pid: int) -> list[psutil.
 
 def is_project_browser_process(process: psutil.Process, browser_use_dir: Path) -> bool:
     try:
-        name = (process.info.get("name") or process.name()).lower()
+        name = (_process_info_value(process, "name") or process.name()).lower()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
 
@@ -69,7 +76,7 @@ def is_project_browser_process(process: psutil.Process, browser_use_dir: Path) -
         return False
 
     try:
-        cmdline = process.info.get("cmdline") or process.cmdline()
+        cmdline = _process_info_value(process, "cmdline") or process.cmdline()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
 

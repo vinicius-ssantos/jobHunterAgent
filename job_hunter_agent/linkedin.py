@@ -3,6 +3,7 @@
 import logging
 import re
 from pathlib import Path
+from typing import Callable
 
 from job_hunter_agent.browser_support import extract_json_object, load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.domain import RawJob, SiteConfig
@@ -118,6 +119,14 @@ def strip_title_prefix_from_location(location: str, title: str) -> str:
     if lowered_location.startswith(lowered_title + " "):
         normalized_location = _normalize_whitespace(normalized_location[len(normalized_title) :])
         return clean_linkedin_location(normalized_location) or normalized_location
+    title_words = normalized_title.split()
+    for size in range(min(4, len(title_words)), 1, -1):
+        suffix_phrase = " ".join(title_words[-size:])
+        lowered_suffix = suffix_phrase.lower()
+        if lowered_location.startswith(lowered_suffix + " "):
+            candidate_location = _normalize_whitespace(normalized_location[len(suffix_phrase) :])
+            if looks_like_linkedin_location(candidate_location) or clean_linkedin_location(candidate_location):
+                return clean_linkedin_location(candidate_location) or candidate_location
     return normalized_location
 
 
@@ -128,6 +137,9 @@ def strip_title_suffix_from_company(company: str, title: str) -> str:
         return normalized_company
     lowered_company = normalized_company.lower()
     lowered_title = normalized_title.lower()
+    if lowered_company.startswith(lowered_title + " "):
+        normalized_company = _normalize_whitespace(normalized_company[len(normalized_title) :])
+        lowered_company = normalized_company.lower()
     if lowered_company.endswith(" " + lowered_title):
         normalized_company = _normalize_whitespace(normalized_company[: -len(normalized_title)])
     return clean_linkedin_company(normalized_company)
@@ -294,6 +306,18 @@ def clean_linkedin_company(value: str) -> str:
     cleaned = re.sub(r"^(Desenvolvedor|Engenheiro|Software Engineer|Backend|Fullstack)\b.*?\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(São Paulo|Sao Paulo|Rio de Janeiro).*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"^\d+\s+(?:conex(?:ão|ões|oes)|ex-funcion[aá]rios?)\s+trabalha(?:m)?\s+aqui$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\s+(?:Pessoa\s+Desenvolvedora|Desenvolvedor(?:\(a\)|a)?|Engenheir[oa](?:\(a\))?|Software Engineer|Analista|Backend|Fullstack)\b.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
     cleaned = _normalize_whitespace(cleaned)
     noise_phrases = (
         "Promovida",
@@ -309,6 +333,8 @@ def clean_linkedin_company(value: str) -> str:
         normalized_segment = _normalize_whitespace(segment)
         lower_segment = normalized_segment.lower()
         if any(phrase.lower() in segment.lower() for phrase in noise_phrases):
+            continue
+        if _is_linkedin_social_proof_segment(normalized_segment):
             continue
         if "brasil (" in lower_segment or "brasil (" in lower_segment.replace("í", "i"):
             continue
@@ -433,11 +459,26 @@ def _split_linkedin_segments(value: str) -> list[str]:
     return [segment.strip() for segment in re.split(r"[·•|]", value) if segment.strip()]
 
 
+def _is_linkedin_social_proof_segment(value: str) -> bool:
+    normalized = _normalize_whitespace(value)
+    if not normalized:
+        return False
+    return bool(
+        re.fullmatch(
+            r"\d+\s+(?:conex(?:ão|ões|oes)|ex-funcion[aá]rios?)\s+trabalha(?:m)?\s+aqui",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
 def looks_like_linkedin_location(value: str) -> bool:
     normalized = _normalize_whitespace(value)
     if not normalized:
         return False
     lower = normalized.lower()
+    if lower in {"remoto", "remote", "híbrido", "hibrido", "hybrid", "presencial", "onsite"}:
+        return True
     if any(
         marker in lower
         for marker in (
@@ -568,11 +609,15 @@ class LinkedInDeterministicCollector:
         *,
         storage_state_path: str | Path,
         headless: bool,
+        max_pages_per_cycle: int = 2,
         field_repairer: object | None = None,
+        known_job_url_exists: Callable[[str], bool] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
+        self.max_pages_per_cycle = max_pages_per_cycle
         self.field_repairer = field_repairer
+        self.known_job_url_exists = known_job_url_exists
 
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
         if not self.storage_state_path.exists():
@@ -607,7 +652,7 @@ class LinkedInDeterministicCollector:
                     raise RuntimeError(
                         "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
                     ) from exc
-                raw_cards = await self._extract_visible_cards(page, max_jobs)
+                raw_cards = await self._collect_cards_across_pages(page, max_jobs)
                 enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
                 await context.close()
@@ -656,6 +701,115 @@ class LinkedInDeterministicCollector:
                 )
             )
         return jobs
+
+    def _filter_known_cards(self, cards: list[dict[str, str]]) -> list[dict[str, str]]:
+        if not self.known_job_url_exists:
+            return cards
+        filtered: list[dict[str, str]] = []
+        skipped = 0
+        for card in cards:
+            url = str(card.get("url", "")).strip()
+            if url and self.known_job_url_exists(url):
+                skipped += 1
+                continue
+            filtered.append(card)
+        if skipped:
+            logger.info("LinkedIn pulou %s card(s) ja conhecidos antes do detalhe.", skipped)
+        return filtered
+
+    async def _collect_cards_across_pages(self, page: object, max_jobs: int) -> list[dict[str, str]]:
+        try:
+            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de coleta nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+
+        collected_cards: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+        for page_number in range(1, self.max_pages_per_cycle + 1):
+            await self._dismiss_sign_in_modal(page)
+            try:
+                await page.wait_for_selector("a[href*='/jobs/view/']", timeout=7000)
+            except PlaywrightTimeoutError:
+                if page_number == 1:
+                    raise RuntimeError("nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca")
+                logger.info("LinkedIn pagina %s sem cards visiveis; encerrando paginacao.", page_number)
+                break
+
+            remaining_jobs = max(1, max_jobs - len(collected_cards))
+            page_cards = await self._extract_visible_cards(page, remaining_jobs)
+            page_cards = self._filter_known_cards(page_cards)
+            new_page_cards: list[dict[str, str]] = []
+            for card in page_cards:
+                url = str(card.get("url", "")).strip()
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                new_page_cards.append(card)
+
+            collected_cards.extend(new_page_cards)
+            logger.info(
+                "LinkedIn pagina %s analisada cards=%s novos=%s acumulado=%s",
+                page_number,
+                len(page_cards),
+                len(new_page_cards),
+                len(collected_cards),
+            )
+            if len(collected_cards) >= max_jobs:
+                break
+            if page_number >= self.max_pages_per_cycle:
+                break
+            moved = await self._go_to_next_results_page(page, page_number + 1)
+            if not moved:
+                logger.info("LinkedIn sem proxima pagina navegavel apos pagina %s.", page_number)
+                break
+            await page.wait_for_timeout(1500)
+
+        return collected_cards[:max_jobs]
+
+    async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:
+        return bool(
+            await page.evaluate(
+                """
+                ({ nextPageNumber }) => {
+                  const normalizeText = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+                  const clickable = (node) => node && !node.disabled && node.getAttribute("aria-disabled") !== "true";
+                  const candidates = Array.from(document.querySelectorAll("button, a"));
+                  for (const node of candidates) {
+                    if (!clickable(node)) continue;
+                    const text = normalizeText(node.textContent);
+                    const aria = normalizeText(node.getAttribute("aria-label"));
+                    if (
+                      text === String(nextPageNumber) ||
+                      aria === `page ${nextPageNumber}` ||
+                      aria === `página ${nextPageNumber}` ||
+                      aria.includes(`page ${nextPageNumber}`) ||
+                      aria.includes(`página ${nextPageNumber}`)
+                    ) {
+                      node.click();
+                      return true;
+                    }
+                  }
+                  const nextSelectors = [
+                    ".jobs-search-pagination__button--next",
+                    "button[aria-label='View next page']",
+                    "button[aria-label='Ver proxima pagina']",
+                    "button[aria-label='Ver próxima página']",
+                  ];
+                  for (const selector of nextSelectors) {
+                    const node = document.querySelector(selector);
+                    if (clickable(node)) {
+                      node.click();
+                      return true;
+                    }
+                  }
+                  return false;
+                }
+                """,
+                {"nextPageNumber": next_page_number},
+            )
+        )
 
     async def _enrich_residual_cards(self, context: object, cards: list[dict[str, str]]) -> list[dict[str, str]]:
         enriched_cards: list[dict[str, str]] = []

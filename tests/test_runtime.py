@@ -28,6 +28,28 @@ class FakeProcess:
             raise FileNotFoundError
         return self._cwd
 
+    def cmdline(self) -> list[str]:
+        return self.info["cmdline"]
+
+
+class FakePsutilProcessWithoutInfo:
+    def __init__(self, *, pid: int, name: str = "python.exe", cwd: str | None = None, cmdline: list[str] | None = None) -> None:
+        self.pid = pid
+        self._name = name
+        self._cwd = cwd
+        self._cmdline = cmdline or []
+
+    def name(self) -> str:
+        return self._name
+
+    def cwd(self) -> str:
+        if self._cwd is None:
+            raise FileNotFoundError
+        return self._cwd
+
+    def cmdline(self) -> list[str]:
+        return self._cmdline
+
 
 class RuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -112,3 +134,12 @@ class RuntimeTests(unittest.TestCase):
 
         self.assertEqual(terminated, 1)
         self.assertEqual(terminated_calls, [1234])
+
+    def test_is_project_python_process_supports_psutil_process_without_info(self) -> None:
+        process = FakePsutilProcessWithoutInfo(
+            pid=1234,
+            cwd=str(self.temp_dir),
+            cmdline=["python", "main.py", "--ciclos", "4"],
+        )
+
+        self.assertTrue(is_project_python_process(process, self.temp_dir.resolve(), current_pid=9999))

@@ -1,3 +1,4 @@
+import asyncio
 import shutil
 import sqlite3
 from pathlib import Path
@@ -37,7 +38,8 @@ from job_hunter_agent.collector import (
     should_repair_linkedin_fields,
     summarize_linkedin_raw_card,
 )
-from job_hunter_agent.domain import RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.domain import JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.linkedin import LinkedInDeterministicCollector
 from job_hunter_agent.repository import SqliteJobRepository
 from job_hunter_agent.settings import Settings
 from tests.tmp_workspace import prepare_workspace_tmp_dir
@@ -113,6 +115,11 @@ class FlakyScorer:
         if "Kotlin" in raw_job.title:
             raise RuntimeError("modelo indisponivel")
         return ScoredJob(relevance=7, rationale="Fallback valido.", accepted=True)
+
+
+class FailingIfCalledScorer:
+    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+        raise AssertionError("scorer nao deveria ser chamado para vaga duplicada")
 
 
 class MixedRawSiteCollector:
@@ -286,7 +293,74 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
                 "SELECT message FROM collection_logs WHERE level = 'info' ORDER BY id DESC LIMIT 1"
             ).fetchone()
         self.assertIsNotNone(last_log)
-        self.assertIn("duplicadas=1", last_log[0])
+        self.assertIn("duplicadas=2", last_log[0])
+
+    async def test_collect_new_jobs_skips_known_raw_jobs_before_scoring(self) -> None:
+        existing = RawJob(
+            title="Senior Kotlin Engineer",
+            company="ACME",
+            location="Brasil",
+            work_mode="remoto",
+            salary_text="Nao informado",
+            url="https://example.com/job-1",
+            source_site="LinkedIn",
+            summary="Backend role com Kotlin e Spring.",
+            description="Projeto backend distribuido.",
+        )
+        self.repository.save_new_jobs(
+            [
+                JobPosting(
+                    title=existing.title,
+                    company=existing.company,
+                    location=existing.location,
+                    work_mode=existing.work_mode,
+                    salary_text=existing.salary_text,
+                    url=existing.url,
+                    source_site=existing.source_site,
+                    summary=existing.summary,
+                    relevance=8,
+                    rationale="Ja existente",
+                    external_key=build_external_key(existing),
+                )
+            ]
+        )
+        service = JobCollectionService(
+            settings=self.settings,
+            repository=self.repository,
+            site_collector=FakeSiteCollector(),
+            scorer=FailingIfCalledScorer(),
+        )
+
+        jobs = await service.collect_new_jobs()
+
+        self.assertEqual(jobs, [])
+
+    async def test_collect_new_jobs_remembers_discarded_jobs_to_skip_next_cycle(self) -> None:
+        service = JobCollectionService(
+            settings=self.settings,
+            repository=self.repository,
+            site_collector=FakeSiteCollector(),
+            scorer=FakeScorer(),
+        )
+
+        first_jobs = await service.collect_new_jobs()
+        second_jobs = await service.collect_new_jobs()
+
+        self.assertEqual(len(first_jobs), 1)
+        self.assertEqual(second_jobs, [])
+        self.assertTrue(self.repository.seen_job_exists("https://example.com/job-2", build_external_key(
+            RawJob(
+                title="Junior PHP Developer",
+                company="Legacy Corp",
+                location="Brasil",
+                work_mode="presencial",
+                salary_text="Nao informado",
+                url="https://example.com/job-2",
+                source_site="LinkedIn",
+                summary="Role junior com PHP.",
+                description="Atuacao presencial com PHP.",
+            )
+        )))
 
 
 class ExternalKeyTests(TestCase):
@@ -518,10 +592,32 @@ class ExternalKeyTests(TestCase):
     def test_clean_linkedin_company_rejects_city_fragment(self) -> None:
         self.assertEqual(clean_linkedin_company("Osasco,"), "")
 
+    def test_clean_linkedin_company_rejects_social_proof_segments(self) -> None:
+        self.assertEqual(clean_linkedin_company("20 ex-funcionários trabalham aqui"), "")
+        self.assertEqual(clean_linkedin_company("3 conexões trabalham aqui"), "")
+
+    def test_clean_linkedin_company_strips_trailing_job_fragment(self) -> None:
+        self.assertEqual(clean_linkedin_company("EY Desenvolvedor (a)"), "EY")
+        self.assertEqual(
+            clean_linkedin_company(
+                "Grupo Boticário Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce) Brasil"
+            ),
+            "Grupo Boticário",
+        )
+
     def test_strip_title_prefix_from_location_removes_contaminated_title(self) -> None:
         self.assertEqual(
             strip_title_prefix_from_location(
                 "Desenvolvedor Java São Paulo, São Paulo, Brasil", "Desenvolvedor Java"
+            ),
+            "São Paulo, São Paulo, Brasil",
+        )
+
+    def test_strip_title_prefix_from_location_removes_partial_title_suffix(self) -> None:
+        self.assertEqual(
+            strip_title_prefix_from_location(
+                "Backend Java São Paulo, São Paulo, Brasil",
+                "Desenvolvedor (a) Backend Java",
             ),
             "São Paulo, São Paulo, Brasil",
         )
@@ -619,6 +715,62 @@ class ExternalKeyTests(TestCase):
         self.assertEqual(normalized["company"], "Verx Tecnologia e Inovação")
         self.assertEqual(normalized["location"], "São Paulo, São Paulo, Brasil")
 
+    def test_normalize_linkedin_card_strips_title_prefix_from_company(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor full stack",
+                "company": "Desenvolvedor full stack Vivo (Telefônica Brasil)",
+                "location": "São Paulo, Brasil (Híbrido)",
+                "work_mode": "hibrido",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Desenvolvedor full stack Vivo (Telefônica Brasil) São Paulo, Brasil (Híbrido)",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Vivo (Telefônica Brasil)")
+        self.assertEqual(normalized["location"], "São Paulo, Brasil (Híbrido)")
+
+    def test_normalize_linkedin_card_replaces_social_proof_company_with_inferred_company(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor Java Full Stack Pleno",
+                "company": "20 ex-funcionários trabalham aqui",
+                "location": "Brasil (Remoto)",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Desenvolvedor Java Full Stack Pleno BRQ Digital Solutions Brasil (Remoto)",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "BRQ Digital Solutions")
+        self.assertEqual(normalized["location"], "Brasil (Remoto)")
+
+    def test_normalize_linkedin_card_strips_title_pollution_from_company_before_location(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce)",
+                "company": (
+                    "Grupo Boticário Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce) Brasil"
+                ),
+                "location": "Remoto",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": (
+                    "Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce) "
+                    "Grupo Boticário Brasil (Remoto)"
+                ),
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Grupo Boticário")
+        self.assertEqual(normalized["location"], "Remoto")
+
     def test_should_repair_linkedin_fields_for_suspicious_company_or_location(self) -> None:
         self.assertTrue(
             should_repair_linkedin_fields(
@@ -707,6 +859,94 @@ class ExternalKeyTests(TestCase):
 
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):
+    def test_linkedin_collect_cards_across_pages_accumulates_until_limit(self) -> None:
+        class FakePage:
+            def __init__(self) -> None:
+                self.waited_selectors: list[str] = []
+                self.waited_timeouts: list[int] = []
+
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                self.waited_selectors.append(selector)
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                self.waited_timeouts.append(timeout)
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=3,
+        )
+        page = FakePage()
+        extracted = [
+            [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Um"}],
+            [{"url": "https://www.linkedin.com/jobs/view/2", "title": "Dois"}],
+        ]
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return extracted.pop(0)
+
+        moves = [True, False]
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            return moves.pop(0)
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
+
+        self.assertEqual([card["url"] for card in cards], [
+            "https://www.linkedin.com/jobs/view/1",
+            "https://www.linkedin.com/jobs/view/2",
+        ])
+        self.assertEqual(page.waited_timeouts, [1500])
+
+    def test_linkedin_collect_cards_across_pages_stops_at_max_pages(self) -> None:
+        class FakePage:
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                return None
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                return None
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=1,
+        )
+        page = FakePage()
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Um"}]
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            raise AssertionError("nao deveria tentar proxima pagina")
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
+
+        self.assertEqual(len(cards), 1)
+
+    def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            known_job_url_exists=lambda url: url == "https://www.linkedin.com/jobs/view/1",
+        )
+
+        filtered = collector._filter_known_cards(
+            [
+                {"url": "https://www.linkedin.com/jobs/view/1", "title": "Duplicada"},
+                {"url": "https://www.linkedin.com/jobs/view/2", "title": "Nova"},
+            ]
+        )
+
+        self.assertEqual([card["url"] for card in filtered], ["https://www.linkedin.com/jobs/view/2"])
+
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()
 

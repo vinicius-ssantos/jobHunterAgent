@@ -1,6 +1,11 @@
 import shutil
 import unittest
 
+from job_hunter_agent.applicant import (
+    ApplicationPreparationService,
+    ApplicationPreflightService,
+    classify_job_application_support,
+)
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
@@ -50,6 +55,61 @@ class SqliteJobRepositoryTests(unittest.TestCase):
 
         self.assertEqual(len(saved_first), 1)
         self.assertEqual(len(saved_second), 0)
+
+    def test_job_url_exists_checks_existing_url(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])
+
+        self.assertEqual(len(saved), 1)
+        self.assertTrue(self.repository.job_url_exists("https://example.com/job-1"))
+        self.assertFalse(self.repository.job_url_exists("https://example.com/job-2"))
+
+    def test_job_url_exists_matches_linkedin_variants_by_job_id(self) -> None:
+        saved = self.repository.save_new_jobs(
+            [sample_job("https://www.linkedin.com/jobs/view/123456789/?trackingId=abc", "key-1")]
+        )
+
+        self.assertEqual(len(saved), 1)
+        self.assertTrue(self.repository.job_url_exists("https://www.linkedin.com/jobs/view/123456789/"))
+        self.assertTrue(
+            self.repository.job_exists(
+                "https://www.linkedin.com/jobs/view/123456789/?currentJobId=123456789",
+                "different-key",
+            )
+        )
+
+    def test_remember_seen_job_persists_and_updates_seen_registry(self) -> None:
+        self.repository.remember_seen_job(
+            "https://example.com/job-1",
+            "key-1",
+            "LinkedIn",
+            "discarded_rule:modalidade fora do perfil",
+        )
+        self.repository.remember_seen_job(
+            "https://example.com/job-1",
+            "key-1",
+            "LinkedIn",
+            "discarded_score:2",
+        )
+
+        self.assertTrue(self.repository.seen_job_exists("https://example.com/job-1", "key-1"))
+        self.assertTrue(self.repository.seen_job_url_exists("https://example.com/job-1"))
+        self.assertFalse(self.repository.seen_job_exists("https://example.com/job-2", "key-2"))
+
+    def test_seen_job_exists_matches_linkedin_variants_by_job_id(self) -> None:
+        self.repository.remember_seen_job(
+            "https://www.linkedin.com/jobs/view/987654321/?trackingId=abc",
+            "key-1",
+            "LinkedIn",
+            "discarded_rule:modalidade fora do perfil",
+        )
+
+        self.assertTrue(self.repository.seen_job_url_exists("https://www.linkedin.com/jobs/view/987654321/"))
+        self.assertTrue(
+            self.repository.seen_job_exists(
+                "https://www.linkedin.com/jobs/view/987654321/?currentJobId=987654321",
+                "different-key",
+            )
+        )
 
     def test_summary_counts_statuses(self) -> None:
         saved = self.repository.save_new_jobs(
@@ -139,3 +199,139 @@ class SqliteJobRepositoryTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 2)
         self.assertEqual(jobs[0].url, "https://example.com/job-2")
+
+    def test_create_application_draft_is_idempotent_per_job(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+
+        first = self.repository.create_application_draft(saved.id, notes="aguardando definicao")
+        second = self.repository.create_application_draft(saved.id)
+
+        self.assertEqual(first.id, second.id)
+        self.assertEqual(first.job_id, saved.id)
+        self.assertEqual(first.status, "draft")
+
+    def test_create_application_draft_requires_existing_job(self) -> None:
+        with self.assertRaises(ValueError):
+            self.repository.create_application_draft(999)
+
+    def test_mark_application_status_and_summary(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(saved.id, notes="primeiro passo")
+
+        self.repository.mark_application_status(application.id, status="ready_for_review")
+        self.repository.mark_application_status(
+            application.id,
+            status="confirmed",
+            notes="confirmado manualmente",
+        )
+        self.repository.mark_application_status(
+            application.id,
+            status="submitted",
+            submitted_at="2026-04-04T10:00:00",
+        )
+
+        stored = self.repository.get_application_by_job(saved.id)
+        summary = self.repository.application_summary()
+
+        self.assertEqual(stored.status, "submitted")
+        self.assertEqual(stored.notes, "confirmado manualmente")
+        self.assertEqual(stored.submitted_at, "2026-04-04T10:00:00")
+        self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["submitted"], 1)
+
+    def test_mark_application_status_rejects_invalid_value(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(saved.id)
+
+        with self.assertRaises(ValueError):
+            self.repository.mark_application_status(application.id, status="queued")
+
+    def test_list_applications_by_status(self) -> None:
+        first_job = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        second_job = self.repository.save_new_jobs([sample_job("https://example.com/job-2", "key-2")])[0]
+        first_application = self.repository.create_application_draft(first_job.id)
+        second_application = self.repository.create_application_draft(second_job.id)
+
+        self.repository.mark_application_status(first_application.id, status="ready_for_review")
+        self.repository.mark_application_status(second_application.id, status="cancelled")
+
+        ready = self.repository.list_applications_by_status("ready_for_review")
+        cancelled = self.repository.list_applications_by_status("cancelled")
+
+        self.assertEqual([item.job_id for item in ready], [first_job.id])
+        self.assertEqual([item.job_id for item in cancelled], [second_job.id])
+
+    def test_application_preparation_service_creates_drafts_only_for_approved_jobs(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        collected = self.repository.save_new_jobs([sample_job("https://example.com/job-2", "key-2")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        service = ApplicationPreparationService(self.repository)
+
+        drafts = service.create_drafts_for_approved_jobs(
+            [approved.id, collected.id, 999],
+            notes="rascunho criado apos aprovacao humana",
+        )
+
+        self.assertEqual([draft.job_id for draft in drafts], [approved.id])
+        stored = self.repository.get_application_by_job(approved.id)
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored.notes, "rascunho criado apos aprovacao humana")
+        self.assertEqual(stored.support_level, "manual_review")
+        self.assertIsNone(self.repository.get_application_by_job(collected.id))
+
+    def test_create_application_draft_persists_support_metadata(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+
+        draft = self.repository.create_application_draft(
+            saved.id,
+            support_level="unsupported",
+            support_rationale="portal externo nao suportado",
+        )
+
+        self.assertEqual(draft.support_level, "unsupported")
+        self.assertEqual(draft.support_rationale, "portal externo nao suportado")
+
+    def test_classify_job_application_support_is_conservative(self) -> None:
+        linkedin_job = sample_job("https://www.linkedin.com/jobs/view/123", "key-1")
+        gupy_job = sample_job("https://empresa.gupy.io/job/123", "key-2")
+        indeed_job = sample_job("https://www.indeed.com/viewjob?jk=123", "key-3")
+
+        self.assertEqual(classify_job_application_support(linkedin_job).support_level, "manual_review")
+        self.assertEqual(classify_job_application_support(gupy_job).support_level, "unsupported")
+        self.assertEqual(classify_job_application_support(indeed_job).support_level, "manual_review")
+
+    def test_application_preflight_keeps_confirmed_linkedin_as_confirmed(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationPreflightService(self.repository).run_for_application(application.id)
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(result.application_status, "confirmed")
+        self.assertEqual(stored.status, "confirmed")
+        self.assertIn("preflight ok", stored.notes)
+        self.assertEqual(stored.last_error, "")
+
+    def test_application_preflight_moves_unsupported_to_error_submit(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://empresa.gupy.io/job/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="unsupported",
+            support_rationale="portal externo com formulario proprio ainda nao suportado",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationPreflightService(self.repository).run_for_application(application.id)
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.application_status, "error_submit")
+        self.assertEqual(stored.status, "error_submit")
+        self.assertIn("nao suportado", stored.last_error)

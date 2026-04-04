@@ -5,6 +5,19 @@ from typing import Optional
 
 
 VALID_STATUSES = {"collected", "approved", "rejected", "error_collect"}
+VALID_APPLICATION_STATUSES = {
+    "draft",
+    "ready_for_review",
+    "confirmed",
+    "submitted",
+    "error_submit",
+    "cancelled",
+}
+VALID_APPLICATION_SUPPORT_LEVELS = {
+    "auto_supported",
+    "manual_review",
+    "unsupported",
+}
 
 
 @dataclass(frozen=True)
@@ -69,3 +82,17 @@ class CollectionReport:
     jobs_seen: int
     jobs_saved: int
     errors: int
+
+
+@dataclass(frozen=True)
+class JobApplication:
+    job_id: int
+    status: str = "draft"
+    id: Optional[int] = None
+    support_level: str = "manual_review"
+    support_rationale: str = ""
+    notes: str = ""
+    last_error: str = ""
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    submitted_at: Optional[str] = None
