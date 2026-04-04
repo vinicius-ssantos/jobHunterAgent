@@ -25,7 +25,10 @@ from job_hunter_agent.collector import (
     normalize_linkedin_work_mode,
     parse_scoring_response,
     parse_salary_floor,
+    infer_linkedin_company_from_summary,
     standardize_error_message,
+    strip_linkedin_chrome_prefix,
+    strip_title_prefix_from_location,
     should_enrich_linkedin_card,
     summarize_linkedin_raw_card,
 )
@@ -509,6 +512,42 @@ class ExternalKeyTests(TestCase):
 
     def test_clean_linkedin_company_rejects_city_fragment(self) -> None:
         self.assertEqual(clean_linkedin_company("Osasco,"), "")
+
+    def test_strip_title_prefix_from_location_removes_contaminated_title(self) -> None:
+        self.assertEqual(
+            strip_title_prefix_from_location(
+                "Desenvolvedor Java São Paulo, São Paulo, Brasil", "Desenvolvedor Java"
+            ),
+            "São Paulo, São Paulo, Brasil",
+        )
+
+    def test_infer_linkedin_company_from_summary_extracts_company_between_title_and_location(self) -> None:
+        self.assertEqual(
+            infer_linkedin_company_from_summary(
+                "Desenvolvedor Java Stefanini Brasil Osasco, São Paulo, Brasil (Híbrido)",
+                "Desenvolvedor Java",
+                "Osasco, São Paulo, Brasil (Híbrido)",
+            ),
+            "Stefanini Brasil",
+        )
+
+    def test_strip_linkedin_chrome_prefix_removes_navigation_noise(self) -> None:
+        self.assertEqual(
+            strip_linkedin_chrome_prefix(
+                "0 notificação Pular para conteúdo principal Início Minha rede Vagas Mensagens Notificações Eu Para negócios Reative Premium: 50% de desconto Verx Tecnologia e Inovação Desenvolvedor Java"
+            ),
+            "Verx Tecnologia e Inovação Desenvolvedor Java",
+        )
+
+    def test_infer_linkedin_company_from_summary_removes_linkedin_chrome_and_trailing_title(self) -> None:
+        self.assertEqual(
+            infer_linkedin_company_from_summary(
+                "0 notificação Pular para conteúdo principal Início Minha rede Vagas Mensagens Notificações Eu Para negócios Reative Premium: 50% de desconto Verx Tecnologia e Inovação Desenvolvedor Java São Paulo, São Paulo, Brasil",
+                "Desenvolvedor Java",
+                "São Paulo, São Paulo, Brasil",
+            ),
+            "Verx Tecnologia e Inovação",
+        )
 
     def test_should_enrich_linkedin_card_requires_detail_when_company_or_location_is_missing(self) -> None:
         self.assertTrue(should_enrich_linkedin_card({"company": "", "location": "Osasco, São Paulo, Brasil (Híbrido)"}))

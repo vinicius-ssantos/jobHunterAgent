@@ -904,6 +904,9 @@ def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
             company = location_as_company
     if not location:
         location = clean_linkedin_location(raw_summary)
+    location = strip_title_prefix_from_location(location, title)
+    if not company:
+        company = infer_linkedin_company_from_summary(raw_summary, title, location)
     work_mode = normalize_linkedin_work_mode(card.get("work_mode", ""), location)
     salary_text = clean_linkedin_salary(card.get("salary_text", ""))
     summary = clean_linkedin_summary(card.get("summary", ""))
@@ -946,6 +949,54 @@ def merge_linkedin_card_with_detail(card: dict[str, str], detail: dict[str, str]
     if summary:
         merged["detail_summary"] = summary
     return merged
+
+
+def strip_title_prefix_from_location(location: str, title: str) -> str:
+    normalized_location = _normalize_whitespace(location)
+    normalized_title = _normalize_whitespace(title)
+    if not normalized_location or not normalized_title:
+        return normalized_location
+    lowered_location = normalized_location.lower()
+    lowered_title = normalized_title.lower()
+    if lowered_location.startswith(lowered_title + " "):
+        normalized_location = _normalize_whitespace(normalized_location[len(normalized_title) :])
+    return clean_linkedin_location(normalized_location) or normalized_location
+
+
+def infer_linkedin_company_from_summary(summary: str, title: str, location: str) -> str:
+    normalized_summary = strip_linkedin_chrome_prefix(_normalize_whitespace(summary))
+    normalized_title = _normalize_whitespace(title)
+    normalized_location = _normalize_whitespace(location)
+    if not normalized_summary:
+        return ""
+    candidate = normalized_summary
+    if normalized_title:
+        candidate = re.sub(rf"^{re.escape(normalized_title)}\s*", "", candidate, flags=re.IGNORECASE)
+        candidate = re.sub(rf"\s*{re.escape(normalized_title)}$", "", candidate, flags=re.IGNORECASE)
+    if normalized_location:
+        candidate = re.sub(rf"\s*{re.escape(normalized_location)}.*$", "", candidate, flags=re.IGNORECASE)
+    if normalized_title:
+        candidate = re.sub(rf"\s*{re.escape(normalized_title)}$", "", candidate, flags=re.IGNORECASE)
+    return clean_linkedin_company(candidate)
+
+
+def strip_linkedin_chrome_prefix(value: str) -> str:
+    cleaned = _normalize_whitespace(value)
+    chrome_markers = (
+        "Reative Premium:",
+        "Para negócios",
+        "Notificações",
+        "Mensagens",
+        "Minha rede",
+        "Pular para conteúdo principal",
+    )
+    for marker in chrome_markers:
+        marker_index = cleaned.lower().rfind(marker.lower())
+        if marker_index != -1:
+            cleaned = _normalize_whitespace(cleaned[marker_index + len(marker) :])
+            break
+    cleaned = re.sub(r"^\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
+    return cleaned
 
 
 def clean_linkedin_title(value: str) -> str:
