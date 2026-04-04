@@ -71,6 +71,9 @@ class JobRepository(Protocol):
     def get_application_by_job(self, job_id: int) -> Optional[JobApplication]:
         raise NotImplementedError
 
+    def get_application(self, application_id: int) -> Optional[JobApplication]:
+        raise NotImplementedError
+
     def mark_application_status(
         self,
         application_id: int,
@@ -389,6 +392,18 @@ class SqliteJobRepository:
                 WHERE job_id = ?
                 """,
                 (job_id,),
+            ).fetchone()
+        return self._row_to_application(row) if row else None
+
+    def get_application(self, application_id: int) -> Optional[JobApplication]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
+                FROM job_applications
+                WHERE id = ?
+                """,
+                (application_id,),
             ).fetchone()
         return self._row_to_application(row) if row else None
 

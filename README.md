@@ -203,6 +203,9 @@ python main.py
 - `/pendentes` lista vagas aguardando revisao
 - `/recentes` mostra as ultimas vagas registradas
 - `/candidaturas` mostra rascunhos e candidaturas em andamento
+  - `Preparar` move `draft -> ready_for_review`
+  - `Confirmar` move `ready_for_review -> confirmed`
+  - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
 

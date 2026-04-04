@@ -119,30 +119,48 @@ class TelegramNotifier:
     async def _handle_callback(self, update, context) -> None:
         query = update.callback_query
         await query.answer()
-        action, job_id_text = query.data.split(":", maxsplit=1)
-        job_id = int(job_id_text)
-        job = self.repository.get_job(job_id)
-        if not job:
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(build_missing_job_reply(job_id))
+        action, target_id_text = query.data.split(":", maxsplit=1)
+        target_id = int(target_id_text)
+        if action in {"approve", "reject"}:
+            job = self.repository.get_job(target_id)
+            if not job:
+                await query.edit_message_reply_markup(reply_markup=None)
+                await query.message.reply_text(build_missing_job_reply(target_id))
+                return
+
+            next_status, reply_text = resolve_review_action(job, action)
+            if next_status is None:
+                await query.edit_message_reply_markup(reply_markup=None)
+                await query.message.reply_text(reply_text)
+                return
+
+            if next_status == "approved":
+                self.repository.mark_status(target_id, next_status)
+                await query.edit_message_reply_markup(reply_markup=None)
+                await query.message.reply_text(reply_text)
+                if self.on_approved:
+                    await self.on_approved([target_id])
+            elif next_status == "rejected":
+                self.repository.mark_status(target_id, next_status)
+                await query.edit_message_reply_markup(reply_markup=None)
+                await query.message.reply_text(reply_text)
             return
 
-        next_status, reply_text = resolve_review_action(job, action)
+        application = self.repository.get_application(target_id)
+        if not application:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text(build_missing_application_reply(target_id))
+            return
+
+        next_status, reply_text = resolve_application_action(application, action)
         if next_status is None:
             await query.edit_message_reply_markup(reply_markup=None)
             await query.message.reply_text(reply_text)
             return
 
-        if next_status == "approved":
-            self.repository.mark_status(job_id, next_status)
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(reply_text)
-            if self.on_approved:
-                await self.on_approved([job_id])
-        elif next_status == "rejected":
-            self.repository.mark_status(job_id, next_status)
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(reply_text)
+        self.repository.mark_application_status(target_id, status=next_status)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(reply_text)
 
     async def _command_start(self, update, context) -> None:
         await update.message.reply_text(
@@ -182,6 +200,24 @@ class TelegramNotifier:
 
     async def _command_applications(self, update, context) -> None:
         await update.message.reply_text(build_application_queue_message(self.repository))
+        applications: list[JobApplication] = []
+        for status in ("draft", "ready_for_review", "confirmed"):
+            applications.extend(self.repository.list_applications_by_status(status)[:5])
+        if not applications:
+            return
+        for application in applications:
+            await self._send_application_card(application)
+
+    async def _send_application_card(self, application: JobApplication) -> None:
+        message = build_application_card_message(self.repository, application)
+        keyboard = self._inline_keyboard_markup(build_application_action_rows(application, self._inline_keyboard_button))
+        await self.application.bot.send_message(
+            chat_id=self.settings.telegram_chat_id,
+            text=message,
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+            reply_markup=keyboard,
+        )
 
 
 def resolve_review_action(job: JobPosting, action: str) -> tuple[str | None, str]:
@@ -217,6 +253,10 @@ def build_job_card_message(job: JobPosting) -> str:
 
 def build_missing_job_reply(job_id: int) -> str:
     return f"Vaga nao encontrada ou ja removida. id={job_id}"
+
+
+def build_missing_application_reply(application_id: int) -> str:
+    return f"Candidatura nao encontrada ou ja removida. id={application_id}"
 
 
 def build_application_queue_message(repository: JobRepository) -> str:
@@ -255,3 +295,70 @@ def build_application_preview_line(repository: JobRepository, application: JobAp
         f"{job.id}: {job.title} - {job.company} "
         f"[{application.status} | {application.support_level}]"
     )
+
+
+def build_application_card_message(repository: JobRepository, application: JobApplication) -> str:
+    job = repository.get_job(application.job_id)
+    if not job:
+        return (
+            f"*Candidatura {application.id}*\n"
+            f"Job id: {application.job_id}\n"
+            f"Status: {application.status}\n"
+            f"Suporte: {application.support_level}\n"
+            f"Racional: {application.support_rationale or 'Nao informado'}"
+        )
+    return (
+        f"*Candidatura {application.id}*\n"
+        f"Vaga: {job.title}\n"
+        f"Empresa: {job.company}\n"
+        f"Status: {application.status}\n"
+        f"Suporte: {application.support_level}\n"
+        f"Racional: {application.support_rationale or 'Nao informado'}\n"
+        f"Observacoes: {application.notes or 'Nenhuma'}\n"
+        f"[Abrir vaga]({job.url})"
+    )
+
+
+def build_application_action_rows(application: JobApplication, button_factory) -> list[list[object]]:
+    if application.status == "draft":
+        return [
+            [
+                button_factory("Preparar", callback_data=f"app_prepare:{application.id}"),
+                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
+            ]
+        ]
+    if application.status == "ready_for_review":
+        return [
+            [
+                button_factory("Confirmar", callback_data=f"app_confirm:{application.id}"),
+                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
+            ]
+        ]
+    return []
+
+
+def resolve_application_action(application: JobApplication, action: str) -> tuple[str | None, str]:
+    if action == "app_prepare":
+        if application.status == "draft":
+            return "ready_for_review", f"Candidatura pronta para revisao: id={application.id}"
+        if application.status == "ready_for_review":
+            return None, f"Candidatura ja estava pronta para revisao: id={application.id}"
+        if application.status == "confirmed":
+            return None, f"Candidatura ja estava confirmada: id={application.id}"
+        if application.status == "cancelled":
+            return None, f"Candidatura ja estava cancelada: id={application.id}"
+    if action == "app_confirm":
+        if application.status == "ready_for_review":
+            return "confirmed", f"Candidatura confirmada: id={application.id}"
+        if application.status == "draft":
+            return None, f"Candidatura ainda nao foi preparada para revisao: id={application.id}"
+        if application.status == "confirmed":
+            return None, f"Candidatura ja estava confirmada: id={application.id}"
+        if application.status == "cancelled":
+            return None, f"Candidatura ja estava cancelada: id={application.id}"
+    if action == "app_cancel":
+        if application.status == "cancelled":
+            return None, f"Candidatura ja estava cancelada: id={application.id}"
+        if application.status in {"draft", "ready_for_review", "confirmed"}:
+            return "cancelled", f"Candidatura cancelada: id={application.id}"
+    return None, "Acao de candidatura invalida."

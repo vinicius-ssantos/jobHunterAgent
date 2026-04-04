@@ -307,6 +307,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] resumo agregado
 - [x] Integrar candidatura assistida ao fluxo humano de revisao.
 - [x] Classificar rascunhos entre `auto_supported`, `manual_review` e `unsupported`.
+- [x] Permitir confirmacao humana explicita da candidatura antes de qualquer submissao.
 - [ ] Implementar automacao real de candidatura por portal.
 
 ## Modelo de comentario de finalizacao
@@ -395,3 +396,6 @@ Comentario: a pre-fase de candidatura passou a classificar cada rascunho como `a
 
 Concluido em: 2026-04-04
 Comentario: a classificacao conservadora de aplicabilidade foi integrada ao fluxo real dos rascunhos de candidatura e passou a ficar visivel no Telegram, distinguindo claramente o que pode entrar em automacao futura do que deve permanecer manual ou nao suportado.
+
+Concluido em: 2026-04-04
+Comentario: o Telegram passou a permitir a progressao humana explicita dos rascunhos de candidatura entre `draft`, `ready_for_review`, `confirmed` e `cancelled`, mantendo a submissao automatica ainda fora do fluxo.
