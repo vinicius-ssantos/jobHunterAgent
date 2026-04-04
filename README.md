@@ -173,6 +173,18 @@ Rodar um ciclo imediatamente sem inicializar Telegram:
 python main.py --agora --sem-telegram
 ```
 
+Rodar um numero finito de ciclos imediatamente, sem cair no agendamento diario:
+
+```bash
+python main.py --ciclos 3
+```
+
+Se quiser manter um intervalo entre esses ciclos:
+
+```bash
+python main.py --ciclos 3 --intervalo-ciclos-segundos 60
+```
+
 Exportar a sessao autenticada do LinkedIn para `storage_state`:
 
 ```bash
