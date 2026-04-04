@@ -35,6 +35,15 @@ class JobRepository(Protocol):
     def job_url_exists(self, url: str) -> bool:
         raise NotImplementedError
 
+    def seen_job_exists(self, url: str, external_key: str) -> bool:
+        raise NotImplementedError
+
+    def seen_job_url_exists(self, url: str) -> bool:
+        raise NotImplementedError
+
+    def remember_seen_job(self, url: str, external_key: str, source_site: str, reason: str) -> None:
+        raise NotImplementedError
+
     def summary(self) -> dict[str, int]:
         raise NotImplementedError
 
@@ -147,6 +156,19 @@ class SqliteJobRepository:
                     jobs_seen INTEGER NOT NULL DEFAULT 0,
                     jobs_saved INTEGER NOT NULL DEFAULT 0,
                     errors INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS seen_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    url TEXT NOT NULL UNIQUE,
+                    external_key TEXT NOT NULL,
+                    source_site TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
@@ -274,6 +296,37 @@ class SqliteJobRepository:
                 (url,),
             ).fetchone()
         return row is not None
+
+    def seen_job_exists(self, url: str, external_key: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM seen_jobs WHERE url = ? OR external_key = ?",
+                (url, external_key),
+            ).fetchone()
+        return row is not None
+
+    def seen_job_url_exists(self, url: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM seen_jobs WHERE url = ?",
+                (url,),
+            ).fetchone()
+        return row is not None
+
+    def remember_seen_job(self, url: str, external_key: str, source_site: str, reason: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO seen_jobs (url, external_key, source_site, reason)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(url) DO UPDATE SET
+                    external_key = excluded.external_key,
+                    source_site = excluded.source_site,
+                    reason = excluded.reason,
+                    last_seen_at = CURRENT_TIMESTAMP
+                """,
+                (url, external_key, source_site, reason),
+            )
 
     def summary(self) -> dict[str, int]:
         with self._connect() as connection:

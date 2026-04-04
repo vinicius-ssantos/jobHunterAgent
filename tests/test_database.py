@@ -63,6 +63,24 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertTrue(self.repository.job_url_exists("https://example.com/job-1"))
         self.assertFalse(self.repository.job_url_exists("https://example.com/job-2"))
 
+    def test_remember_seen_job_persists_and_updates_seen_registry(self) -> None:
+        self.repository.remember_seen_job(
+            "https://example.com/job-1",
+            "key-1",
+            "LinkedIn",
+            "discarded_rule:modalidade fora do perfil",
+        )
+        self.repository.remember_seen_job(
+            "https://example.com/job-1",
+            "key-1",
+            "LinkedIn",
+            "discarded_score:2",
+        )
+
+        self.assertTrue(self.repository.seen_job_exists("https://example.com/job-1", "key-1"))
+        self.assertTrue(self.repository.seen_job_url_exists("https://example.com/job-1"))
+        self.assertFalse(self.repository.seen_job_exists("https://example.com/job-2", "key-2"))
+
     def test_summary_counts_statuses(self) -> None:
         saved = self.repository.save_new_jobs(
             [

@@ -45,11 +45,15 @@ class JobHunterApplication:
                 persistent_profile_dir=self.settings.linkedin_persistent_profile_dir,
                 linkedin_storage_state_path=self.settings.linkedin_storage_state_path,
                 headless=self.settings.browser_headless,
-                known_job_url_exists=self.repository.job_url_exists,
+                known_job_url_exists=lambda url: (
+                    self.repository.job_url_exists(url) or self.repository.seen_job_url_exists(url)
+                ),
                 linkedin_collector=LinkedInDeterministicCollector(
                     storage_state_path=self.settings.linkedin_storage_state_path,
                     headless=self.settings.browser_headless,
-                    known_job_url_exists=self.repository.job_url_exists,
+                    known_job_url_exists=lambda url: (
+                        self.repository.job_url_exists(url) or self.repository.seen_job_url_exists(url)
+                    ),
                     field_repairer=(
                         OllamaLinkedInFieldRepairer(
                             model_name=self.settings.ollama_model,

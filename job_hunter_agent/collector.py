@@ -505,7 +505,10 @@ class JobCollectionService:
         skipped = 0
         for raw_job in raw_jobs:
             external_key = build_external_key(raw_job)
-            if self.repository.job_exists(raw_job.url, external_key):
+            if self.repository.job_exists(raw_job.url, external_key) or self.repository.seen_job_exists(
+                raw_job.url,
+                external_key,
+            ):
                 skipped += 1
                 continue
             filtered.append(raw_job)
@@ -522,6 +525,12 @@ class JobCollectionService:
 
             prefilter = self._apply_rule_filters(raw_job)
             if prefilter is not None:
+                self.repository.remember_seen_job(
+                    raw_job.url,
+                    build_external_key(raw_job),
+                    raw_job.source_site,
+                    f"discarded_rule:{prefilter}",
+                )
                 logger.info("Vaga descartada por regra: %s | motivo=%s", raw_job.title, prefilter)
                 continue
 
@@ -533,6 +542,12 @@ class JobCollectionService:
                 )
                 continue
             if not score.accepted:
+                self.repository.remember_seen_job(
+                    raw_job.url,
+                    build_external_key(raw_job),
+                    raw_job.source_site,
+                    f"discarded_score:{score.relevance}",
+                )
                 logger.info(
                     "Vaga descartada por score: %s | nota=%s | motivo=%s",
                     raw_job.title,

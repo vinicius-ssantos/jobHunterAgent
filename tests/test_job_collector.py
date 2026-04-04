@@ -292,7 +292,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
                 "SELECT message FROM collection_logs WHERE level = 'info' ORDER BY id DESC LIMIT 1"
             ).fetchone()
         self.assertIsNotNone(last_log)
-        self.assertIn("duplicadas=1", last_log[0])
+        self.assertIn("duplicadas=2", last_log[0])
 
     async def test_collect_new_jobs_skips_known_raw_jobs_before_scoring(self) -> None:
         existing = RawJob(
@@ -333,6 +333,33 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         jobs = await service.collect_new_jobs()
 
         self.assertEqual(jobs, [])
+
+    async def test_collect_new_jobs_remembers_discarded_jobs_to_skip_next_cycle(self) -> None:
+        service = JobCollectionService(
+            settings=self.settings,
+            repository=self.repository,
+            site_collector=FakeSiteCollector(),
+            scorer=FakeScorer(),
+        )
+
+        first_jobs = await service.collect_new_jobs()
+        second_jobs = await service.collect_new_jobs()
+
+        self.assertEqual(len(first_jobs), 1)
+        self.assertEqual(second_jobs, [])
+        self.assertTrue(self.repository.seen_job_exists("https://example.com/job-2", build_external_key(
+            RawJob(
+                title="Junior PHP Developer",
+                company="Legacy Corp",
+                location="Brasil",
+                work_mode="presencial",
+                salary_text="Nao informado",
+                url="https://example.com/job-2",
+                source_site="LinkedIn",
+                summary="Role junior com PHP.",
+                description="Atuacao presencial com PHP.",
+            )
+        )))
 
 
 class ExternalKeyTests(TestCase):
