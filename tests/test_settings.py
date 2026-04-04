@@ -21,6 +21,7 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.profile_text, "Backend engineer")
         self.assertEqual(settings.collection_time, "09:30")
         self.assertEqual(settings.review_polling_grace_seconds, 120)
+        self.assertFalse(settings.relaxed_matching_for_testing)
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")
@@ -73,3 +74,29 @@ class SettingsTests(TestCase):
                 telegram_chat_id="chat",
                 sites=(SiteConfig(name="LinkedIn", search_url="https://example.com", enabled=False),),
             )
+
+    def test_relaxed_matching_for_testing_changes_scoring_inputs(self) -> None:
+        settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            relaxed_matching_for_testing=True,
+        )
+
+        self.assertNotIn("junior", settings.scoring_exclude_keywords)
+        self.assertIn("junior e pleno", settings.scoring_profile_text)
+        self.assertEqual(settings.scoring_minimum_relevance, 4)
+
+    def test_relaxed_matching_for_testing_can_be_tuned_by_settings(self) -> None:
+        settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            relaxed_matching_for_testing=True,
+            relaxed_testing_profile_hint="Aceite tambem vagas pleno e mid-level.",
+            relaxed_testing_remove_exclude_keywords=("junior", "trainee"),
+            relaxed_testing_minimum_relevance=5,
+        )
+
+        self.assertIn("pleno e mid-level", settings.scoring_profile_text)
+        self.assertNotIn("junior", settings.scoring_exclude_keywords)
+        self.assertNotIn("trainee", settings.scoring_exclude_keywords)
+        self.assertEqual(settings.scoring_minimum_relevance, 5)

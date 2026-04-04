@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     accepted_work_modes: tuple[str, ...] = ("remoto", "hibrido", "hybrid")
     minimum_salary_brl: int = 10000
     minimum_relevance: int = 6
+    relaxed_matching_for_testing: bool = False
+    relaxed_testing_profile_hint: str = (
+        "Para testes controlados de parsing, considere tambem vagas junior e pleno como aceitaveis."
+    )
+    relaxed_testing_remove_exclude_keywords: tuple[str, ...] = ("junior",)
+    relaxed_testing_minimum_relevance: int = 4
     max_jobs_per_site: int = 20
     portal_collection_timeout_seconds: int = 180
     review_polling_grace_seconds: int = 120
@@ -109,6 +115,25 @@ class Settings(BaseSettings):
         if not any(site.enabled for site in value):
             raise ValueError("Ative pelo menos um site.")
         return value
+
+    @property
+    def scoring_profile_text(self) -> str:
+        if not self.relaxed_matching_for_testing:
+            return self.profile_text
+        return f"{self.profile_text} {self.relaxed_testing_profile_hint}".strip()
+
+    @property
+    def scoring_exclude_keywords(self) -> tuple[str, ...]:
+        if not self.relaxed_matching_for_testing:
+            return self.exclude_keywords
+        blocked = {keyword.lower() for keyword in self.relaxed_testing_remove_exclude_keywords}
+        return tuple(keyword for keyword in self.exclude_keywords if keyword.lower() not in blocked)
+
+    @property
+    def scoring_minimum_relevance(self) -> int:
+        if not self.relaxed_matching_for_testing:
+            return self.minimum_relevance
+        return self.relaxed_testing_minimum_relevance
 
 
 def load_settings() -> Settings:

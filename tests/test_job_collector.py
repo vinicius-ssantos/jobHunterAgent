@@ -25,6 +25,7 @@ from job_hunter_agent.collector import (
     parse_scoring_response,
     parse_salary_floor,
     standardize_error_message,
+    summarize_linkedin_raw_card,
 )
 from job_hunter_agent.domain import RawJob, ScoredJob, SiteConfig
 from job_hunter_agent.repository import SqliteJobRepository
@@ -336,6 +337,22 @@ class ExternalKeyTests(TestCase):
             "erro de coleta | site=LinkedIn | detalhe=timeout",
         )
 
+    def test_summarize_linkedin_raw_card_keeps_only_relevant_debug_fields(self) -> None:
+        summary = summarize_linkedin_raw_card(
+            {
+                "title": "Desenvolvedor Java",
+                "company": "",
+                "location": "",
+                "raw_company_candidates": "Stefanini Brasil",
+                "raw_metadata_candidates": "Osasco, São Paulo, Brasil (Híbrido)",
+                "raw_lines": "Desenvolvedor Java | Stefanini Brasil | Osasco, São Paulo, Brasil (Híbrido)",
+            }
+        )
+
+        self.assertIn("title='Desenvolvedor Java'", summary)
+        self.assertIn("raw_company_candidates='Stefanini Brasil'", summary)
+        self.assertIn("raw_metadata_candidates='Osasco, São Paulo, Brasil (Híbrido)'", summary)
+
     def test_load_playwright_storage_state_normalizes_partition_key(self) -> None:
         temp_dir = prepare_workspace_tmp_dir("storage")
         temp_path = temp_dir / "storage-state.json"
@@ -484,6 +501,9 @@ class ExternalKeyTests(TestCase):
             ),
             "Osasco, São Paulo, Brasil (Híbrido)",
         )
+
+    def test_clean_linkedin_company_rejects_city_fragment(self) -> None:
+        self.assertEqual(clean_linkedin_company("Osasco,"), "")
 
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):

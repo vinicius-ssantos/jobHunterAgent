@@ -334,11 +334,21 @@ class LinkedInDeterministicCollector:
             if not url or url in seen_urls:
                 continue
             seen_urls.add(url)
+            company = normalized_card["company"].strip() or "Empresa nao informada"
+            location = normalized_card["location"].strip() or "Local nao informado"
+            if company == "Empresa nao informada" or location == "Local nao informado":
+                logger.warning(
+                    "LinkedIn card residual sem company/location | title=%r company=%r location=%r raw=%s",
+                    normalized_card["title"].strip(),
+                    company,
+                    location,
+                    summarize_linkedin_raw_card(card),
+                )
             jobs.append(
                 RawJob(
                     title=normalized_card["title"].strip(),
-                    company=normalized_card["company"].strip() or "Empresa nao informada",
-                    location=normalized_card["location"].strip() or "Local nao informado",
+                    company=company,
+                    location=location,
                     work_mode=normalized_card["work_mode"].strip() or "Nao informado",
                     salary_text=normalized_card["salary_text"].strip() or "Nao informado",
                     url=url,
@@ -417,13 +427,43 @@ class LinkedInDeterministicCollector:
                   .split(/\\n+/)
                   .map((line) => normalizeLine(line))
                   .filter(Boolean);
+                const selectorTexts = (selectors) => {
+                  const values = [];
+                  for (const selector of selectors) {
+                    for (const node of Array.from(card?.querySelectorAll(selector) || [])) {
+                      const text = normalizeLine(node.textContent || "");
+                      if (text && !values.includes(text)) {
+                        values.push(text);
+                      }
+                    }
+                  }
+                  return values;
+                };
+                const companyCandidates = selectorTexts([
+                  ".job-card-container__primary-description",
+                  ".artdeco-entity-lockup__subtitle",
+                  ".artdeco-entity-lockup__subtitle span",
+                ]);
+                const metadataCandidates = selectorTexts([
+                  ".job-card-container__metadata-item",
+                  ".artdeco-entity-lockup__caption",
+                  ".artdeco-entity-lockup__metadata",
+                ]);
                 const title = normalizeLine(lines[0] || anchor.textContent || "");
                 if (!title) {
                   continue;
                 }
                 const filteredLines = lines.filter((line) => line !== title && !isNoiseLine(line));
-                const company = filteredLines.find((line) => line !== title && !isLocationLine(line)) || "";
-                const location = filteredLines.find((line) => isLocationLine(line)) || "";
+                const company = (
+                  companyCandidates.find((line) => line !== title && !isNoiseLine(line) && !isLocationLine(line)) ||
+                  filteredLines.find((line) => line !== title && !isLocationLine(line)) ||
+                  ""
+                );
+                const location = (
+                  metadataCandidates.find((line) => isLocationLine(line)) ||
+                  filteredLines.find((line) => isLocationLine(line)) ||
+                  ""
+                );
                 const lowerText = cardText.toLowerCase();
                 let workMode = "";
                 if (lowerText.includes("remoto")) workMode = "remoto";
@@ -440,6 +480,10 @@ class LinkedInDeterministicCollector:
                   url: href,
                   summary: cardText.slice(0, 240),
                   description: cardText.slice(0, 1000),
+                  raw_lines: lines.join(" | "),
+                  raw_company_candidates: companyCandidates.join(" | "),
+                  raw_metadata_candidates: metadataCandidates.join(" | "),
+                  anchor_text: normalizeLine(anchor.textContent || ""),
                 });
                 if (normalized.length >= maxJobs) {
                   break;
@@ -534,19 +578,19 @@ class HybridJobScorer:
 
     def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
-        if any(keyword in combined_text for keyword in settings.exclude_keywords):
+        if any(keyword in combined_text for keyword in settings.scoring_exclude_keywords):
             return ScoredJob(relevance=1, rationale="Contem termos excluidos do perfil.", accepted=False)
 
         prompt = f"""
         Avalie aderencia de uma vaga ao perfil profissional abaixo.
 
         Perfil:
-        {settings.profile_text}
+        {settings.scoring_profile_text}
 
         Regras:
         - Nota de 1 a 10.
         - Considere palavras positivas: {", ".join(settings.include_keywords)}
-        - Considere palavras negativas: {", ".join(settings.exclude_keywords)}
+        - Considere palavras negativas: {", ".join(settings.scoring_exclude_keywords)}
         - Modalidades aceitas: {", ".join(settings.accepted_work_modes) or "qualquer"}
         - Salario minimo em BRL: {settings.minimum_salary_brl}
         - Seja conservador. So aprove quando a vaga realmente fizer sentido.
@@ -569,7 +613,7 @@ class HybridJobScorer:
 
         response = self._llm.invoke(prompt)
         response_text = response.content if hasattr(response, "content") else str(response)
-        return parse_scoring_response(response_text, settings.minimum_relevance)
+        return parse_scoring_response(response_text, settings.scoring_minimum_relevance)
 
 
 class JobCollectionService:
@@ -708,7 +752,7 @@ class JobCollectionService:
 
     def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
-        if any(keyword in combined_text for keyword in self.settings.exclude_keywords):
+        if any(keyword in combined_text for keyword in self.settings.scoring_exclude_keywords):
             return "conta com termos excluidos"
 
         work_mode = raw_job.work_mode.strip().lower()
@@ -843,19 +887,53 @@ def clean_linkedin_company(value: str) -> str:
     segments = _split_linkedin_segments(cleaned)
     kept: list[str] = []
     for segment in segments:
+        normalized_segment = _normalize_whitespace(segment)
+        lower_segment = normalized_segment.lower()
         if any(phrase.lower() in segment.lower() for phrase in noise_phrases):
             continue
-        if looks_like_linkedin_location(segment):
+        if looks_like_linkedin_location(normalized_segment):
             continue
-        if segment.lower() in {"hibrido", "híbrido", "remoto", "presencial", "hybrid", "onsite"}:
+        if lower_segment in {"hibrido", "híbrido", "remoto", "presencial", "hybrid", "onsite"}:
             continue
-        if len(segment.split()) <= 1:
+        if normalized_segment.endswith(",") and len(normalized_segment.split()) <= 1:
             continue
-        kept.append(segment)
+        if lower_segment in {
+            "osasco",
+            "são paulo",
+            "sao paulo",
+            "rio de janeiro",
+            "curitiba",
+            "campinas",
+            "porto alegre",
+            "belo horizonte",
+            "brasil",
+            "brazil",
+        }:
+            continue
+        if len(normalized_segment.split()) <= 1:
+            continue
+        kept.append(normalized_segment)
         break
     if kept:
         return kept[0]
-    if looks_like_linkedin_location(cleaned):
+    if (
+        looks_like_linkedin_location(cleaned)
+        or (cleaned.endswith(",") and len(cleaned.split()) <= 1)
+        or cleaned.lower()
+        in {
+            "osasco",
+            "osasco,",
+            "são paulo",
+            "sao paulo",
+            "rio de janeiro",
+            "curitiba",
+            "campinas",
+            "porto alegre",
+            "belo horizonte",
+            "brasil",
+            "brazil",
+        }
+    ):
         return ""
     return cleaned
 
@@ -999,6 +1077,26 @@ def _collapse_repeated_title(value: str) -> str | None:
         if left and left == right:
             return left
     return None
+
+
+def summarize_linkedin_raw_card(card: dict[str, str]) -> str:
+    debug_fields = (
+        "title",
+        "company",
+        "location",
+        "work_mode",
+        "raw_company_candidates",
+        "raw_metadata_candidates",
+        "raw_lines",
+        "anchor_text",
+        "summary",
+    )
+    parts: list[str] = []
+    for field in debug_fields:
+        value = _normalize_whitespace(str(card.get(field, "")))
+        if value:
+            parts.append(f"{field}={value[:160]!r}")
+    return " | ".join(parts)
 
 
 def build_available_file_paths(base_dir: Path, limit: int = 20) -> list[str]:

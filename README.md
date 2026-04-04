@@ -86,6 +86,10 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH`
 - `JOB_HUNTER_BROWSER_HEADLESS`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
+- `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
+- `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
+- `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
+- `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -98,6 +102,17 @@ Para depuracao inicial do fluxo real, recomenda-se:
 - `JOB_HUNTER_BROWSER_HEADLESS=false`
 
 Assim a janela do navegador fica visivel durante o teste.
+
+Para gerar mais vagas novas durante testes de parsing, voce pode ativar temporariamente:
+
+- `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING=true`
+
+Esse modo remove `junior` dos termos excluidos para scoring e reduz a nota minima exigida, sem alterar o comportamento padrao quando desligado.
+Os knobs desse modo tambem podem ser ajustados por ambiente:
+
+- `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
+- `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
+- `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:
