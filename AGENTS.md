@@ -43,12 +43,26 @@ Keep responsibilities separated and directional:
   Domain entities, immutable models, shared vocabulary, status values.
 - `job_hunter_agent/settings.py`
   Application settings and startup validation.
+- `job_hunter_agent/job_identity.py`
+  Strategy for portal-aware job identity and canonical lookup patterns.
 - `job_hunter_agent/repository.py`
   Persistence contracts and SQLite implementation.
 - `job_hunter_agent/collector.py`
-  Source collection, normalization, scoring orchestration.
+  Collection contracts, orchestration, filtering, and persistence-facing scoring flow.
+- `job_hunter_agent/portal_collectors.py`
+  Portal adapters and browser automation integration.
+- `job_hunter_agent/linkedin.py`
+  LinkedIn deterministic extraction, enrichment, and field repair helpers.
+- `job_hunter_agent/scoring.py`
+  Scoring implementation and parsing helpers for model responses.
 - `job_hunter_agent/notifier.py`
-  Review transport and Telegram-specific interaction handling.
+  Telegram transport and handler wiring.
+- `job_hunter_agent/notifier_rendering.py`
+  Rendering of Telegram messages, cards, and action rows.
+- `job_hunter_agent/review_workflow.py`
+  Review and application transition policy.
+- `job_hunter_agent/composition.py`
+  Composition helpers and infrastructure assembly.
 - `job_hunter_agent/app.py`
   Process composition, lifecycle, scheduling, top-level orchestration.
 
@@ -57,7 +71,7 @@ Dependency rule:
 - outer layers may depend on inner layers
 - domain must not depend on infrastructure
 - repository, notifier, and external collectors are infrastructure
-- application wiring happens in `app.py`, not spread across modules
+- application wiring happens at the composition edge (`app.py` + `composition.py`), not spread across business modules
 
 ## SOLID Rules
 
@@ -205,6 +219,27 @@ Before changing code, verify:
 - does this require README or AGENTS updates
 
 Do not add features just because they are technically possible.
+
+## Self-Improvement Rule
+
+`AGENTS.md` must not drift behind the codebase.
+
+Whenever a significant change lands, explicitly reassess whether this file still matches:
+
+- the active module boundaries
+- the real runtime flow
+- the current branch/commit policy
+- the operational rules that future work must follow
+
+If the answer is no, update `AGENTS.md` in the same line of work before considering the task complete.
+
+At the end of substantial work, perform a short check:
+
+- does `AGENTS.md` still describe the current architecture truthfully
+- did a module gain or lose responsibility
+- did process rules, branching rules, or validation rules change
+
+If any of those changed, `AGENTS.md` must be updated immediately rather than deferred.
 
 ## Branching Policy
 
