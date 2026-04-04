@@ -51,6 +51,11 @@ class DeterministicPortalCollector(Protocol):
         raise NotImplementedError
 
 
+class LinkedInFieldRepairer(Protocol):
+    def repair(self, card: dict[str, str], normalized_card: dict[str, str]) -> dict[str, str]:
+        raise NotImplementedError
+
+
 class BrowserUseAutomationAdapter:
     def __init__(
         self,
@@ -284,9 +289,11 @@ class LinkedInDeterministicCollector:
         *,
         storage_state_path: str | Path,
         headless: bool,
+        field_repairer: LinkedInFieldRepairer | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
+        self.field_repairer = field_repairer
 
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
         if not self.storage_state_path.exists():
@@ -331,6 +338,17 @@ class LinkedInDeterministicCollector:
         seen_urls: set[str] = set()
         for card in enriched_cards:
             normalized_card = normalize_linkedin_card(card)
+            if self.field_repairer and should_repair_linkedin_fields(normalized_card):
+                repaired_fields = self.field_repairer.repair(card, normalized_card)
+                repaired_card = apply_linkedin_field_repair(normalized_card, repaired_fields)
+                if repaired_card != normalized_card:
+                    logger.info(
+                        "LinkedIn card reparado por LLM local | title=%r company=%r location=%r",
+                        repaired_card["title"].strip(),
+                        repaired_card["company"].strip() or "Empresa nao informada",
+                        repaired_card["location"].strip() or "Local nao informado",
+                    )
+                normalized_card = repaired_card
             url = normalized_card["url"].strip()
             if not url or url in seen_urls:
                 continue
@@ -700,6 +718,55 @@ class HybridJobScorer:
         return parse_scoring_response(response_text, settings.scoring_minimum_relevance)
 
 
+class OllamaLinkedInFieldRepairer:
+    def __init__(self, model_name: str, base_url: str) -> None:
+        try:
+            from langchain_ollama import ChatOllama
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de repair do LinkedIn nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+        self._llm = ChatOllama(model=model_name, base_url=base_url, temperature=0.0)
+
+    def repair(self, card: dict[str, str], normalized_card: dict[str, str]) -> dict[str, str]:
+        prompt = f"""
+        Corrija apenas campos de uma vaga do LinkedIn que parecem ausentes ou suspeitos.
+
+        Regras:
+        - Nunca invente dados que nao estejam no texto.
+        - Se nao tiver confianca, retorne string vazia no campo.
+        - Empresa deve ser o nome da empresa, nao cidade, nao texto de navegacao, nao titulo da vaga.
+        - Local deve ser somente a localizacao da vaga.
+        - Retorne apenas JSON.
+
+        Campos atuais:
+        title: {normalized_card.get("title", "")}
+        company: {normalized_card.get("company", "")}
+        location: {normalized_card.get("location", "")}
+        work_mode: {normalized_card.get("work_mode", "")}
+        summary: {normalized_card.get("summary", "")}
+
+        Evidencias brutas:
+        raw_company_candidates: {card.get("raw_company_candidates", "")}
+        raw_metadata_candidates: {card.get("raw_metadata_candidates", "")}
+        detail_company_candidates: {card.get("detail_company_candidates", "")}
+        detail_metadata_candidates: {card.get("detail_metadata_candidates", "")}
+        detail_summary: {card.get("detail_summary", "")}
+        raw_lines: {card.get("raw_lines", "")}
+
+        Retorne:
+        {{
+          "company": "nome ou vazio",
+          "location": "local ou vazio",
+          "confidence": 8,
+          "rationale": "motivo curto"
+        }}
+        """
+        response = self._llm.invoke(prompt)
+        response_text = response.content if hasattr(response, "content") else str(response)
+        return parse_linkedin_field_repair_response(response_text)
+
+
 class JobCollectionService:
     def __init__(
         self,
@@ -905,8 +972,11 @@ def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
     if not location:
         location = clean_linkedin_location(raw_summary)
     location = strip_title_prefix_from_location(location, title)
-    if not company:
-        company = infer_linkedin_company_from_summary(raw_summary, title, location)
+    inferred_company = infer_linkedin_company_from_summary(raw_summary, title, location)
+    if inferred_company and is_suspicious_linkedin_company(company, location):
+        company = inferred_company
+    elif not company:
+        company = inferred_company
     work_mode = normalize_linkedin_work_mode(card.get("work_mode", ""), location)
     salary_text = clean_linkedin_salary(card.get("salary_text", ""))
     summary = clean_linkedin_summary(card.get("summary", ""))
@@ -921,6 +991,26 @@ def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
         "summary": summary,
         "description": description,
     }
+
+
+def should_repair_linkedin_fields(card: dict[str, str]) -> bool:
+    return is_suspicious_linkedin_company(card.get("company", ""), card.get("location", "")) or is_suspicious_linkedin_location(
+        card.get("location", ""), card.get("title", "")
+    )
+
+
+def apply_linkedin_field_repair(card: dict[str, str], repaired_fields: dict[str, str]) -> dict[str, str]:
+    merged = dict(card)
+    repaired_company = clean_linkedin_company(repaired_fields.get("company", ""))
+    repaired_location = strip_title_prefix_from_location(
+        clean_linkedin_location(repaired_fields.get("location", "")) or repaired_fields.get("location", ""),
+        card.get("title", ""),
+    )
+    if repaired_company and is_suspicious_linkedin_company(merged.get("company", ""), merged.get("location", "")):
+        merged["company"] = repaired_company
+    if repaired_location and is_suspicious_linkedin_location(merged.get("location", ""), merged.get("title", "")):
+        merged["location"] = repaired_location
+    return merged
 
 
 def should_enrich_linkedin_card(card: dict[str, str]) -> bool:
@@ -978,6 +1068,46 @@ def infer_linkedin_company_from_summary(summary: str, title: str, location: str)
     if normalized_title:
         candidate = re.sub(rf"\s*{re.escape(normalized_title)}$", "", candidate, flags=re.IGNORECASE)
     return clean_linkedin_company(candidate)
+
+
+def is_suspicious_linkedin_company(company: str, location: str) -> bool:
+    normalized_company = _normalize_whitespace(company)
+    if not normalized_company:
+        return True
+    lower_company = normalized_company.lower()
+    if normalized_company.endswith(",") and len(normalized_company.split()) <= 2:
+        return True
+    if lower_company in {
+        "empresa nao informada",
+        "local nao informado",
+        "osasco",
+        "osasco,",
+        "são paulo",
+        "sao paulo",
+        "brasil",
+    }:
+        return True
+    normalized_location = _normalize_whitespace(location)
+    if normalized_location:
+        first_segment = normalized_location.split(",", maxsplit=1)[0].strip().lower()
+        if first_segment and lower_company == first_segment:
+            return True
+        if first_segment and lower_company == f"{first_segment},":
+            return True
+    return False
+
+
+def is_suspicious_linkedin_location(location: str, title: str) -> bool:
+    normalized_location = _normalize_whitespace(location)
+    normalized_title = _normalize_whitespace(title)
+    if not normalized_location:
+        return True
+    lower_location = normalized_location.lower()
+    if lower_location in {"local nao informado", "não informado", "nao informado"}:
+        return True
+    if normalized_title and lower_location.startswith(normalized_title.lower() + " "):
+        return True
+    return not looks_like_linkedin_location(normalized_location)
 
 
 def strip_linkedin_chrome_prefix(value: str) -> str:
@@ -1263,6 +1393,26 @@ def summarize_linkedin_raw_card(card: dict[str, str]) -> str:
         if value:
             parts.append(f"{field}={value[:160]!r}")
     return " | ".join(parts)
+
+
+def parse_linkedin_field_repair_response(response_text: str) -> dict[str, str]:
+    payload = extract_json_object(response_text)
+    if not payload:
+        return {}
+    company = _normalize_whitespace(str(payload.get("company", "")))
+    location = _normalize_whitespace(str(payload.get("location", "")))
+    confidence = payload.get("confidence")
+    if isinstance(confidence, str) and confidence.isdigit():
+        confidence = int(confidence)
+    if not isinstance(confidence, int):
+        confidence = 0
+    if confidence < 7:
+        return {}
+    return {
+        "company": company,
+        "location": location,
+        "rationale": _normalize_whitespace(str(payload.get("rationale", ""))),
+    }
 
 
 def build_available_file_paths(base_dir: Path, limit: int = 20) -> list[str]:

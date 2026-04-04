@@ -90,6 +90,7 @@ Variaveis principais:
 - `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
 - `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
 - `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
+- `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -113,6 +114,12 @@ Os knobs desse modo tambem podem ser ajustados por ambiente:
 - `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
 - `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
 - `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
+
+Tambem existe um fallback opcional de reparo local de campos do LinkedIn:
+
+- `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED=true`
+
+Ele so atua em casos residuais e suspeitos, depois da extracao deterministica e da tentativa de enriquecimento pela pagina de detalhe.
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

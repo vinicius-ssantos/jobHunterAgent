@@ -5,7 +5,13 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from job_hunter_agent.collector import BrowserUseSiteCollector, HybridJobScorer, JobCollectionService
+from job_hunter_agent.collector import (
+    BrowserUseSiteCollector,
+    HybridJobScorer,
+    JobCollectionService,
+    LinkedInDeterministicCollector,
+    OllamaLinkedInFieldRepairer,
+)
 from job_hunter_agent.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.repository import SqliteJobRepository
@@ -37,6 +43,18 @@ class JobHunterApplication:
                 persistent_profile_dir=self.settings.linkedin_persistent_profile_dir,
                 linkedin_storage_state_path=self.settings.linkedin_storage_state_path,
                 headless=self.settings.browser_headless,
+                linkedin_collector=LinkedInDeterministicCollector(
+                    storage_state_path=self.settings.linkedin_storage_state_path,
+                    headless=self.settings.browser_headless,
+                    field_repairer=(
+                        OllamaLinkedInFieldRepairer(
+                            model_name=self.settings.ollama_model,
+                            base_url=self.settings.ollama_url,
+                        )
+                        if self.settings.linkedin_field_repair_enabled
+                        else None
+                    ),
+                ),
             ),
             scorer=HybridJobScorer(
                 model_name=self.settings.ollama_model,

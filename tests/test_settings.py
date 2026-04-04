@@ -22,6 +22,7 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.collection_time, "09:30")
         self.assertEqual(settings.review_polling_grace_seconds, 120)
         self.assertFalse(settings.relaxed_matching_for_testing)
+        self.assertTrue(settings.linkedin_field_repair_enabled)
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")

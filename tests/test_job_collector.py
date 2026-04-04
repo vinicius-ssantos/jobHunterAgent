@@ -26,10 +26,15 @@ from job_hunter_agent.collector import (
     parse_scoring_response,
     parse_salary_floor,
     infer_linkedin_company_from_summary,
+    apply_linkedin_field_repair,
+    is_suspicious_linkedin_company,
+    is_suspicious_linkedin_location,
+    parse_linkedin_field_repair_response,
     standardize_error_message,
     strip_linkedin_chrome_prefix,
     strip_title_prefix_from_location,
     should_enrich_linkedin_card,
+    should_repair_linkedin_fields,
     summarize_linkedin_raw_card,
 )
 from job_hunter_agent.domain import RawJob, ScoredJob, SiteConfig
@@ -548,6 +553,90 @@ class ExternalKeyTests(TestCase):
             ),
             "Verx Tecnologia e Inovação",
         )
+
+    def test_is_suspicious_linkedin_company_flags_city_fragment(self) -> None:
+        self.assertTrue(is_suspicious_linkedin_company("Osasco,", "Osasco, São Paulo, Brasil (Híbrido)"))
+        self.assertFalse(
+            is_suspicious_linkedin_company("Stefanini Brasil", "Osasco, São Paulo, Brasil (Híbrido)")
+        )
+
+    def test_is_suspicious_linkedin_location_flags_missing_and_contaminated_values(self) -> None:
+        self.assertTrue(is_suspicious_linkedin_location("", "Desenvolvedor Java"))
+        self.assertTrue(
+            is_suspicious_linkedin_location(
+                "Desenvolvedor Java São Paulo, São Paulo, Brasil", "Desenvolvedor Java"
+            )
+        )
+        self.assertFalse(
+            is_suspicious_linkedin_location("São Paulo, São Paulo, Brasil", "Desenvolvedor Java")
+        )
+
+    def test_normalize_linkedin_card_prefers_inferred_company_when_raw_company_looks_like_location(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor full stack",
+                "company": "Osasco,",
+                "location": "Osasco, São Paulo, Brasil (Híbrido)",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Desenvolvedor full stack Stefanini Brasil Osasco, São Paulo, Brasil (Híbrido)",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Stefanini Brasil")
+        self.assertEqual(normalized["location"], "Osasco, São Paulo, Brasil (Híbrido)")
+
+    def test_should_repair_linkedin_fields_for_suspicious_company_or_location(self) -> None:
+        self.assertTrue(
+            should_repair_linkedin_fields(
+                {"title": "Desenvolvedor Java", "company": "Osasco,", "location": "Osasco, São Paulo, Brasil"}
+            )
+        )
+        self.assertFalse(
+            should_repair_linkedin_fields(
+                {
+                    "title": "Desenvolvedor Java",
+                    "company": "Verx Tecnologia e Inovação",
+                    "location": "São Paulo, São Paulo, Brasil",
+                }
+            )
+        )
+
+    def test_parse_linkedin_field_repair_response_requires_confidence(self) -> None:
+        self.assertEqual(
+            parse_linkedin_field_repair_response(
+                '{"company":"Verx Tecnologia e Inovação","location":"São Paulo, São Paulo, Brasil","confidence":8,"rationale":"coerente"}'
+            ),
+            {
+                "company": "Verx Tecnologia e Inovação",
+                "location": "São Paulo, São Paulo, Brasil",
+                "rationale": "coerente",
+            },
+        )
+        self.assertEqual(
+            parse_linkedin_field_repair_response(
+                '{"company":"Verx Tecnologia e Inovação","location":"São Paulo, São Paulo, Brasil","confidence":4}'
+            ),
+            {},
+        )
+
+    def test_apply_linkedin_field_repair_only_overwrites_suspicious_values(self) -> None:
+        repaired = apply_linkedin_field_repair(
+            {
+                "title": "Desenvolvedor Java",
+                "company": "Osasco,",
+                "location": "Desenvolvedor Java São Paulo, São Paulo, Brasil",
+            },
+            {
+                "company": "Verx Tecnologia e Inovação",
+                "location": "São Paulo, São Paulo, Brasil",
+            },
+        )
+
+        self.assertEqual(repaired["company"], "Verx Tecnologia e Inovação")
+        self.assertEqual(repaired["location"], "São Paulo, São Paulo, Brasil")
 
     def test_should_enrich_linkedin_card_requires_detail_when_company_or_location_is_missing(self) -> None:
         self.assertTrue(should_enrich_linkedin_card({"company": "", "location": "Osasco, São Paulo, Brasil (Híbrido)"}))
