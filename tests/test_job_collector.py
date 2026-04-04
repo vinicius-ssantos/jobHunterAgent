@@ -37,7 +37,8 @@ from job_hunter_agent.collector import (
     should_repair_linkedin_fields,
     summarize_linkedin_raw_card,
 )
-from job_hunter_agent.domain import RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.domain import JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.linkedin import LinkedInDeterministicCollector
 from job_hunter_agent.repository import SqliteJobRepository
 from job_hunter_agent.settings import Settings
 from tests.tmp_workspace import prepare_workspace_tmp_dir
@@ -113,6 +114,11 @@ class FlakyScorer:
         if "Kotlin" in raw_job.title:
             raise RuntimeError("modelo indisponivel")
         return ScoredJob(relevance=7, rationale="Fallback valido.", accepted=True)
+
+
+class FailingIfCalledScorer:
+    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+        raise AssertionError("scorer nao deveria ser chamado para vaga duplicada")
 
 
 class MixedRawSiteCollector:
@@ -287,6 +293,46 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
             ).fetchone()
         self.assertIsNotNone(last_log)
         self.assertIn("duplicadas=1", last_log[0])
+
+    async def test_collect_new_jobs_skips_known_raw_jobs_before_scoring(self) -> None:
+        existing = RawJob(
+            title="Senior Kotlin Engineer",
+            company="ACME",
+            location="Brasil",
+            work_mode="remoto",
+            salary_text="Nao informado",
+            url="https://example.com/job-1",
+            source_site="LinkedIn",
+            summary="Backend role com Kotlin e Spring.",
+            description="Projeto backend distribuido.",
+        )
+        self.repository.save_new_jobs(
+            [
+                JobPosting(
+                    title=existing.title,
+                    company=existing.company,
+                    location=existing.location,
+                    work_mode=existing.work_mode,
+                    salary_text=existing.salary_text,
+                    url=existing.url,
+                    source_site=existing.source_site,
+                    summary=existing.summary,
+                    relevance=8,
+                    rationale="Ja existente",
+                    external_key=build_external_key(existing),
+                )
+            ]
+        )
+        service = JobCollectionService(
+            settings=self.settings,
+            repository=self.repository,
+            site_collector=FakeSiteCollector(),
+            scorer=FailingIfCalledScorer(),
+        )
+
+        jobs = await service.collect_new_jobs()
+
+        self.assertEqual(jobs, [])
 
 
 class ExternalKeyTests(TestCase):
@@ -707,6 +753,22 @@ class ExternalKeyTests(TestCase):
 
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):
+    def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            known_job_url_exists=lambda url: url == "https://www.linkedin.com/jobs/view/1",
+        )
+
+        filtered = collector._filter_known_cards(
+            [
+                {"url": "https://www.linkedin.com/jobs/view/1", "title": "Duplicada"},
+                {"url": "https://www.linkedin.com/jobs/view/2", "title": "Nova"},
+            ]
+        )
+
+        self.assertEqual([card["url"] for card in filtered], ["https://www.linkedin.com/jobs/view/2"])
+
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()
 

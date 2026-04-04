@@ -8,7 +8,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from job_hunter_agent.browser_support import (
     automation_result_to_text as browser_automation_result_to_text,
@@ -355,6 +355,7 @@ class BrowserUseSiteCollector:
         headless: bool = True,
         automation: BrowserAutomationAdapter | None = None,
         linkedin_collector: DeterministicPortalCollector | None = None,
+        known_job_url_exists: Callable[[str], bool] | None = None,
         portal_adapters: tuple[PortalCollectorAdapter, ...] | None = None,
     ) -> None:
         resolved_storage_state = Path(
@@ -371,6 +372,7 @@ class BrowserUseSiteCollector:
         self.linkedin_collector = linkedin_collector or ModularLinkedInDeterministicCollector(
             storage_state_path=resolved_storage_state,
             headless=headless,
+            known_job_url_exists=known_job_url_exists,
         )
         self.portal_adapters: tuple[PortalCollectorAdapter, ...] = portal_adapters or (
             LinkedInCollectorAdapter(),
@@ -466,9 +468,11 @@ class JobCollectionService:
                 continue
 
             total_seen += len(raw_jobs)
-            scored_jobs = self._score_and_filter(raw_jobs)
+            new_raw_jobs = self._filter_known_raw_jobs(raw_jobs)
+            duplicate_jobs = len(raw_jobs) - len(new_raw_jobs)
+            scored_jobs = self._score_and_filter(new_raw_jobs)
             new_jobs = [job for job in scored_jobs if not self.repository.job_exists(job.url, job.external_key)]
-            duplicate_jobs = len(scored_jobs) - len(new_jobs)
+            duplicate_jobs += len(scored_jobs) - len(new_jobs)
             saved_jobs.extend(self.repository.save_new_jobs(new_jobs))
             portal_summary = (
                 f"resultado por portal site={site.name} "
@@ -495,6 +499,19 @@ class JobCollectionService:
             jobs_saved=len(saved_jobs),
             errors=total_errors,
         )
+
+    def _filter_known_raw_jobs(self, raw_jobs: list[RawJob]) -> list[RawJob]:
+        filtered: list[RawJob] = []
+        skipped = 0
+        for raw_job in raw_jobs:
+            external_key = build_external_key(raw_job)
+            if self.repository.job_exists(raw_job.url, external_key):
+                skipped += 1
+                continue
+            filtered.append(raw_job)
+        if skipped:
+            logger.info("Pipeline pulou %s vaga(s) ja conhecidas antes do scoring.", skipped)
+        return filtered
 
     def _score_and_filter(self, raw_jobs: list[RawJob]) -> list[JobPosting]:
         accepted_jobs: list[JobPosting] = []

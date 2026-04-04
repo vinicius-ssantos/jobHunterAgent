@@ -32,6 +32,9 @@ class JobRepository(Protocol):
     def job_exists(self, url: str, external_key: str) -> bool:
         raise NotImplementedError
 
+    def job_url_exists(self, url: str) -> bool:
+        raise NotImplementedError
+
     def summary(self) -> dict[str, int]:
         raise NotImplementedError
 
@@ -261,6 +264,14 @@ class SqliteJobRepository:
             row = connection.execute(
                 "SELECT 1 FROM jobs WHERE url = ? OR external_key = ?",
                 (url, external_key),
+            ).fetchone()
+        return row is not None
+
+    def job_url_exists(self, url: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM jobs WHERE url = ?",
+                (url,),
             ).fetchone()
         return row is not None
 

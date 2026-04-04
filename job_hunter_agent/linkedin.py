@@ -3,6 +3,7 @@
 import logging
 import re
 from pathlib import Path
+from typing import Callable
 
 from job_hunter_agent.browser_support import extract_json_object, load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.domain import RawJob, SiteConfig
@@ -569,10 +570,12 @@ class LinkedInDeterministicCollector:
         storage_state_path: str | Path,
         headless: bool,
         field_repairer: object | None = None,
+        known_job_url_exists: Callable[[str], bool] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
         self.field_repairer = field_repairer
+        self.known_job_url_exists = known_job_url_exists
 
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
         if not self.storage_state_path.exists():
@@ -608,6 +611,7 @@ class LinkedInDeterministicCollector:
                         "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
                     ) from exc
                 raw_cards = await self._extract_visible_cards(page, max_jobs)
+                raw_cards = self._filter_known_cards(raw_cards)
                 enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
                 await context.close()
@@ -656,6 +660,21 @@ class LinkedInDeterministicCollector:
                 )
             )
         return jobs
+
+    def _filter_known_cards(self, cards: list[dict[str, str]]) -> list[dict[str, str]]:
+        if not self.known_job_url_exists:
+            return cards
+        filtered: list[dict[str, str]] = []
+        skipped = 0
+        for card in cards:
+            url = str(card.get("url", "")).strip()
+            if url and self.known_job_url_exists(url):
+                skipped += 1
+                continue
+            filtered.append(card)
+        if skipped:
+            logger.info("LinkedIn pulou %s card(s) ja conhecidos antes do detalhe.", skipped)
+        return filtered
 
     async def _enrich_residual_cards(self, context: object, cards: list[dict[str, str]]) -> list[dict[str, str]]:
         enriched_cards: list[dict[str, str]] = []

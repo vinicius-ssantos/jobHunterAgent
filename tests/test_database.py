@@ -56,6 +56,13 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(len(saved_first), 1)
         self.assertEqual(len(saved_second), 0)
 
+    def test_job_url_exists_checks_existing_url(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])
+
+        self.assertEqual(len(saved), 1)
+        self.assertTrue(self.repository.job_url_exists("https://example.com/job-1"))
+        self.assertFalse(self.repository.job_url_exists("https://example.com/job-2"))
+
     def test_summary_counts_statuses(self) -> None:
         saved = self.repository.save_new_jobs(
             [
