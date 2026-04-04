@@ -115,6 +115,7 @@ Variaveis principais:
 - `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
 - `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
+- `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -150,6 +151,12 @@ Tambem existe um assessor opcional de suporte de candidatura com LLM local:
 - `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED=true`
 
 Ele enriquece a classificacao de aplicabilidade da candidatura durante a criacao de rascunhos, mas mantem o fallback deterministico atual quando estiver desabilitado ou quando o modelo falhar.
+
+Tambem existe um extractor opcional de requisitos estruturados:
+
+- `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED=true`
+
+Ele deriva sinais operacionais da vaga, como senioridade, stack principal/secundaria, ingles e sinais de lideranca, anexando isso aos rascunhos de candidatura como nota estruturada. Se o modelo falhar, o sistema cai para uma heuristica local deterministica.
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 

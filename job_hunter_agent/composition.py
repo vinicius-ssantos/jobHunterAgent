@@ -9,6 +9,7 @@ from job_hunter_agent.applicant import (
 )
 from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
+from job_hunter_agent.job_requirements import OllamaJobRequirementsExtractor
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
@@ -45,6 +46,15 @@ def create_application_support_assessor(settings: Settings) -> OllamaApplication
     )
 
 
+def create_job_requirements_extractor(settings: Settings) -> OllamaJobRequirementsExtractor | None:
+    if not settings.job_requirements_llm_enabled:
+        return None
+    return OllamaJobRequirementsExtractor(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_url,
+    )
+
+
 def create_application_preparation_service(
     repository: JobRepository,
     settings: Settings,
@@ -52,6 +62,7 @@ def create_application_preparation_service(
     return ApplicationPreparationService(
         repository,
         support_assessor=create_application_support_assessor(settings),
+        requirements_extractor=create_job_requirements_extractor(settings),
     )
 
 

@@ -5,6 +5,12 @@ from typing import Optional, Protocol
 
 from job_hunter_agent.browser_support import extract_json_object
 from job_hunter_agent.domain import JobApplication, JobPosting
+from job_hunter_agent.job_requirements import (
+    DeterministicJobRequirementsExtractor,
+    JobRequirementSignals,
+    JobRequirementsExtractor,
+    format_job_requirement_signals,
+)
 from job_hunter_agent.repository import JobRepository
 
 
@@ -44,9 +50,11 @@ class ApplicationPreparationService:
         self,
         repository: JobRepository,
         support_assessor: ApplicationSupportAssessor | None = None,
+        requirements_extractor: JobRequirementsExtractor | None = None,
     ) -> None:
         self.repository = repository
         self.support_assessor = support_assessor
+        self.requirements_extractor = requirements_extractor
 
     def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = "") -> list[JobApplication]:
         drafts: list[JobApplication] = []
@@ -55,10 +63,12 @@ class ApplicationPreparationService:
             if not job or job.status != "approved":
                 continue
             assessment = self._assess_support(job)
+            note_bundle = self._build_requirement_notes(job)
+            draft_notes = _append_note(notes, note_bundle) if note_bundle else notes
             drafts.append(
                 self.repository.create_application_draft(
                     job_id,
-                    notes=notes,
+                    notes=draft_notes,
                     support_level=assessment.support_level,
                     support_rationale=assessment.rationale,
                 )
@@ -81,6 +91,34 @@ class ApplicationPreparationService:
         return ApplicationSupportAssessment(
             support_level=assessed.support_level,
             rationale=rationale,
+        )
+
+    def _build_requirement_notes(self, job: JobPosting) -> str:
+        fallback = DeterministicJobRequirementsExtractor().extract(job)
+        if self.requirements_extractor is None:
+            return format_job_requirement_signals(fallback)
+        try:
+            extracted = self.requirements_extractor.extract(job)
+        except Exception:
+            extracted = fallback
+        return format_job_requirement_signals(self._merge_requirement_signals(fallback, extracted))
+
+    @staticmethod
+    def _merge_requirement_signals(
+        fallback: JobRequirementSignals,
+        extracted: JobRequirementSignals,
+    ) -> JobRequirementSignals:
+        return JobRequirementSignals(
+            seniority=extracted.seniority if extracted.seniority != "nao_informada" else fallback.seniority,
+            primary_stack=extracted.primary_stack or fallback.primary_stack,
+            secondary_stack=extracted.secondary_stack or fallback.secondary_stack,
+            english_level=(
+                extracted.english_level
+                if extracted.english_level != "nao_informado"
+                else fallback.english_level
+            ),
+            leadership_signals=extracted.leadership_signals or fallback.leadership_signals,
+            rationale=extracted.rationale or fallback.rationale,
         )
 
 
