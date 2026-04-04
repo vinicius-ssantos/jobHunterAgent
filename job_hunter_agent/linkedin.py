@@ -17,19 +17,23 @@ def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
     raw_location = str(card.get("location", ""))
     raw_summary = str(card.get("summary", ""))
     company = clean_linkedin_company(raw_company)
-    location = clean_linkedin_location(raw_location)
+    location = preserve_explicit_linkedin_location(raw_location) or clean_linkedin_location(raw_location)
+    company = strip_title_suffix_from_company(company, title)
+    location = strip_linkedin_location_noise(location, title, company)
     if not company:
         location_as_company = clean_linkedin_company(raw_location)
         if location_as_company and not looks_like_linkedin_location(location_as_company):
             company = location_as_company
     if not location:
         location = clean_linkedin_location(raw_summary)
-    location = strip_title_prefix_from_location(location, title)
+    location = strip_linkedin_location_noise(location, title, company)
     inferred_company = infer_linkedin_company_from_summary(raw_summary, title, location)
-    if inferred_company and is_suspicious_linkedin_company(company, location):
+    if inferred_company and is_suspicious_linkedin_company(company, location, title):
         company = inferred_company
     elif not company:
         company = inferred_company
+    company = strip_title_suffix_from_company(company, title)
+    location = strip_linkedin_location_noise(location, title, company)
     work_mode = normalize_linkedin_work_mode(card.get("work_mode", ""), location)
     salary_text = clean_linkedin_salary(card.get("salary_text", ""))
     summary = clean_linkedin_summary(card.get("summary", ""))
@@ -47,21 +51,31 @@ def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
 
 
 def should_repair_linkedin_fields(card: dict[str, str]) -> bool:
-    return is_suspicious_linkedin_company(card.get("company", ""), card.get("location", "")) or is_suspicious_linkedin_location(
-        card.get("location", ""), card.get("title", "")
+    return is_suspicious_linkedin_company(
+        card.get("company", ""), card.get("location", ""), card.get("title", "")
+    ) or is_suspicious_linkedin_location(
+        card.get("location", ""), card.get("title", ""), card.get("company", "")
     )
 
 
 def apply_linkedin_field_repair(card: dict[str, str], repaired_fields: dict[str, str]) -> dict[str, str]:
     merged = dict(card)
-    repaired_company = clean_linkedin_company(repaired_fields.get("company", ""))
-    repaired_location = strip_title_prefix_from_location(
-        clean_linkedin_location(repaired_fields.get("location", "")) or repaired_fields.get("location", ""),
+    repaired_company = strip_title_suffix_from_company(
+        clean_linkedin_company(repaired_fields.get("company", "")),
         card.get("title", ""),
     )
-    if repaired_company and is_suspicious_linkedin_company(merged.get("company", ""), merged.get("location", "")):
+    repaired_location = strip_linkedin_location_noise(
+        clean_linkedin_location(repaired_fields.get("location", "")) or repaired_fields.get("location", ""),
+        card.get("title", ""),
+        repaired_company or merged.get("company", ""),
+    )
+    if repaired_company and is_suspicious_linkedin_company(
+        merged.get("company", ""), merged.get("location", ""), merged.get("title", "")
+    ):
         merged["company"] = repaired_company
-    if repaired_location and is_suspicious_linkedin_location(merged.get("location", ""), merged.get("title", "")):
+    if repaired_location and is_suspicious_linkedin_location(
+        merged.get("location", ""), merged.get("title", ""), merged.get("company", "")
+    ):
         merged["location"] = repaired_location
     return merged
 
@@ -103,6 +117,51 @@ def strip_title_prefix_from_location(location: str, title: str) -> str:
     lowered_title = normalized_title.lower()
     if lowered_location.startswith(lowered_title + " "):
         normalized_location = _normalize_whitespace(normalized_location[len(normalized_title) :])
+        return clean_linkedin_location(normalized_location) or normalized_location
+    return normalized_location
+
+
+def strip_title_suffix_from_company(company: str, title: str) -> str:
+    normalized_company = _normalize_whitespace(company)
+    normalized_title = _normalize_whitespace(title)
+    if not normalized_company or not normalized_title:
+        return normalized_company
+    lowered_company = normalized_company.lower()
+    lowered_title = normalized_title.lower()
+    if lowered_company.endswith(" " + lowered_title):
+        normalized_company = _normalize_whitespace(normalized_company[: -len(normalized_title)])
+    return clean_linkedin_company(normalized_company)
+
+
+def strip_linkedin_location_noise(location: str, title: str, company: str) -> str:
+    normalized_location = strip_linkedin_chrome_prefix(_normalize_whitespace(location))
+    normalized_title = _normalize_whitespace(title)
+    normalized_company = _normalize_whitespace(company)
+    if not normalized_location:
+        return normalized_location
+    normalized_location = re.sub(r"^\d+%\s+de\s+desconto\s+", "", normalized_location, flags=re.IGNORECASE)
+    normalized_location = re.sub(r"^de\s+desconto\s+", "", normalized_location, flags=re.IGNORECASE)
+    normalized_location = strip_title_prefix_from_location(normalized_location, normalized_title)
+    if normalized_company:
+        normalized_location = re.sub(
+            rf"^{re.escape(normalized_company)}\s+",
+            "",
+            normalized_location,
+            flags=re.IGNORECASE,
+        )
+    if normalized_title:
+        normalized_location = re.sub(
+            rf"^{re.escape(normalized_title)}\s+",
+            "",
+            normalized_location,
+            flags=re.IGNORECASE,
+        )
+    if re.match(
+        r"^[^,()|]{1,60},\s*[^,()|]{1,60},\s*Brasil(?:\s+\((?:Híbrido|Hibrido|Remoto|Presencial)\))?$",
+        normalized_location,
+        flags=re.IGNORECASE,
+    ):
+        return normalized_location
     return clean_linkedin_location(normalized_location) or normalized_location
 
 
@@ -118,13 +177,20 @@ def infer_linkedin_company_from_summary(summary: str, title: str, location: str)
         candidate = re.sub(rf"\s*{re.escape(normalized_title)}$", "", candidate, flags=re.IGNORECASE)
     if normalized_location:
         candidate = re.sub(rf"\s*{re.escape(normalized_location)}.*$", "", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(
+        r"\s+[^,()|]{1,60},\s*[^,()|]{1,60},\s*Brasil(?:\s+\((?:Híbrido|Hibrido|Remoto|Presencial)\))?.*$",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    )
     if normalized_title:
         candidate = re.sub(rf"\s*{re.escape(normalized_title)}$", "", candidate, flags=re.IGNORECASE)
     return clean_linkedin_company(candidate)
 
 
-def is_suspicious_linkedin_company(company: str, location: str) -> bool:
+def is_suspicious_linkedin_company(company: str, location: str, title: str = "") -> bool:
     normalized_company = _normalize_whitespace(company)
+    normalized_title = _normalize_whitespace(title)
     if not normalized_company:
         return True
     lower_company = normalized_company.lower()
@@ -147,18 +213,29 @@ def is_suspicious_linkedin_company(company: str, location: str) -> bool:
             return True
         if first_segment and lower_company == f"{first_segment},":
             return True
+    if normalized_title:
+        lower_title = normalized_title.lower()
+        if lower_company == lower_title:
+            return True
+        if lower_company.endswith(" " + lower_title) or lower_company.startswith(lower_title + " "):
+            return True
     return False
 
 
-def is_suspicious_linkedin_location(location: str, title: str) -> bool:
+def is_suspicious_linkedin_location(location: str, title: str, company: str = "") -> bool:
     normalized_location = _normalize_whitespace(location)
     normalized_title = _normalize_whitespace(title)
+    normalized_company = _normalize_whitespace(company)
     if not normalized_location:
         return True
     lower_location = normalized_location.lower()
     if lower_location in {"local nao informado", "não informado", "nao informado"}:
         return True
+    if "desconto" in lower_location:
+        return True
     if normalized_title and lower_location.startswith(normalized_title.lower() + " "):
+        return True
+    if normalized_company and lower_location.startswith(normalized_company.lower() + " "):
         return True
     return not looks_like_linkedin_location(normalized_location)
 
@@ -217,6 +294,7 @@ def clean_linkedin_company(value: str) -> str:
     cleaned = re.sub(r"^(Desenvolvedor|Engenheiro|Software Engineer|Backend|Fullstack)\b.*?\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(São Paulo|Sao Paulo|Rio de Janeiro).*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = _normalize_whitespace(cleaned)
     noise_phrases = (
         "Promovida",
         "Candidatura simplificada",
@@ -283,6 +361,9 @@ def clean_linkedin_company(value: str) -> str:
 
 def clean_linkedin_location(value: str) -> str:
     cleaned = _normalize_whitespace(value)
+    preserved = preserve_explicit_linkedin_location(cleaned)
+    if preserved:
+        return preserved
     snippet = _extract_linkedin_location_snippet(cleaned)
     if snippet:
         return snippet
@@ -377,6 +458,25 @@ def looks_like_linkedin_location(value: str) -> bool:
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def preserve_explicit_linkedin_location(value: str) -> str:
+    normalized = _normalize_whitespace(value)
+    match = re.search(
+        r"([^,()|]{1,60},\s*[^,()|]{1,60},\s*Brasil(?:\s+\((?:Híbrido|Hibrido|Remoto|Presencial)\))?)",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        candidate = _normalize_whitespace(match.group(1))
+        first_segment = candidate.split(",", maxsplit=1)[0].strip()
+        if first_segment and not re.search(
+            r"\b(desenvolvedor|engenheiro|software|backend|fullstack|java|kotlin|agent|desconto)\b",
+            first_segment,
+            flags=re.IGNORECASE,
+        ):
+            return candidate
+    return ""
 
 
 def _extract_linkedin_location_snippet(value: str) -> str:

@@ -4,7 +4,7 @@
 
 - [x] Implementar o projeto como MVP local e pessoal.
 - [x] Manter foco exclusivo no ciclo `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`.
-- [ ] Garantir 1 portal confiavel na primeira entrega.
+- [x] Garantir 1 portal confiavel na primeira entrega.
 - [x] Garantir Telegram como interface de revisao humana.
 - [x] Garantir persistencia local com estados explicitos.
 - [x] Garantir tolerancia a falhas por fonte.
@@ -12,11 +12,11 @@
 
 ## Regra obrigatoria de fechamento
 
-- [ ] Ao finalizar cada etapa, registrar:
-- [ ] status da etapa
-- [ ] comentario curto sobre o que foi concluido
-- [ ] data da conclusao no formato `YYYY-MM-DD`
-- [ ] Modelo obrigatorio de registro ao fim de cada etapa:
+- [x] Ao finalizar cada etapa, registrar:
+- [x] status da etapa
+- [x] comentario curto sobre o que foi concluido
+- [x] data da conclusao no formato `YYYY-MM-DD`
+- [x] Modelo obrigatorio de registro ao fim de cada etapa:
 
 ```text
 Concluido em: YYYY-MM-DD
@@ -69,7 +69,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Adicionar script de setup local para Playwright.
 - [x] Ignorar browsers locais e `.env` no Git.
 - [x] Redirecionar configuracao do `browser-use` para pasta local do projeto.
-- [ ] Validar obrigatoriamente no startup:
+- [x] Validar obrigatoriamente no startup:
 - [x] Telegram token
 - [x] Telegram chat id
 - [x] profile_text
@@ -93,12 +93,12 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Manter `SqliteJobRepository` como implementacao principal.
 - [x] Garantir unicidade por `url`.
 - [x] Garantir fallback de deduplicacao por `external_key`.
-- [ ] Preservar estados:
+- [x] Preservar estados:
 - [x] `collected`
 - [x] `approved`
 - [x] `rejected`
 - [x] `error_collect`
-- [ ] Adicionar consultas operacionais:
+- [x] Adicionar consultas operacionais:
 - [x] listagem por status
 - [x] busca por id
 - [x] resumo agregado
@@ -115,7 +115,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 ## Fase 5. Coleta real por adapter
 
 - [x] Implementar coleta por adapter concreto de portal.
-- [ ] Ordem recomendada:
+- [x] Ordem recomendada:
 - [x] LinkedIn
 - [x] Gupy
 - [x] Indeed
@@ -126,7 +126,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] encapsule so a logica especifica do portal
 - [x] Garantir tolerancia a mudancas de UI com logs uteis.
 - [x] Garantir falha isolada por portal.
-- [ ] Definir `RawJob` minimo valido:
+- [x] Definir `RawJob` minimo valido:
 - [x] `title`
 - [x] `company`
 - [x] `url`
@@ -143,15 +143,15 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Manter estrategia em duas etapas:
 - [x] filtros deterministicos
 - [x] scoring por LLM
-- [ ] Expandir regras deterministicas para:
+- [x] Expandir regras deterministicas para:
 - [x] termos excluidos
 - [x] modalidade incompativel
 - [x] salario abaixo do minimo quando parseavel
-- [ ] Fazer o scorer retornar sempre:
+- [x] Fazer o scorer retornar sempre:
 - [x] nota de 1 a 10
 - [x] rationale curta
 - [x] decisao `accepted`
-- [ ] Registrar em log:
+- [x] Registrar em log:
 - [x] vagas coletadas
 - [x] vagas descartadas por regra
 - [x] vagas descartadas por score
@@ -166,7 +166,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 ## Fase 7. Telegram e revisao
 
 - [x] Manter o bot exclusivamente como interface de revisao humana.
-- [ ] Garantir que cada card tenha:
+- [x] Garantir que cada card tenha:
 - [x] titulo
 - [x] empresa
 - [x] local
@@ -176,11 +176,11 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] rationale
 - [x] link
 - [x] Tornar callbacks idempotentes.
-- [ ] Garantir:
+- [x] Garantir:
 - [x] aprovar item ja aprovado nao quebra
 - [x] rejeitar item inexistente responde de forma segura
 - [x] janela curta de polling no modo `--agora` para processar callbacks apos envio dos cards
-- [ ] Melhorar comandos:
+- [x] Melhorar comandos:
 - [x] `/status` com resumo completo
 - [x] `/pendentes` com amostra dos itens
 - [x] `/recentes` opcional
@@ -218,7 +218,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 
 - [x] Atualizar `README.md` com arquitetura e setup reais.
 - [x] Manter `AGENTS.md` como politica tecnica.
-- [ ] Documentar:
+- [x] Documentar:
 - [x] escopo da v1
 - [x] dependencias locais
 - [x] fluxo operacional
@@ -245,35 +245,35 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 
 ## Checklist de testes
 
-- [ ] Testes de settings:
+- [x] Testes de settings:
 - [x] falha com token placeholder
 - [x] falha sem chat id
 - [x] falha sem profile_text
 - [x] falha sem sites ativos
 - [x] falha com horario invalido
-- [ ] Testes de repository:
+- [x] Testes de repository:
 - [x] persistencia de jobs validos
 - [x] deduplicacao por `url`
 - [x] deduplicacao por `external_key`
 - [x] transicoes de estado validas
 - [x] resumo agregado correto
 - [x] tracking de collection runs
-- [ ] Testes de collector:
+- [x] Testes de collector:
 - [x] adapter devolve `RawJob` minimo valido
 - [x] vagas invalidas nao entram no pipeline
 - [x] filtros deterministicos descartam termos proibidos
 - [x] scorer converte resposta em `ScoredJob`
 - [x] falha de um portal nao interrompe os demais
-- [ ] Testes de notifier:
+- [x] Testes de notifier:
 - [x] card com campos essenciais
 - [x] approve altera status para `approved`
 - [x] reject altera status para `rejected`
 - [x] callback para job inexistente responde com seguranca
 - [x] callback duplicado e idempotente
-- [ ] Testes de integracao:
+- [x] Testes de integracao:
 - [x] ciclo `--agora` com doubles
 - [x] persistencia e revisao funcionando juntas
-- [ ] Checagens estaticas:
+- [x] Checagens estaticas:
 - [x] `py_compile` dos modulos ativos
 - [x] `unittest` rodando no workspace
 - [x] `pytest` rodando no workspace
@@ -289,7 +289,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 
 ## Modelo de comentario de finalizacao
 
-- [ ] Use sempre este padrao ao concluir qualquer fase ou bloco:
+- [x] Use sempre este padrao ao concluir qualquer fase ou bloco:
 
 ```text
 Concluido em: YYYY-MM-DD
@@ -355,3 +355,6 @@ Comentario: a execucao real do MVP confirmou persistencia local com estados expl
 
 Concluido em: 2026-04-04
 Comentario: as fases centrais do MVP foram consolidadas na checklist com base no runtime real do LinkedIn, no ciclo completo de revisao via Telegram e na estabilizacao do parsing residual com detalhe da vaga e fallback local de repair.
+
+Concluido em: 2026-04-04
+Comentario: a checklist foi alinhada ao estado real do MVP e o parser residual do LinkedIn foi endurecido para evitar fragmentos de local como empresa, preservar localizacoes explicitas validas e acionar repair local apenas nos casos realmente suspeitos; o run real 53 persistiu vagas novas com campos limpos.
