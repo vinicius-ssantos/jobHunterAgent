@@ -63,6 +63,20 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertTrue(self.repository.job_url_exists("https://example.com/job-1"))
         self.assertFalse(self.repository.job_url_exists("https://example.com/job-2"))
 
+    def test_job_url_exists_matches_linkedin_variants_by_job_id(self) -> None:
+        saved = self.repository.save_new_jobs(
+            [sample_job("https://www.linkedin.com/jobs/view/123456789/?trackingId=abc", "key-1")]
+        )
+
+        self.assertEqual(len(saved), 1)
+        self.assertTrue(self.repository.job_url_exists("https://www.linkedin.com/jobs/view/123456789/"))
+        self.assertTrue(
+            self.repository.job_exists(
+                "https://www.linkedin.com/jobs/view/123456789/?currentJobId=123456789",
+                "different-key",
+            )
+        )
+
     def test_remember_seen_job_persists_and_updates_seen_registry(self) -> None:
         self.repository.remember_seen_job(
             "https://example.com/job-1",
@@ -80,6 +94,22 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertTrue(self.repository.seen_job_exists("https://example.com/job-1", "key-1"))
         self.assertTrue(self.repository.seen_job_url_exists("https://example.com/job-1"))
         self.assertFalse(self.repository.seen_job_exists("https://example.com/job-2", "key-2"))
+
+    def test_seen_job_exists_matches_linkedin_variants_by_job_id(self) -> None:
+        self.repository.remember_seen_job(
+            "https://www.linkedin.com/jobs/view/987654321/?trackingId=abc",
+            "key-1",
+            "LinkedIn",
+            "discarded_rule:modalidade fora do perfil",
+        )
+
+        self.assertTrue(self.repository.seen_job_url_exists("https://www.linkedin.com/jobs/view/987654321/"))
+        self.assertTrue(
+            self.repository.seen_job_exists(
+                "https://www.linkedin.com/jobs/view/987654321/?currentJobId=987654321",
+                "different-key",
+            )
+        )
 
     def test_summary_counts_statuses(self) -> None:
         saved = self.repository.save_new_jobs(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import re
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -112,6 +113,19 @@ class SqliteJobRepository:
     def _connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         return sqlite3.connect(self.db_path)
+
+    @staticmethod
+    def _extract_linkedin_job_id(url: str) -> str:
+        match = re.search(r"linkedin\.com/jobs/view/(\d+)", url, flags=re.IGNORECASE)
+        return match.group(1) if match else ""
+
+    @classmethod
+    def _url_lookup_patterns(cls, url: str) -> list[str]:
+        patterns = [url]
+        linkedin_job_id = cls._extract_linkedin_job_id(url)
+        if linkedin_job_id:
+            patterns.append(f"%/jobs/view/{linkedin_job_id}%")
+        return patterns
 
     def _create_tables(self) -> None:
         with self._connect() as connection:
@@ -283,34 +297,62 @@ class SqliteJobRepository:
 
     def job_exists(self, url: str, external_key: str) -> bool:
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT 1 FROM jobs WHERE url = ? OR external_key = ?",
-                (url, external_key),
-            ).fetchone()
+            patterns = self._url_lookup_patterns(url)
+            if len(patterns) > 1:
+                row = connection.execute(
+                    "SELECT 1 FROM jobs WHERE url = ? OR url LIKE ? OR external_key = ?",
+                    (patterns[0], patterns[1], external_key),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT 1 FROM jobs WHERE url = ? OR external_key = ?",
+                    (url, external_key),
+                ).fetchone()
         return row is not None
 
     def job_url_exists(self, url: str) -> bool:
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT 1 FROM jobs WHERE url = ?",
-                (url,),
-            ).fetchone()
+            patterns = self._url_lookup_patterns(url)
+            if len(patterns) > 1:
+                row = connection.execute(
+                    "SELECT 1 FROM jobs WHERE url = ? OR url LIKE ?",
+                    (patterns[0], patterns[1]),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT 1 FROM jobs WHERE url = ?",
+                    (url,),
+                ).fetchone()
         return row is not None
 
     def seen_job_exists(self, url: str, external_key: str) -> bool:
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT 1 FROM seen_jobs WHERE url = ? OR external_key = ?",
-                (url, external_key),
-            ).fetchone()
+            patterns = self._url_lookup_patterns(url)
+            if len(patterns) > 1:
+                row = connection.execute(
+                    "SELECT 1 FROM seen_jobs WHERE url = ? OR url LIKE ? OR external_key = ?",
+                    (patterns[0], patterns[1], external_key),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT 1 FROM seen_jobs WHERE url = ? OR external_key = ?",
+                    (url, external_key),
+                ).fetchone()
         return row is not None
 
     def seen_job_url_exists(self, url: str) -> bool:
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT 1 FROM seen_jobs WHERE url = ?",
-                (url,),
-            ).fetchone()
+            patterns = self._url_lookup_patterns(url)
+            if len(patterns) > 1:
+                row = connection.execute(
+                    "SELECT 1 FROM seen_jobs WHERE url = ? OR url LIKE ?",
+                    (patterns[0], patterns[1]),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT 1 FROM seen_jobs WHERE url = ?",
+                    (url,),
+                ).fetchone()
         return row is not None
 
     def remember_seen_job(self, url: str, external_key: str, source_site: str, reason: str) -> None:
