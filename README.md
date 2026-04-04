@@ -30,6 +30,7 @@ Ja existe uma pre-fase de candidatura assistida preparada na arquitetura:
 
 - contratos em `job_hunter_agent/applicant.py`
 - persistencia separada de candidaturas em `job_applications`
+- criacao de rascunho quando uma vaga e aprovada no Telegram
 
 Isso ainda nao dispara aplicacao automatica. Serve apenas para preparar a proxima fase sem contaminar o loop atual de coleta e revisao.
 

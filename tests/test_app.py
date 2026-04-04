@@ -4,6 +4,7 @@ import asyncio
 from unittest import IsolatedAsyncioTestCase
 
 from job_hunter_agent.app import JobHunterApplication
+from job_hunter_agent.domain import JobPosting
 
 
 class _FakeRuntimeGuard:
@@ -34,6 +35,24 @@ class _FakeNotifier:
 class _FakeSettings:
     def __init__(self, review_polling_grace_seconds: int) -> None:
         self.review_polling_grace_seconds = review_polling_grace_seconds
+
+
+def _sample_job(*, job_id: int, status: str) -> JobPosting:
+    return JobPosting(
+        id=job_id,
+        title="Backend Java",
+        company="ACME",
+        location="Brasil",
+        work_mode="remoto",
+        salary_text="Nao informado",
+        url=f"https://example.com/{job_id}",
+        source_site="LinkedIn",
+        summary="Resumo",
+        relevance=8,
+        rationale="Boa aderencia",
+        external_key=f"key-{job_id}",
+        status=status,
+    )
 
 
 class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
@@ -94,3 +113,30 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(waited, [])
         self.assertTrue(app.notifier.started)
         self.assertTrue(app.notifier.stopped)
+
+    async def test_handle_approved_jobs_creates_application_drafts_only_for_approved(self) -> None:
+        class _RepositoryWithJobs:
+            def __init__(self) -> None:
+                self.jobs = {
+                    1: _sample_job(job_id=1, status="approved"),
+                    2: _sample_job(job_id=2, status="collected"),
+                }
+                self.created: list[int] = []
+
+            def get_job(self, job_id: int):
+                return self.jobs.get(job_id)
+
+            def create_application_draft(self, job_id: int, notes: str = ""):
+                self.created.append(job_id)
+                return type("Draft", (), {"job_id": job_id, "notes": notes})
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _RepositoryWithJobs()
+
+        from job_hunter_agent.applicant import ApplicationPreparationService
+
+        app.application_preparation = ApplicationPreparationService(app.repository)
+
+        await app.handle_approved_jobs([1, 2, 999])
+
+        self.assertEqual(app.repository.created, [1])

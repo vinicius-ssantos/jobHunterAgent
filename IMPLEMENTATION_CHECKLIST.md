@@ -304,7 +304,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] busca por candidatura via `job_id`
 - [x] listagem por status
 - [x] resumo agregado
-- [ ] Integrar candidatura assistida ao fluxo humano de revisao.
+- [x] Integrar candidatura assistida ao fluxo humano de revisao.
 - [ ] Implementar automacao real de candidatura por portal.
 
 ## Modelo de comentario de finalizacao
@@ -381,3 +381,6 @@ Comentario: a checklist foi alinhada ao estado real do MVP e o parser residual d
 
 Concluido em: 2026-04-04
 Comentario: a pre-fase de candidatura assistida foi aberta com contratos proprios, tabela separada de persistencia e testes de repositorio cobrindo rascunho, transicoes de status, listagem e resumo; nada foi acoplado ao loop principal nem habilitou candidatura automatica.
+
+Concluido em: 2026-04-04
+Comentario: a aprovacao humana no Telegram agora cria rascunhos de candidatura apenas para vagas `approved`, usando um servico proprio de preparacao; isso integra a pre-fase ao fluxo real sem habilitar submissao automatica.

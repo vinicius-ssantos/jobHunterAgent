@@ -1,6 +1,7 @@
 import shutil
 import unittest
 
+from job_hunter_agent.applicant import ApplicationPreparationService
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
@@ -200,3 +201,21 @@ class SqliteJobRepositoryTests(unittest.TestCase):
 
         self.assertEqual([item.job_id for item in ready], [first_job.id])
         self.assertEqual([item.job_id for item in cancelled], [second_job.id])
+
+    def test_application_preparation_service_creates_drafts_only_for_approved_jobs(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        collected = self.repository.save_new_jobs([sample_job("https://example.com/job-2", "key-2")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        service = ApplicationPreparationService(self.repository)
+
+        drafts = service.create_drafts_for_approved_jobs(
+            [approved.id, collected.id, 999],
+            notes="rascunho criado apos aprovacao humana",
+        )
+
+        self.assertEqual([draft.job_id for draft in drafts], [approved.id])
+        stored = self.repository.get_application_by_job(approved.id)
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored.notes, "rascunho criado apos aprovacao humana")
+        self.assertIsNone(self.repository.get_application_by_job(collected.id))

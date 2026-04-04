@@ -5,6 +5,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
+from job_hunter_agent.applicant import ApplicationPreparationService
 from job_hunter_agent.collector import (
     BrowserUseSiteCollector,
     HybridJobScorer,
@@ -32,6 +33,7 @@ class JobHunterApplication:
             browser_use_dir=self.settings.browser_use_config_dir.resolve(),
             lock_path=(self.settings.browser_use_config_dir / "job_hunter_agent.lock").resolve(),
         )
+        self.application_preparation = ApplicationPreparationService(self.repository)
         self.collector = JobCollectionService(
             settings=self.settings,
             repository=self.repository,
@@ -61,10 +63,22 @@ class JobHunterApplication:
             ),
         )
         self.notifier = (
-            TelegramNotifier(settings=self.settings, repository=self.repository)
+            TelegramNotifier(
+                settings=self.settings,
+                repository=self.repository,
+                on_approved=self.handle_approved_jobs,
+            )
             if enable_telegram
             else NullNotifier()
         )
+
+    async def handle_approved_jobs(self, job_ids: list[int]) -> None:
+        drafts = self.application_preparation.create_drafts_for_approved_jobs(
+            job_ids,
+            notes="rascunho criado apos aprovacao humana",
+        )
+        if drafts:
+            logger.info("Pre-fase de candidatura criou %s rascunho(s) para vagas aprovadas.", len(drafts))
 
     async def run_collection_cycle(self) -> bool:
         run = self.repository.start_collection_run()
