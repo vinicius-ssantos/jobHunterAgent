@@ -114,6 +114,7 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
                 headless=settings.browser_headless,
                 max_pages_per_cycle=settings.linkedin_max_pages_per_cycle,
                 max_page_depth=settings.linkedin_max_page_depth,
+                scroll_stabilization_passes=settings.linkedin_scroll_stabilization_passes,
                 known_job_url_exists=known_job_lookup,
                 collection_cursor_lookup=cursor_lookup,
                 collection_cursor_updater=cursor_updater,

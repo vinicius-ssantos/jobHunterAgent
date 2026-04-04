@@ -179,6 +179,7 @@ A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario
 
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH=6`
+- `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES=3`
 
 O recomendado para a fase atual e manter essa janela pequena por ciclo.
 O coletor agora move essa janela entre execucoes, por exemplo:
@@ -189,6 +190,7 @@ O coletor agora move essa janela entre execucoes, por exemplo:
 - depois volta para `1`
 
 Isso reduz retrabalho quando as primeiras paginas variam pouco entre runs sequenciais.
+Antes de extrair os cards de cada pagina, o coletor tambem faz um scroll incremental curto na lista de resultados para tentar estabilizar os cards visiveis sem transformar a pagina em um crawler agressivo.
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

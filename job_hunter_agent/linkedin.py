@@ -611,6 +611,7 @@ class LinkedInDeterministicCollector:
         headless: bool,
         max_pages_per_cycle: int = 2,
         max_page_depth: int = 6,
+        scroll_stabilization_passes: int = 3,
         field_repairer: object | None = None,
         known_job_url_exists: Callable[[str], bool] | None = None,
         collection_cursor_lookup: Callable[[str, str], int] | None = None,
@@ -620,6 +621,7 @@ class LinkedInDeterministicCollector:
         self.headless = headless
         self.max_pages_per_cycle = max_pages_per_cycle
         self.max_page_depth = max_page_depth
+        self.scroll_stabilization_passes = scroll_stabilization_passes
         self.field_repairer = field_repairer
         self.known_job_url_exists = known_job_url_exists
         self.collection_cursor_lookup = collection_cursor_lookup
@@ -784,6 +786,7 @@ class LinkedInDeterministicCollector:
                 logger.info("LinkedIn pagina %s sem cards visiveis; resetando janela para pagina 1.", current_page_number)
                 return collected_cards[:max_jobs], 1
 
+            await self._stabilize_results_page(page)
             remaining_jobs = max(1, max_jobs - len(collected_cards))
             page_cards = await self._extract_visible_cards(page, remaining_jobs)
             page_cards = self._filter_known_cards(page_cards)
@@ -833,6 +836,43 @@ class LinkedInDeterministicCollector:
         if page_number > self.max_page_depth:
             return 1
         return max(1, page_number)
+
+    async def _stabilize_results_page(self, page: object) -> None:
+        stable_rounds = 0
+        previous_count = -1
+        for _ in range(self.scroll_stabilization_passes):
+            current_count = int(
+                await page.evaluate(
+                    """
+                    () => {
+                      const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
+                      const unique = new Set();
+                      for (const anchor of anchors) {
+                        const href = anchor.getAttribute("href") || anchor.href || "";
+                        if (href) unique.add(href);
+                      }
+                      const container = document.querySelector(".jobs-search-results-list")
+                        || document.querySelector(".jobs-search-results__list")
+                        || document.querySelector(".scaffold-layout__list-container")
+                        || document.scrollingElement;
+                      if (container) {
+                        container.scrollTop = container.scrollHeight;
+                      } else {
+                        window.scrollTo(0, document.body.scrollHeight);
+                      }
+                      return unique.size;
+                    }
+                    """
+                )
+            )
+            await page.wait_for_timeout(600)
+            if current_count == previous_count:
+                stable_rounds += 1
+                if stable_rounds >= 1:
+                    break
+            else:
+                stable_rounds = 0
+            previous_count = current_count
 
     async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:
         return bool(

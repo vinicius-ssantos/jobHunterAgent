@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     browser_headless: bool = False
     linkedin_max_pages_per_cycle: int = 2
     linkedin_max_page_depth: int = 6
+    linkedin_scroll_stabilization_passes: int = 3
 
     include_keywords: tuple[str, ...] = (
         "java",
@@ -128,6 +129,13 @@ class Settings(BaseSettings):
     def validate_linkedin_max_page_depth(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_scroll_stabilization_passes")
+    @classmethod
+    def validate_linkedin_scroll_stabilization_passes(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES deve ser maior que zero.")
         return value
 
     @field_validator("sites")
