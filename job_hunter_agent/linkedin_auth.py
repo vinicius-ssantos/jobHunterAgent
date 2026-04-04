@@ -5,7 +5,7 @@ from pathlib import Path
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 
-from job_hunter_agent.collector import resolve_local_chromium
+from job_hunter_agent.browser_support import resolve_local_chromium
 from job_hunter_agent.settings import Settings
 
 

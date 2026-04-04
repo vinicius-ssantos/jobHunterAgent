@@ -12,7 +12,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from job_hunter_agent.browser_support import (
+    automation_result_to_text as browser_automation_result_to_text,
+    build_available_file_paths as browser_build_available_file_paths,
+    extract_json_object as browser_extract_json_object,
+    resolve_local_chromium as browser_resolve_local_chromium,
+)
 from job_hunter_agent.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.linkedin import (
+    LinkedInDeterministicCollector as ModularLinkedInDeterministicCollector,
+    OllamaLinkedInFieldRepairer as ModularOllamaLinkedInFieldRepairer,
+)
 from job_hunter_agent.repository import JobRepository
 from job_hunter_agent.settings import Settings
 
@@ -48,11 +58,6 @@ class PortalCollectorAdapter(Protocol):
 
 class DeterministicPortalCollector(Protocol):
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
-        raise NotImplementedError
-
-
-class LinkedInFieldRepairer(Protocol):
-    def repair(self, card: dict[str, str], normalized_card: dict[str, str]) -> dict[str, str]:
         raise NotImplementedError
 
 
@@ -96,7 +101,7 @@ class BrowserUseAutomationAdapter:
 
     async def run(self, task: str, site: SiteConfig | None = None) -> object:
         executable_path = self._resolve_local_chromium()
-        available_file_paths = build_available_file_paths(self.config_dir)
+        available_file_paths = browser_build_available_file_paths(self.config_dir)
         browser_profile = self._build_browser_profile(site, executable_path)
         browser = self._browser_session_cls(browser_profile=browser_profile)
         llm = self._llm_cls(model=self.model_name, host=self.base_url)
@@ -132,7 +137,7 @@ class BrowserUseAutomationAdapter:
         return Path(tempfile.mkdtemp(prefix="job-hunter-browser-", dir=self.config_dir))
 
     def _resolve_local_chromium(self) -> Path:
-        return resolve_local_chromium()
+        return browser_resolve_local_chromium()
 
 
 @dataclass(frozen=True)
@@ -622,7 +627,7 @@ class BrowserUseSiteCollector:
             linkedin_storage_state_path=resolved_storage_state,
             headless=headless,
         )
-        self.linkedin_collector = linkedin_collector or LinkedInDeterministicCollector(
+        self.linkedin_collector = linkedin_collector or ModularLinkedInDeterministicCollector(
             storage_state_path=resolved_storage_state,
             headless=headless,
         )
@@ -650,8 +655,8 @@ class BrowserUseSiteCollector:
         result = await self.automation.run(task, site)
         elapsed_seconds = time.monotonic() - started_at
         logger.info("Automacao concluida site=%s duracao=%.2fs", site.name, elapsed_seconds)
-        result_text = automation_result_to_text(result)
-        payload = extract_json_object(result_text)
+        result_text = browser_automation_result_to_text(result)
+        payload = browser_extract_json_object(result_text)
         if result_text.strip() and not payload:
             logger.warning(
                 standardize_error_message("erro de parsing", site.name, "resposta sem JSON valido"),
