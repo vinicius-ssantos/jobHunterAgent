@@ -20,11 +20,13 @@ from job_hunter_agent.collector import (
     build_external_key,
     extract_json_object,
     load_playwright_storage_state,
+    merge_linkedin_card_with_detail,
     normalize_linkedin_card,
     normalize_linkedin_work_mode,
     parse_scoring_response,
     parse_salary_floor,
     standardize_error_message,
+    should_enrich_linkedin_card,
     summarize_linkedin_raw_card,
 )
 from job_hunter_agent.domain import RawJob, ScoredJob, SiteConfig
@@ -345,6 +347,8 @@ class ExternalKeyTests(TestCase):
                 "location": "",
                 "raw_company_candidates": "Stefanini Brasil",
                 "raw_metadata_candidates": "Osasco, São Paulo, Brasil (Híbrido)",
+                "detail_company_candidates": "Stefanini Brasil",
+                "detail_metadata_candidates": "Osasco, São Paulo, Brasil (Híbrido)",
                 "raw_lines": "Desenvolvedor Java | Stefanini Brasil | Osasco, São Paulo, Brasil (Híbrido)",
             }
         )
@@ -352,6 +356,7 @@ class ExternalKeyTests(TestCase):
         self.assertIn("title='Desenvolvedor Java'", summary)
         self.assertIn("raw_company_candidates='Stefanini Brasil'", summary)
         self.assertIn("raw_metadata_candidates='Osasco, São Paulo, Brasil (Híbrido)'", summary)
+        self.assertIn("detail_company_candidates='Stefanini Brasil'", summary)
 
     def test_load_playwright_storage_state_normalizes_partition_key(self) -> None:
         temp_dir = prepare_workspace_tmp_dir("storage")
@@ -504,6 +509,38 @@ class ExternalKeyTests(TestCase):
 
     def test_clean_linkedin_company_rejects_city_fragment(self) -> None:
         self.assertEqual(clean_linkedin_company("Osasco,"), "")
+
+    def test_should_enrich_linkedin_card_requires_detail_when_company_or_location_is_missing(self) -> None:
+        self.assertTrue(should_enrich_linkedin_card({"company": "", "location": "Osasco, São Paulo, Brasil (Híbrido)"}))
+        self.assertTrue(should_enrich_linkedin_card({"company": "Stefanini Brasil", "location": ""}))
+        self.assertFalse(
+            should_enrich_linkedin_card(
+                {"company": "Stefanini Brasil", "location": "Osasco, São Paulo, Brasil (Híbrido)"}
+            )
+        )
+
+    def test_merge_linkedin_card_with_detail_fills_missing_company_and_location(self) -> None:
+        merged = merge_linkedin_card_with_detail(
+            {
+                "title": "Desenvolvedor Java",
+                "company": "",
+                "location": "",
+                "summary": "Desenvolvedor Java",
+            },
+            {
+                "title": "Desenvolvedor Java",
+                "company": "Stefanini Brasil",
+                "location": "Osasco, São Paulo, Brasil (Híbrido)",
+                "summary": "Detalhe da vaga",
+                "raw_company_candidates": "Stefanini Brasil",
+                "raw_metadata_candidates": "Osasco, São Paulo, Brasil (Híbrido)",
+            },
+        )
+
+        self.assertEqual(merged["company"], "Stefanini Brasil")
+        self.assertEqual(merged["location"], "Osasco, São Paulo, Brasil (Híbrido)")
+        self.assertEqual(merged["detail_company_candidates"], "Stefanini Brasil")
+        self.assertEqual(merged["detail_metadata_candidates"], "Osasco, São Paulo, Brasil (Híbrido)")
 
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):

@@ -322,13 +322,14 @@ class LinkedInDeterministicCollector:
                         "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
                     ) from exc
                 raw_cards = await self._extract_visible_cards(page, max_jobs)
+                enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
                 await context.close()
                 await browser.close()
 
         jobs: list[RawJob] = []
         seen_urls: set[str] = set()
-        for card in raw_cards:
+        for card in enriched_cards:
             normalized_card = normalize_linkedin_card(card)
             url = normalized_card["url"].strip()
             if not url or url in seen_urls:
@@ -358,6 +359,89 @@ class LinkedInDeterministicCollector:
                 )
             )
         return jobs
+
+    async def _enrich_residual_cards(self, context: object, cards: list[dict[str, str]]) -> list[dict[str, str]]:
+        enriched_cards: list[dict[str, str]] = []
+        for card in cards:
+            normalized_card = normalize_linkedin_card(card)
+            if not should_enrich_linkedin_card(normalized_card):
+                enriched_cards.append(card)
+                continue
+            detail = await self._extract_job_detail_snapshot(context, normalized_card["url"].strip())
+            if not detail:
+                enriched_cards.append(card)
+                continue
+            merged_card = merge_linkedin_card_with_detail(card, detail)
+            merged_normalized = normalize_linkedin_card(merged_card)
+            logger.info(
+                "LinkedIn card enriquecido pelo detalhe | title=%r company=%r location=%r",
+                merged_normalized["title"].strip(),
+                merged_normalized["company"].strip() or "Empresa nao informada",
+                merged_normalized["location"].strip() or "Local nao informado",
+            )
+            enriched_cards.append(merged_card)
+        return enriched_cards
+
+    async def _extract_job_detail_snapshot(self, context: object, url: str) -> dict[str, str]:
+        if not url.startswith("https://"):
+            return {}
+        page = await context.new_page()
+        try:
+            await page.goto(url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(1500)
+            return await page.evaluate(
+                """
+                () => {
+                  const normalizeText = (value) => (value || "").replace(/\\s+/g, " ").trim();
+                  const textsForSelectors = (selectors) => {
+                    const values = [];
+                    for (const selector of selectors) {
+                      for (const node of Array.from(document.querySelectorAll(selector))) {
+                        const text = normalizeText(node.textContent || "");
+                        if (text && !values.includes(text)) {
+                          values.push(text);
+                        }
+                      }
+                    }
+                    return values;
+                  };
+                  const companyCandidates = textsForSelectors([
+                    ".job-details-jobs-unified-top-card__company-name a",
+                    ".job-details-jobs-unified-top-card__company-name",
+                    ".jobs-unified-top-card__company-name a",
+                    ".jobs-unified-top-card__company-name",
+                    ".job-details-jobs-unified-top-card__primary-description a",
+                    ".job-details-jobs-unified-top-card__primary-description-container a",
+                  ]);
+                  const metadataCandidates = textsForSelectors([
+                    ".job-details-jobs-unified-top-card__tertiary-description",
+                    ".job-details-jobs-unified-top-card__tertiary-description-container",
+                    ".job-details-jobs-unified-top-card__primary-description-container",
+                    ".jobs-unified-top-card__subtitle-primary-grouping",
+                    ".jobs-unified-top-card__bullet",
+                  ]);
+                  const title = normalizeText(
+                    document.querySelector("h1")?.textContent ||
+                    document.querySelector(".job-details-jobs-unified-top-card__job-title")?.textContent ||
+                    ""
+                  );
+                  const summary = normalizeText(document.body?.innerText || "").slice(0, 400);
+                  return {
+                    title,
+                    company: companyCandidates.join(" | "),
+                    location: metadataCandidates.join(" | "),
+                    summary,
+                    raw_company_candidates: companyCandidates.join(" | "),
+                    raw_metadata_candidates: metadataCandidates.join(" | "),
+                  };
+                }
+                """
+            )
+        except Exception as exc:
+            logger.warning("LinkedIn detail enrichment falhou | url=%r detalhe=%s", url, exc)
+            return {}
+        finally:
+            await page.close()
 
     async def _dismiss_sign_in_modal(self, page: object) -> None:
         modal_button_selectors = (
@@ -836,6 +920,31 @@ def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
     }
 
 
+def should_enrich_linkedin_card(card: dict[str, str]) -> bool:
+    return not card.get("company", "").strip() or not card.get("location", "").strip()
+
+
+def merge_linkedin_card_with_detail(card: dict[str, str], detail: dict[str, str]) -> dict[str, str]:
+    merged = dict(card)
+    title = detail.get("title", "").strip()
+    company = detail.get("company", "").strip()
+    location = detail.get("location", "").strip()
+    summary = detail.get("summary", "").strip()
+    if title and len(title) > len(str(merged.get("title", "")).strip()):
+        merged["title"] = title
+    if company:
+        merged["company"] = company
+    if location:
+        merged["location"] = location
+    if summary and not str(merged.get("summary", "")).strip():
+        merged["summary"] = summary
+    if detail.get("raw_company_candidates"):
+        merged["detail_company_candidates"] = detail["raw_company_candidates"]
+    if detail.get("raw_metadata_candidates"):
+        merged["detail_metadata_candidates"] = detail["raw_metadata_candidates"]
+    return merged
+
+
 def clean_linkedin_title(value: str) -> str:
     cleaned = _normalize_whitespace(value)
     repeated_prefix = re.match(r"^(.{5,120}?)\s+\1$", cleaned, flags=re.IGNORECASE)
@@ -1087,6 +1196,8 @@ def summarize_linkedin_raw_card(card: dict[str, str]) -> str:
         "work_mode",
         "raw_company_candidates",
         "raw_metadata_candidates",
+        "detail_company_candidates",
+        "detail_metadata_candidates",
         "raw_lines",
         "anchor_text",
         "summary",
