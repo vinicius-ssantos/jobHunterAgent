@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     linkedin_persistent_profile_dir: Path = Path("./.browseruse/profiles/linkedin-bootstrap")
     linkedin_storage_state_path: Path = Path("./.browseruse/linkedin-storage-state.json")
     browser_headless: bool = False
+    linkedin_max_pages_per_cycle: int = 2
 
     include_keywords: tuple[str, ...] = (
         "java",
@@ -108,6 +109,13 @@ class Settings(BaseSettings):
             raise ValueError("JOB_HUNTER_COLLECTION_TIME deve conter apenas numeros.")
         if not (0 <= int(hour) <= 23 and 0 <= int(minute) <= 59):
             raise ValueError("JOB_HUNTER_COLLECTION_TIME esta fora do intervalo valido.")
+        return value
+
+    @field_validator("linkedin_max_pages_per_cycle")
+    @classmethod
+    def validate_linkedin_max_pages_per_cycle(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE deve ser maior que zero.")
         return value
 
     @field_validator("sites")

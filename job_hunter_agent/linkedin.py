@@ -569,11 +569,13 @@ class LinkedInDeterministicCollector:
         *,
         storage_state_path: str | Path,
         headless: bool,
+        max_pages_per_cycle: int = 2,
         field_repairer: object | None = None,
         known_job_url_exists: Callable[[str], bool] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
+        self.max_pages_per_cycle = max_pages_per_cycle
         self.field_repairer = field_repairer
         self.known_job_url_exists = known_job_url_exists
 
@@ -610,8 +612,7 @@ class LinkedInDeterministicCollector:
                     raise RuntimeError(
                         "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
                     ) from exc
-                raw_cards = await self._extract_visible_cards(page, max_jobs)
-                raw_cards = self._filter_known_cards(raw_cards)
+                raw_cards = await self._collect_cards_across_pages(page, max_jobs)
                 enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
                 await context.close()
@@ -675,6 +676,100 @@ class LinkedInDeterministicCollector:
         if skipped:
             logger.info("LinkedIn pulou %s card(s) ja conhecidos antes do detalhe.", skipped)
         return filtered
+
+    async def _collect_cards_across_pages(self, page: object, max_jobs: int) -> list[dict[str, str]]:
+        try:
+            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de coleta nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+
+        collected_cards: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+        for page_number in range(1, self.max_pages_per_cycle + 1):
+            await self._dismiss_sign_in_modal(page)
+            try:
+                await page.wait_for_selector("a[href*='/jobs/view/']", timeout=7000)
+            except PlaywrightTimeoutError:
+                if page_number == 1:
+                    raise RuntimeError("nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca")
+                logger.info("LinkedIn pagina %s sem cards visiveis; encerrando paginacao.", page_number)
+                break
+
+            remaining_jobs = max(1, max_jobs - len(collected_cards))
+            page_cards = await self._extract_visible_cards(page, remaining_jobs)
+            page_cards = self._filter_known_cards(page_cards)
+            new_page_cards: list[dict[str, str]] = []
+            for card in page_cards:
+                url = str(card.get("url", "")).strip()
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                new_page_cards.append(card)
+
+            collected_cards.extend(new_page_cards)
+            logger.info(
+                "LinkedIn pagina %s analisada cards=%s novos=%s acumulado=%s",
+                page_number,
+                len(page_cards),
+                len(new_page_cards),
+                len(collected_cards),
+            )
+            if len(collected_cards) >= max_jobs:
+                break
+            if page_number >= self.max_pages_per_cycle:
+                break
+            moved = await self._go_to_next_results_page(page, page_number + 1)
+            if not moved:
+                logger.info("LinkedIn sem proxima pagina navegavel apos pagina %s.", page_number)
+                break
+            await page.wait_for_timeout(1500)
+
+        return collected_cards[:max_jobs]
+
+    async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:
+        return bool(
+            await page.evaluate(
+                """
+                ({ nextPageNumber }) => {
+                  const normalizeText = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+                  const clickable = (node) => node && !node.disabled && node.getAttribute("aria-disabled") !== "true";
+                  const candidates = Array.from(document.querySelectorAll("button, a"));
+                  for (const node of candidates) {
+                    if (!clickable(node)) continue;
+                    const text = normalizeText(node.textContent);
+                    const aria = normalizeText(node.getAttribute("aria-label"));
+                    if (
+                      text === String(nextPageNumber) ||
+                      aria === `page ${nextPageNumber}` ||
+                      aria === `página ${nextPageNumber}` ||
+                      aria.includes(`page ${nextPageNumber}`) ||
+                      aria.includes(`página ${nextPageNumber}`)
+                    ) {
+                      node.click();
+                      return true;
+                    }
+                  }
+                  const nextSelectors = [
+                    ".jobs-search-pagination__button--next",
+                    "button[aria-label='View next page']",
+                    "button[aria-label='Ver proxima pagina']",
+                    "button[aria-label='Ver próxima página']",
+                  ];
+                  for (const selector of nextSelectors) {
+                    const node = document.querySelector(selector);
+                    if (clickable(node)) {
+                      node.click();
+                      return true;
+                    }
+                  }
+                  return false;
+                }
+                """,
+                {"nextPageNumber": next_page_number},
+            )
+        )
 
     async def _enrich_residual_cards(self, context: object, cards: list[dict[str, str]]) -> list[dict[str, str]]:
         enriched_cards: list[dict[str, str]] = []

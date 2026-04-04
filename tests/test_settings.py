@@ -21,6 +21,7 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.profile_text, "Backend engineer")
         self.assertEqual(settings.collection_time, "09:30")
         self.assertEqual(settings.review_polling_grace_seconds, 120)
+        self.assertEqual(settings.linkedin_max_pages_per_cycle, 2)
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
 
@@ -101,3 +102,11 @@ class SettingsTests(TestCase):
         self.assertNotIn("junior", settings.scoring_exclude_keywords)
         self.assertNotIn("trainee", settings.scoring_exclude_keywords)
         self.assertEqual(settings.scoring_minimum_relevance, 5)
+
+    def test_rejects_invalid_linkedin_max_pages_per_cycle(self) -> None:
+        with self.assertRaises(ValueError):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                linkedin_max_pages_per_cycle=0,
+            )

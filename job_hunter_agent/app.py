@@ -51,6 +51,7 @@ class JobHunterApplication:
                 linkedin_collector=LinkedInDeterministicCollector(
                     storage_state_path=self.settings.linkedin_storage_state_path,
                     headless=self.settings.browser_headless,
+                    max_pages_per_cycle=self.settings.linkedin_max_pages_per_cycle,
                     known_job_url_exists=lambda url: (
                         self.repository.job_url_exists(url) or self.repository.seen_job_url_exists(url)
                     ),

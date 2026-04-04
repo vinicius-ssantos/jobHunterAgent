@@ -94,6 +94,7 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_PERSISTENT_PROFILE_DIR`
 - `JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH`
 - `JOB_HUNTER_BROWSER_HEADLESS`
+- `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
 - `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
 - `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
@@ -129,6 +130,12 @@ Tambem existe um fallback opcional de reparo local de campos do LinkedIn:
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED=true`
 
 Ele so atua em casos residuais e suspeitos, depois da extracao deterministica e da tentativa de enriquecimento pela pagina de detalhe.
+
+A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
+
+- `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
+
+O recomendado para a fase atual e manter esse limite pequeno.
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

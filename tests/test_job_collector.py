@@ -1,3 +1,4 @@
+import asyncio
 import shutil
 import sqlite3
 from pathlib import Path
@@ -780,6 +781,78 @@ class ExternalKeyTests(TestCase):
 
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):
+    def test_linkedin_collect_cards_across_pages_accumulates_until_limit(self) -> None:
+        class FakePage:
+            def __init__(self) -> None:
+                self.waited_selectors: list[str] = []
+                self.waited_timeouts: list[int] = []
+
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                self.waited_selectors.append(selector)
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                self.waited_timeouts.append(timeout)
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=3,
+        )
+        page = FakePage()
+        extracted = [
+            [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Um"}],
+            [{"url": "https://www.linkedin.com/jobs/view/2", "title": "Dois"}],
+        ]
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return extracted.pop(0)
+
+        moves = [True, False]
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            return moves.pop(0)
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
+
+        self.assertEqual([card["url"] for card in cards], [
+            "https://www.linkedin.com/jobs/view/1",
+            "https://www.linkedin.com/jobs/view/2",
+        ])
+        self.assertEqual(page.waited_timeouts, [1500])
+
+    def test_linkedin_collect_cards_across_pages_stops_at_max_pages(self) -> None:
+        class FakePage:
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                return None
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                return None
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=1,
+        )
+        page = FakePage()
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Um"}]
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            raise AssertionError("nao deveria tentar proxima pagina")
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
+
+        self.assertEqual(len(cards), 1)
+
     def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
         collector = LinkedInDeterministicCollector(
             storage_state_path=Path("dummy.json"),
