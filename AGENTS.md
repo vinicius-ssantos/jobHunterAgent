@@ -206,6 +206,9 @@ Before changing code, verify:
 
 Do not add features just because they are technically possible.
 
+- Sempre que houver modificacoes significativas ainda nao commitadas, preparar e criar commits no padrao adotado no repositorio.
+- As mensagens de commit devem ser escritas em portugues.
+
 ## Anti-Patterns
 
 - giant prompts that browse, reason, score, and act all at once

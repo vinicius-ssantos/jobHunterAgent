@@ -6,9 +6,9 @@
 - [ ] Manter foco exclusivo no ciclo `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`.
 - [ ] Garantir 1 portal confiavel na primeira entrega.
 - [x] Garantir Telegram como interface de revisao humana.
-- [ ] Garantir persistencia local com estados explicitos.
+- [x] Garantir persistencia local com estados explicitos.
 - [ ] Garantir tolerancia a falhas por fonte.
-- [ ] Garantir cobertura de testes para regras centrais.
+- [x] Garantir cobertura de testes para regras centrais.
 
 ## Regra obrigatoria de fechamento
 
@@ -106,8 +106,8 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Adicionar tabela de execucoes de coleta.
 - [ ] Nao misturar revisao com estados futuros de aplicacao automatica.
 - [ ] Resultado esperado:
-- [ ] persistencia auditavel
-- [ ] lifecycle claro
+- [x] persistencia auditavel
+- [x] lifecycle claro
 - [ ] Finalizacao da fase:
 - [ ] registrar comentario
 - [ ] registrar data
@@ -349,3 +349,6 @@ Comentario: o fluxo completo com Telegram foi validado em execucao real, com pol
 
 Concluido em: 2026-04-03
 Comentario: o modo `--agora` com Telegram passou a manter uma janela curta de polling apos o envio dos cards, permitindo que callbacks de aprovacao e rejeicao sejam processados antes do encerramento do processo.
+
+Concluido em: 2026-04-03
+Comentario: a execucao real do MVP confirmou persistencia local com estados explicitos, cobertura dos testes centrais e o ciclo completo de revisao humana no Telegram com transicoes para `approved` e `rejected`.

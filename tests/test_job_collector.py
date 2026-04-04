@@ -457,6 +457,34 @@ class ExternalKeyTests(TestCase):
         self.assertEqual(normalized["location"], "Osasco, São Paulo, Brasil (Híbrido)")
         self.assertEqual(normalized["work_mode"], "hibrido")
 
+    def test_normalize_linkedin_card_uses_location_field_as_company_fallback(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor(a) Java",
+                "company": "",
+                "location": "Stefanini Brasil",
+                "work_mode": "hibrido",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/789",
+                "summary": "Desenvolvedor(a) Java Stefanini Brasil",
+                "description": "Desenvolvedor(a) Java Stefanini Brasil",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Stefanini Brasil")
+        self.assertEqual(normalized["location"], "")
+
+    def test_clean_linkedin_location_rejects_company_like_text(self) -> None:
+        self.assertEqual(clean_linkedin_location("Stefanini Brasil"), "")
+
+    def test_clean_linkedin_location_extracts_location_from_summary_blob(self) -> None:
+        self.assertEqual(
+            clean_linkedin_location(
+                "Desenvolvedor(a) Java Desenvolvedor(a) Java with verification Stefanini Brasil Osasco, São Paulo, Brasil (Híbrido) Avaliando candidaturas"
+            ),
+            "Osasco, São Paulo, Brasil (Híbrido)",
+        )
+
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:

@@ -765,8 +765,17 @@ def load_playwright_storage_state(path: str | Path) -> dict:
 
 def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
     title = clean_linkedin_title(card.get("title", ""))
-    company = clean_linkedin_company(card.get("company", ""))
-    location = clean_linkedin_location(card.get("location", ""))
+    raw_company = str(card.get("company", ""))
+    raw_location = str(card.get("location", ""))
+    raw_summary = str(card.get("summary", ""))
+    company = clean_linkedin_company(raw_company)
+    location = clean_linkedin_location(raw_location)
+    if not company:
+        location_as_company = clean_linkedin_company(raw_location)
+        if location_as_company and not looks_like_linkedin_location(location_as_company):
+            company = location_as_company
+    if not location:
+        location = clean_linkedin_location(raw_summary)
     work_mode = normalize_linkedin_work_mode(card.get("work_mode", ""), location)
     salary_text = clean_linkedin_salary(card.get("salary_text", ""))
     summary = clean_linkedin_summary(card.get("summary", ""))
@@ -818,7 +827,7 @@ def clean_linkedin_company(value: str) -> str:
     cleaned = re.sub(r"^(Desenvolvedor|Engenheiro|Software Engineer|Backend|Fullstack)\b.*?\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(
-        r"\b(São Paulo|Sao Paulo|Brasil|Rio de Janeiro).*$",
+        r"\b(São Paulo|Sao Paulo|Rio de Janeiro).*$",
         "",
         cleaned,
         flags=re.IGNORECASE,
@@ -844,16 +853,37 @@ def clean_linkedin_company(value: str) -> str:
             continue
         kept.append(segment)
         break
-    return kept[0] if kept else cleaned
+    if kept:
+        return kept[0]
+    if looks_like_linkedin_location(cleaned):
+        return ""
+    return cleaned
 
 
 def clean_linkedin_location(value: str) -> str:
     cleaned = _normalize_whitespace(value)
+    snippet = _extract_linkedin_location_snippet(cleaned)
+    if snippet:
+        return snippet
     segments = _split_linkedin_segments(cleaned)
     for segment in segments:
+        lower_segment = segment.lower()
+        if len(segment) > 80:
+            continue
+        if any(
+            marker in lower_segment
+            for marker in (
+                "with verification",
+                "promovida",
+                "candidatura simplificada",
+                "avaliando candidaturas",
+                "visualizado",
+            )
+        ):
+            continue
         if looks_like_linkedin_location(segment):
             return segment
-    return cleaned
+    return ""
 
 
 def normalize_linkedin_work_mode(raw_work_mode: str, location: str) -> str:
@@ -902,25 +932,59 @@ def _split_linkedin_segments(value: str) -> list[str]:
 
 
 def looks_like_linkedin_location(value: str) -> bool:
-    lower = value.lower()
-    return any(
+    normalized = _normalize_whitespace(value)
+    if not normalized:
+        return False
+
+    lower = normalized.lower()
+    if any(
         marker in lower
         for marker in (
-            "brasil",
-            "são paulo",
-            "sao paulo",
-            "rio de janeiro",
-            "br",
             "(híbrido)",
             "(hibrido)",
             "(remoto)",
             "(presencial)",
+            " hybrid",
+            " remoto",
+            " presencial",
         )
-    )
+    ):
+        return True
+
+    if "," in normalized and "brasil" in lower:
+        return True
+
+    return lower in {"brasil", "brazil"}
 
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _extract_linkedin_location_snippet(value: str) -> str:
+    lower_value = value.lower()
+    brasil_index = lower_value.rfind("brasil")
+    if brasil_index == -1:
+        return ""
+    window_start = max(0, brasil_index - 80)
+    window_end = min(len(value), brasil_index + 40)
+    tail = value[window_start:window_end]
+    match = re.search(
+        r"([A-Za-zÀ-ÿ]+(?: [A-Za-zÀ-ÿ]+){0,3},\s*"
+        r"[A-Za-zÀ-ÿ]+(?: [A-Za-zÀ-ÿ]+){0,3},\s*"
+        r"Brasil(?:\s+\((?:Híbrido|Hibrido|Remoto|Presencial)\))?)",
+        tail,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        candidate = _normalize_whitespace(match.group(1))
+        first_segment = candidate.split(",", maxsplit=1)[0].lower()
+        if "brasil" in first_segment or "verification" in first_segment:
+            candidate = _normalize_whitespace(
+                re.sub(r"^.*?\bbrasil\s+", "", candidate, count=1, flags=re.IGNORECASE)
+            )
+        return candidate
+    return ""
 
 
 def _collapse_repeated_title(value: str) -> str | None:

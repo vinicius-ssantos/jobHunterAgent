@@ -11,3 +11,4 @@ jobs.db
 .env
 .idea/
 logs/
+*.docx

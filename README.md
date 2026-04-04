@@ -148,6 +148,18 @@ Exportar a sessao autenticada do LinkedIn para `storage_state`:
 python main.py --bootstrap-linkedin-session
 ```
 
+Dry-run de limpeza controlada de jobs antigos poluidos:
+
+```bash
+python scripts/cleanup_legacy_jobs.py --before-id 15
+```
+
+Aplicar a limpeza somente em vagas antigas ainda `collected`:
+
+```bash
+python scripts/cleanup_legacy_jobs.py --before-id 15 --apply
+```
+
 Rodar em modo agendado com polling do Telegram:
 
 ```bash
