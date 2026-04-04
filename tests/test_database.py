@@ -4,7 +4,9 @@ import unittest
 from job_hunter_agent.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
+    ApplicationSupportAssessment,
     classify_job_application_support,
+    parse_application_support_response,
 )
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
@@ -295,6 +297,54 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(stored.notes, "rascunho criado apos aprovacao humana")
         self.assertEqual(stored.support_level, "manual_review")
         self.assertIsNone(self.repository.get_application_by_job(collected.id))
+
+    def test_application_preparation_service_uses_assessor_when_available(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        class FakeAssessor:
+            def assess(self, job: JobPosting) -> ApplicationSupportAssessment:
+                return ApplicationSupportAssessment(
+                    support_level="auto_supported",
+                    rationale="fluxo simples detectado",
+                )
+
+        service = ApplicationPreparationService(self.repository, support_assessor=FakeAssessor())
+
+        drafts = service.create_drafts_for_approved_jobs([approved.id])
+
+        self.assertEqual(len(drafts), 1)
+        self.assertEqual(drafts[0].support_level, "auto_supported")
+        self.assertEqual(drafts[0].support_rationale, "fluxo simples detectado")
+
+    def test_application_preparation_service_falls_back_when_assessor_fails(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        class BrokenAssessor:
+            def assess(self, job: JobPosting) -> ApplicationSupportAssessment:
+                raise RuntimeError("falha")
+
+        service = ApplicationPreparationService(self.repository, support_assessor=BrokenAssessor())
+
+        drafts = service.create_drafts_for_approved_jobs([approved.id])
+
+        self.assertEqual(len(drafts), 1)
+        self.assertEqual(drafts[0].support_level, "manual_review")
+
+    def test_parse_application_support_response_accepts_valid_json(self) -> None:
+        assessment = parse_application_support_response(
+            '{"support_level":"manual_review","rationale":"requer confirmacao humana"}'
+        )
+
+        self.assertEqual(assessment.support_level, "manual_review")
+        self.assertEqual(assessment.rationale, "requer confirmacao humana")
+
+    def test_parse_application_support_response_rejects_invalid_support_level(self) -> None:
+        assessment = parse_application_support_response('{"support_level":"maybe"}')
+
+        self.assertEqual(assessment.support_level, "unsupported")
+        self.assertIn("invalido", assessment.rationale)
 
     def test_create_application_draft_persists_support_metadata(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]

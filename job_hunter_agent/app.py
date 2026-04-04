@@ -31,7 +31,7 @@ class JobHunterApplication:
         self.settings = load_settings()
         self.repository = create_repository(self.settings)
         self.runtime_guard = create_runtime_guard(self.settings)
-        self.application_preparation = create_application_preparation_service(self.repository)
+        self.application_preparation = create_application_preparation_service(self.repository, self.settings)
         self.application_preflight = create_application_preflight_service(self.repository)
         self.collector = create_collection_service(
             settings=self.settings,

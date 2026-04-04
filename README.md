@@ -114,6 +114,7 @@ Variaveis principais:
 - `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
 - `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
+- `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -143,6 +144,12 @@ Tambem existe um fallback opcional de reparo local de campos do LinkedIn:
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED=true`
 
 Ele so atua em casos residuais e suspeitos, depois da extracao deterministica e da tentativa de enriquecimento pela pagina de detalhe.
+
+Tambem existe um assessor opcional de suporte de candidatura com LLM local:
+
+- `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED=true`
+
+Ele enriquece a classificacao de aplicabilidade da candidatura durante a criacao de rascunhos, mas mantem o fallback deterministico atual quando estiver desabilitado ou quando o modelo falhar.
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 

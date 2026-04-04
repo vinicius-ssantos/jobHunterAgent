@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     relaxed_testing_remove_exclude_keywords: tuple[str, ...] = ("junior",)
     relaxed_testing_minimum_relevance: int = 4
     linkedin_field_repair_enabled: bool = True
+    application_support_llm_enabled: bool = True
     max_jobs_per_site: int = 20
     portal_collection_timeout_seconds: int = 180
     review_polling_grace_seconds: int = 120

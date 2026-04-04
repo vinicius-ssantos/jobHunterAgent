@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Callable
 
-from job_hunter_agent.applicant import ApplicationPreparationService, ApplicationPreflightService
+from job_hunter_agent.applicant import (
+    ApplicationPreparationService,
+    ApplicationPreflightService,
+    OllamaApplicationSupportAssessor,
+)
 from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
@@ -32,8 +36,23 @@ def build_known_job_lookup(repository: JobRepository) -> Callable[[str], bool]:
     return lambda url: repository.job_url_exists(url) or repository.seen_job_url_exists(url)
 
 
-def create_application_preparation_service(repository: JobRepository) -> ApplicationPreparationService:
-    return ApplicationPreparationService(repository)
+def create_application_support_assessor(settings: Settings) -> OllamaApplicationSupportAssessor | None:
+    if not settings.application_support_llm_enabled:
+        return None
+    return OllamaApplicationSupportAssessor(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_url,
+    )
+
+
+def create_application_preparation_service(
+    repository: JobRepository,
+    settings: Settings,
+) -> ApplicationPreparationService:
+    return ApplicationPreparationService(
+        repository,
+        support_assessor=create_application_support_assessor(settings),
+    )
 
 
 def create_application_preflight_service(repository: JobRepository) -> ApplicationPreflightService:
