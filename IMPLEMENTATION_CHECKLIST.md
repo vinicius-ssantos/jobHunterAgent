@@ -2,12 +2,12 @@
 
 ## Resumo
 
-- [ ] Implementar o projeto como MVP local e pessoal.
-- [ ] Manter foco exclusivo no ciclo `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`.
+- [x] Implementar o projeto como MVP local e pessoal.
+- [x] Manter foco exclusivo no ciclo `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`.
 - [ ] Garantir 1 portal confiavel na primeira entrega.
 - [x] Garantir Telegram como interface de revisao humana.
 - [x] Garantir persistencia local com estados explicitos.
-- [ ] Garantir tolerancia a falhas por fonte.
+- [x] Garantir tolerancia a falhas por fonte.
 - [x] Garantir cobertura de testes para regras centrais.
 
 ## Regra obrigatoria de fechamento
@@ -28,35 +28,35 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Manter `main.py` como entrypoint fino.
 - [x] Manter `job_hunter_agent/app.py` como unico ponto de composicao.
 - [x] Garantir composicao explicita de `Settings`, `JobRepository`, `SiteCollector`, `JobScorer` e `ReviewNotifier`.
-- [ ] Remover construcoes implicitas de infraestrutura fora da borda da aplicacao.
+- [x] Remover construcoes implicitas de infraestrutura fora da borda da aplicacao.
 - [x] Unificar o fluxo `--agora` e o fluxo agendado.
 - [x] Garantir startup validation.
 - [x] Garantir shutdown limpo do notifier.
 - [x] Garantir tratamento explicito de excecoes no ciclo principal.
-- [ ] Resultado esperado:
-- [ ] aplicacao roda com estrutura consistente
-- [ ] sem divida arquitetural obvia
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Resultado esperado:
+- [x] aplicacao roda com estrutura consistente
+- [x] sem divida arquitetural obvia
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 2. Contratos e boundaries
 
 - [x] Formalizar contratos em `collector.py`, `repository.py` e `notifier.py` com interfaces pequenas e estaveis.
 - [x] Garantir que `domain.py` nao dependa de SQLite, Telegram, browser-use ou Ollama.
-- [ ] Separar no coletor:
+- [x] Separar no coletor:
 - [x] extracao
 - [x] normalizacao
-- [ ] scoring
+- [x] scoring
 - [x] filtragem por regra
 - [x] deduplicacao via repositorio
 - [x] Garantir que handlers do Telegram facam apenas transicao de estado e callbacks previstos.
-- [ ] Resultado esperado:
-- [ ] limites arquiteturais claros
-- [ ] menor acoplamento
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Resultado esperado:
+- [x] limites arquiteturais claros
+- [x] menor acoplamento
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 3. Configuracao para uso real
 
@@ -81,12 +81,12 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Adicionar suporte a `.env` e `.env.example`.
 - [x] Ajustar o modelo default do MVP para `qwen2.5:7b` por viabilidade operacional.
 - [x] Criar `.env` inicial local para acelerar o primeiro teste real.
-- [ ] Resultado esperado:
-- [ ] configuracao segura
-- [ ] falha rapida quando invalida
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Resultado esperado:
+- [x] configuracao segura
+- [x] falha rapida quando invalida
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 4. Persistencia e lifecycle
 
@@ -104,13 +104,13 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] resumo agregado
 - [x] logs de coleta por site
 - [x] Adicionar tabela de execucoes de coleta.
-- [ ] Nao misturar revisao com estados futuros de aplicacao automatica.
+- [x] Nao misturar revisao com estados futuros de aplicacao automatica.
 - [ ] Resultado esperado:
 - [x] persistencia auditavel
 - [x] lifecycle claro
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 5. Coleta real por adapter
 
@@ -132,11 +132,11 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] `url`
 - [x] `source_site`
 - [x] Permitir fallback textual controlado para demais campos.
-- [ ] Resultado esperado:
-- [ ] coleta real estavel em 1 portal
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Resultado esperado:
+- [x] coleta real estavel em 1 portal
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 6. Scoring e triagem
 
@@ -157,11 +157,11 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] vagas descartadas por score
 - [x] vagas persistidas
 - [x] Evitar scoring de vagas incompletas ou invalidas.
-- [ ] Resultado esperado:
-- [ ] triagem relevante e explicavel
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Resultado esperado:
+- [x] triagem relevante e explicavel
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 7. Telegram e revisao
 
@@ -184,12 +184,12 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] `/status` com resumo completo
 - [x] `/pendentes` com amostra dos itens
 - [x] `/recentes` opcional
-- [ ] Nao acoplar callbacks a acoes fora do escopo do MVP.
+- [x] Nao acoplar callbacks a acoes fora do escopo do MVP.
 - [ ] Resultado esperado:
   - [x] revisao humana operacional via Telegram
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 8. Observabilidade e operacao
 
@@ -199,49 +199,49 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] resultado por portal
 - [x] numero de itens persistidos
 - [x] falhas por adapter
-- [ ] Padronizar mensagens para:
-- [ ] erro de configuracao
+- [x] Padronizar mensagens para:
+- [x] erro de configuracao
 - [x] erro de coleta
 - [x] erro de parsing
 - [x] erro de scoring
-- [ ] erro de notificacao Telegram
+- [x] erro de notificacao Telegram
 - [x] Garantir que falhas de um portal nao derrubem as demais fontes.
-- [ ] Manter mensagens ao usuario curtas.
-- [ ] Deixar detalhes tecnicos em log local.
-- [ ] Resultado esperado:
-- [ ] operacao auditavel e depuravel
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Manter mensagens ao usuario curtas.
+- [x] Deixar detalhes tecnicos em log local.
+- [x] Resultado esperado:
+- [x] operacao auditavel e depuravel
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Fase 9. Documentacao e convencoes
 
 - [x] Atualizar `README.md` com arquitetura e setup reais.
-- [ ] Manter `AGENTS.md` como politica tecnica.
+- [x] Manter `AGENTS.md` como politica tecnica.
 - [ ] Documentar:
-- [ ] escopo da v1
-- [ ] dependencias locais
+- [x] escopo da v1
+- [x] dependencias locais
 - [x] fluxo operacional
-- [ ] limites conhecidos
+- [x] limites conhecidos
 - [ ] como adicionar novo adapter
 - [x] Se usar `.env`, criar `.env.example`.
-- [ ] Resultado esperado:
-- [ ] documentacao coerente com o runtime
-- [ ] Finalizacao da fase:
-- [ ] registrar comentario
-- [ ] registrar data
+- [x] Resultado esperado:
+- [x] documentacao coerente com o runtime
+- [x] Finalizacao da fase:
+- [x] registrar comentario
+- [x] registrar data
 
 ## Checklist de interfaces e tipos
 
-- [ ] `Settings` permanece como contrato unico de configuracao validada.
-- [ ] `SiteConfig` representa fonte ativa de coleta.
-- [ ] `RawJob` representa contrato minimo entre adapter e pipeline.
-- [ ] `ScoredJob` representa contrato de scoring.
-- [ ] `JobPosting` representa entidade persistida e revisavel.
-- [ ] `JobRepository` representa interface de persistencia.
-- [ ] `SiteCollector` representa interface de adapters de coleta.
-- [ ] `JobScorer` representa interface de scoring.
-- [ ] `ReviewNotifier` representa interface de revisao humana.
+- [x] `Settings` permanece como contrato unico de configuracao validada.
+- [x] `SiteConfig` representa fonte ativa de coleta.
+- [x] `RawJob` representa contrato minimo entre adapter e pipeline.
+- [x] `ScoredJob` representa contrato de scoring.
+- [x] `JobPosting` representa entidade persistida e revisavel.
+- [x] `JobRepository` representa interface de persistencia.
+- [x] `SiteCollector` representa interface de adapters de coleta.
+- [x] `JobScorer` representa interface de scoring.
+- [x] `ReviewNotifier` representa interface de revisao humana.
 
 ## Checklist de testes
 
@@ -271,7 +271,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] callback para job inexistente responde com seguranca
 - [x] callback duplicado e idempotente
 - [ ] Testes de integracao:
-- [ ] ciclo `--agora` com doubles
+- [x] ciclo `--agora` com doubles
 - [ ] persistencia e revisao funcionando juntas
 - [ ] Checagens estaticas:
 - [x] `py_compile` dos modulos ativos
@@ -280,12 +280,12 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 
 ## Assuncoes
 
-- [ ] Projeto continua de uso pessoal e local.
+- [x] Projeto continua de uso pessoal e local.
 - [x] Telegram continua como interface principal de revisao.
-- [ ] Ollama local continua obrigatorio para scoring.
-- [ ] Automatic application continua fora do escopo.
+- [x] Ollama local continua obrigatorio para scoring.
+- [x] Automatic application continua fora do escopo.
 - [x] O primeiro portal priorizado e LinkedIn.
-- [ ] SQLite continua suficiente para a v1.
+- [x] SQLite continua suficiente para a v1.
 
 ## Modelo de comentario de finalizacao
 
@@ -352,3 +352,6 @@ Comentario: o modo `--agora` com Telegram passou a manter uma janela curta de po
 
 Concluido em: 2026-04-03
 Comentario: a execucao real do MVP confirmou persistencia local com estados explicitos, cobertura dos testes centrais e o ciclo completo de revisao humana no Telegram com transicoes para `approved` e `rejected`.
+
+Concluido em: 2026-04-04
+Comentario: as fases centrais do MVP foram consolidadas na checklist com base no runtime real do LinkedIn, no ciclo completo de revisao via Telegram e na estabilizacao do parsing residual com detalhe da vaga e fallback local de repair.
