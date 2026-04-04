@@ -139,3 +139,64 @@ class SqliteJobRepositoryTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 2)
         self.assertEqual(jobs[0].url, "https://example.com/job-2")
+
+    def test_create_application_draft_is_idempotent_per_job(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+
+        first = self.repository.create_application_draft(saved.id, notes="aguardando definicao")
+        second = self.repository.create_application_draft(saved.id)
+
+        self.assertEqual(first.id, second.id)
+        self.assertEqual(first.job_id, saved.id)
+        self.assertEqual(first.status, "draft")
+
+    def test_create_application_draft_requires_existing_job(self) -> None:
+        with self.assertRaises(ValueError):
+            self.repository.create_application_draft(999)
+
+    def test_mark_application_status_and_summary(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(saved.id, notes="primeiro passo")
+
+        self.repository.mark_application_status(application.id, status="ready_for_review")
+        self.repository.mark_application_status(
+            application.id,
+            status="confirmed",
+            notes="confirmado manualmente",
+        )
+        self.repository.mark_application_status(
+            application.id,
+            status="submitted",
+            submitted_at="2026-04-04T10:00:00",
+        )
+
+        stored = self.repository.get_application_by_job(saved.id)
+        summary = self.repository.application_summary()
+
+        self.assertEqual(stored.status, "submitted")
+        self.assertEqual(stored.notes, "confirmado manualmente")
+        self.assertEqual(stored.submitted_at, "2026-04-04T10:00:00")
+        self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["submitted"], 1)
+
+    def test_mark_application_status_rejects_invalid_value(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(saved.id)
+
+        with self.assertRaises(ValueError):
+            self.repository.mark_application_status(application.id, status="queued")
+
+    def test_list_applications_by_status(self) -> None:
+        first_job = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        second_job = self.repository.save_new_jobs([sample_job("https://example.com/job-2", "key-2")])[0]
+        first_application = self.repository.create_application_draft(first_job.id)
+        second_application = self.repository.create_application_draft(second_job.id)
+
+        self.repository.mark_application_status(first_application.id, status="ready_for_review")
+        self.repository.mark_application_status(second_application.id, status="cancelled")
+
+        ready = self.repository.list_applications_by_status("ready_for_review")
+        cancelled = self.repository.list_applications_by_status("cancelled")
+
+        self.assertEqual([item.job_id for item in ready], [first_job.id])
+        self.assertEqual([item.job_id for item in cancelled], [second_job.id])

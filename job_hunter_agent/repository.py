@@ -6,7 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Protocol
 
-from job_hunter_agent.domain import CollectionRun, JobPosting, VALID_STATUSES
+from job_hunter_agent.domain import (
+    CollectionRun,
+    JobApplication,
+    JobPosting,
+    VALID_APPLICATION_STATUSES,
+    VALID_STATUSES,
+)
 
 
 class JobRepository(Protocol):
@@ -49,6 +55,29 @@ class JobRepository(Protocol):
         raise NotImplementedError
 
     def interrupt_running_collection_runs(self) -> int:
+        raise NotImplementedError
+
+    def create_application_draft(self, job_id: int, notes: str = "") -> JobApplication:
+        raise NotImplementedError
+
+    def get_application_by_job(self, job_id: int) -> Optional[JobApplication]:
+        raise NotImplementedError
+
+    def mark_application_status(
+        self,
+        application_id: int,
+        *,
+        status: str,
+        notes: Optional[str] = None,
+        last_error: Optional[str] = None,
+        submitted_at: Optional[str] = None,
+    ) -> None:
+        raise NotImplementedError
+
+    def list_applications_by_status(self, status: str) -> list[JobApplication]:
+        raise NotImplementedError
+
+    def application_summary(self) -> dict[str, int]:
         raise NotImplementedError
 
 
@@ -104,6 +133,21 @@ class SqliteJobRepository:
                     jobs_seen INTEGER NOT NULL DEFAULT 0,
                     jobs_saved INTEGER NOT NULL DEFAULT 0,
                     errors INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS job_applications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL UNIQUE,
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    notes TEXT NOT NULL DEFAULT '',
+                    last_error TEXT NOT NULL DEFAULT '',
+                    submitted_at TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES jobs(id)
                 )
                 """
             )
@@ -277,6 +321,121 @@ class SqliteJobRepository:
             )
         return cursor.rowcount
 
+    def create_application_draft(self, job_id: int, notes: str = "") -> JobApplication:
+        if not self.get_job(job_id):
+            raise ValueError(f"Job not found: {job_id}")
+        existing = self.get_application_by_job(job_id)
+        if existing:
+            return existing
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO job_applications (job_id, status, notes)
+                VALUES (?, 'draft', ?)
+                """,
+                (job_id, notes),
+            )
+            row = connection.execute(
+                """
+                SELECT id, job_id, status, notes, last_error, created_at, updated_at, submitted_at
+                FROM job_applications
+                WHERE id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+        return self._row_to_application(row)
+
+    def get_application_by_job(self, job_id: int) -> Optional[JobApplication]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, job_id, status, notes, last_error, created_at, updated_at, submitted_at
+                FROM job_applications
+                WHERE job_id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+        return self._row_to_application(row) if row else None
+
+    def mark_application_status(
+        self,
+        application_id: int,
+        *,
+        status: str,
+        notes: Optional[str] = None,
+        last_error: Optional[str] = None,
+        submitted_at: Optional[str] = None,
+    ) -> None:
+        if status not in VALID_APPLICATION_STATUSES:
+            raise ValueError(f"Invalid application status: {status}")
+        with self._connect() as connection:
+            current = connection.execute(
+                """
+                SELECT notes, last_error, submitted_at
+                FROM job_applications
+                WHERE id = ?
+                """,
+                (application_id,),
+            ).fetchone()
+            if current is None:
+                raise ValueError(f"Application not found: {application_id}")
+            resolved_notes = current[0] if notes is None else notes
+            resolved_error = current[1] if last_error is None else last_error
+            resolved_submitted_at = current[2] if submitted_at is None else submitted_at
+            connection.execute(
+                """
+                UPDATE job_applications
+                SET status = ?, notes = ?, last_error = ?, submitted_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    status,
+                    resolved_notes,
+                    resolved_error,
+                    resolved_submitted_at,
+                    datetime.now().isoformat(timespec="seconds"),
+                    application_id,
+                ),
+            )
+
+    def list_applications_by_status(self, status: str) -> list[JobApplication]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, job_id, status, notes, last_error, created_at, updated_at, submitted_at
+                FROM job_applications
+                WHERE status = ?
+                ORDER BY updated_at DESC, id DESC
+                """,
+                (status,),
+            ).fetchall()
+        return [self._row_to_application(row) for row in rows]
+
+    def application_summary(self) -> dict[str, int]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS draft,
+                    SUM(CASE WHEN status = 'ready_for_review' THEN 1 ELSE 0 END) AS ready_for_review,
+                    SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed,
+                    SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS submitted,
+                    SUM(CASE WHEN status = 'error_submit' THEN 1 ELSE 0 END) AS error_submit,
+                    SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+                FROM job_applications
+                """
+            ).fetchone()
+        return {
+            "total": row[0] or 0,
+            "draft": row[1] or 0,
+            "ready_for_review": row[2] or 0,
+            "confirmed": row[3] or 0,
+            "submitted": row[4] or 0,
+            "error_submit": row[5] or 0,
+            "cancelled": row[6] or 0,
+        }
+
     @staticmethod
     def _row_to_job(row: tuple) -> JobPosting:
         return JobPosting(
@@ -306,4 +465,17 @@ class SqliteJobRepository:
             jobs_seen=row[4],
             jobs_saved=row[5],
             errors=row[6],
+        )
+
+    @staticmethod
+    def _row_to_application(row: tuple) -> JobApplication:
+        return JobApplication(
+            id=row[0],
+            job_id=row[1],
+            status=row[2],
+            notes=row[3],
+            last_error=row[4],
+            created_at=row[5],
+            updated_at=row[6],
+            submitted_at=row[7],
         )

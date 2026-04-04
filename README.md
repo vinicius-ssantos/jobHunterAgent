@@ -26,6 +26,13 @@ O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
 Candidatura automatica esta fora do caminho critico desta versao.
 
+Ja existe uma pre-fase de candidatura assistida preparada na arquitetura:
+
+- contratos em `job_hunter_agent/applicant.py`
+- persistencia separada de candidaturas em `job_applications`
+
+Isso ainda nao dispara aplicacao automatica. Serve apenas para preparar a proxima fase sem contaminar o loop atual de coleta e revisao.
+
 Para o primeiro teste real controlado, o projeto fica reduzido por padrao a `1 portal`:
 
 - `LinkedIn`
@@ -199,6 +206,21 @@ python main.py
 - Cada ciclo de coleta gera logs por fonte.
 - O SQLite registra vagas, logs de coleta e execucoes de coleta.
 - Falhas por portal nao interrompem as demais fontes.
+
+## Pre-fase de candidatura assistida
+
+O projeto agora possui a base estrutural para uma fase futura de candidatura assistida, sem ativar submissao automatica ainda.
+
+Estados de candidatura ficam separados dos estados de vaga:
+
+- `draft`
+- `ready_for_review`
+- `confirmed`
+- `submitted`
+- `error_submit`
+- `cancelled`
+
+Esses estados vivem em uma tabela separada (`job_applications`) para evitar misturar revisao humana de vaga com tentativa de candidatura.
 
 ## Como adicionar um novo adapter
 

@@ -287,6 +287,26 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] O primeiro portal priorizado e LinkedIn.
 - [x] SQLite continua suficiente para a v1.
 
+## Pre-fase de candidatura assistida
+
+- [x] Separar candidatura dos estados de revisao de vaga.
+- [x] Criar contrato proprio para submissao futura em `job_hunter_agent/applicant.py`.
+- [x] Persistir rascunhos e tentativas de candidatura em tabela separada.
+- [x] Manter candidatura fora do loop principal ate haver confirmacao humana forte.
+- [x] Preservar estados proprios de candidatura:
+- [x] `draft`
+- [x] `ready_for_review`
+- [x] `confirmed`
+- [x] `submitted`
+- [x] `error_submit`
+- [x] `cancelled`
+- [x] Garantir consultas operacionais basicas:
+- [x] busca por candidatura via `job_id`
+- [x] listagem por status
+- [x] resumo agregado
+- [ ] Integrar candidatura assistida ao fluxo humano de revisao.
+- [ ] Implementar automacao real de candidatura por portal.
+
 ## Modelo de comentario de finalizacao
 
 - [x] Use sempre este padrao ao concluir qualquer fase ou bloco:
@@ -358,3 +378,6 @@ Comentario: as fases centrais do MVP foram consolidadas na checklist com base no
 
 Concluido em: 2026-04-04
 Comentario: a checklist foi alinhada ao estado real do MVP e o parser residual do LinkedIn foi endurecido para evitar fragmentos de local como empresa, preservar localizacoes explicitas validas e acionar repair local apenas nos casos realmente suspeitos; o run real 53 persistiu vagas novas com campos limpos.
+
+Concluido em: 2026-04-04
+Comentario: a pre-fase de candidatura assistida foi aberta com contratos proprios, tabela separada de persistencia e testes de repositorio cobrindo rascunho, transicoes de status, listagem e resumo; nada foi acoplado ao loop principal nem habilitou candidatura automatica.
