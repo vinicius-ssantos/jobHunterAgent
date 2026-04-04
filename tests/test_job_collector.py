@@ -900,11 +900,10 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
 
         cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
 
-        self.assertEqual([card["url"] for card in cards[0]], [
+        self.assertEqual([card["url"] for card in cards], [
             "https://www.linkedin.com/jobs/view/1",
             "https://www.linkedin.com/jobs/view/2",
         ])
-        self.assertEqual(cards[1], 1)
         self.assertEqual(page.waited_timeouts, [1500])
 
     def test_linkedin_collect_cards_across_pages_stops_at_max_pages(self) -> None:
@@ -935,10 +934,9 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
 
         cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
 
-        self.assertEqual(len(cards[0]), 1)
-        self.assertEqual(cards[1], 2)
+        self.assertEqual(len(cards), 1)
 
-    def test_linkedin_collect_cards_across_pages_starts_from_persisted_page(self) -> None:
+    def test_linkedin_collect_cards_across_pages_always_starts_from_first_page_and_clicks_forward(self) -> None:
         class FakePage:
             def __init__(self) -> None:
                 self.waited_timeouts: list[int] = []
@@ -970,11 +968,10 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         collector._extract_visible_cards = fake_extract_visible_cards
         collector._go_to_next_results_page = fake_go_to_next_results_page
 
-        cards, next_page = asyncio.run(collector._collect_cards_across_pages(page, 5, start_page=3))
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
 
         self.assertEqual(len(cards), 2)
-        self.assertEqual(next_page, 5)
-        self.assertEqual(visited_pages, [2, 3, 4])
+        self.assertEqual(visited_pages, [2])
 
     def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
         collector = LinkedInDeterministicCollector(
@@ -995,13 +992,17 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
     def test_linkedin_stabilize_results_page_scrolls_until_count_stops_changing(self) -> None:
         class FakePage:
             def __init__(self) -> None:
-                self.counts = [4, 7, 7]
+                self.states = [
+                    {"count": 4, "target": "lista", "moved": True},
+                    {"count": 7, "target": "lista", "moved": True},
+                    {"count": 7, "target": "lista", "moved": False},
+                ]
                 self.waited_timeouts: list[int] = []
                 self.evaluate_calls = 0
 
-            async def evaluate(self, script: str) -> int:
+            async def evaluate(self, script: str) -> dict[str, object]:
                 self.evaluate_calls += 1
-                return self.counts.pop(0)
+                return self.states.pop(0)
 
             async def wait_for_timeout(self, timeout: int) -> None:
                 self.waited_timeouts.append(timeout)

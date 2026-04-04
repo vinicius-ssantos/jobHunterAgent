@@ -614,8 +614,6 @@ class LinkedInDeterministicCollector:
         scroll_stabilization_passes: int = 3,
         field_repairer: object | None = None,
         known_job_url_exists: Callable[[str], bool] | None = None,
-        collection_cursor_lookup: Callable[[str, str], int] | None = None,
-        collection_cursor_updater: Callable[[str, str, int], None] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
@@ -624,8 +622,6 @@ class LinkedInDeterministicCollector:
         self.scroll_stabilization_passes = scroll_stabilization_passes
         self.field_repairer = field_repairer
         self.known_job_url_exists = known_job_url_exists
-        self.collection_cursor_lookup = collection_cursor_lookup
-        self.collection_cursor_updater = collection_cursor_updater
 
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
         if not self.storage_state_path.exists():
@@ -642,7 +638,6 @@ class LinkedInDeterministicCollector:
             ) from exc
 
         executable_path = resolve_local_chromium()
-        start_page = self._resolve_start_page(site)
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(
                 executable_path=str(executable_path),
@@ -661,12 +656,10 @@ class LinkedInDeterministicCollector:
                     raise RuntimeError(
                         "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
                     ) from exc
-                raw_cards, next_page = await self._collect_cards_across_pages(
+                raw_cards = await self._collect_cards_across_pages(
                     page,
                     max_jobs,
-                    start_page=start_page,
                 )
-                self._persist_next_page(site, next_page)
                 enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
                 await context.close()
@@ -716,26 +709,6 @@ class LinkedInDeterministicCollector:
             )
         return jobs
 
-    def _resolve_start_page(self, site: SiteConfig) -> int:
-        if self.collection_cursor_lookup is None:
-            return 1
-        try:
-            return max(1, min(self.max_page_depth, self.collection_cursor_lookup(site.name, site.search_url)))
-        except Exception:
-            return 1
-
-    def _persist_next_page(self, site: SiteConfig, next_page: int) -> None:
-        if self.collection_cursor_updater is None:
-            return
-        try:
-            self.collection_cursor_updater(
-                site.name,
-                site.search_url,
-                max(1, min(self.max_page_depth, next_page)),
-            )
-        except Exception:
-            logger.warning("Falha ao atualizar cursor de paginacao do LinkedIn para %s", site.name)
-
     def _filter_known_cards(self, cards: list[dict[str, str]]) -> list[dict[str, str]]:
         if not self.known_job_url_exists:
             return cards
@@ -755,9 +728,7 @@ class LinkedInDeterministicCollector:
         self,
         page: object,
         max_jobs: int,
-        *,
-        start_page: int = 1,
-    ) -> tuple[list[dict[str, str]], int]:
+    ) -> list[dict[str, str]]:
         try:
             from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         except ImportError as exc:
@@ -768,23 +739,17 @@ class LinkedInDeterministicCollector:
         collected_cards: list[dict[str, str]] = []
         seen_urls: set[str] = set()
         current_page_number = 1
-        if start_page > 1:
-            moved = await self._navigate_to_results_page(page, start_page)
-            if not moved:
-                logger.info("LinkedIn nao conseguiu avancar ate a pagina inicial %s; resetando cursor.", start_page)
-                return await self._collect_cards_across_pages(page, max_jobs, start_page=1)
-            current_page_number = start_page
 
         pages_scanned = 0
-        while pages_scanned < self.max_pages_per_cycle:
+        while pages_scanned < min(self.max_pages_per_cycle, self.max_page_depth):
             await self._dismiss_sign_in_modal(page)
             try:
                 await page.wait_for_selector("a[href*='/jobs/view/']", timeout=7000)
             except PlaywrightTimeoutError:
                 if current_page_number == 1:
                     raise RuntimeError("nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca")
-                logger.info("LinkedIn pagina %s sem cards visiveis; resetando janela para pagina 1.", current_page_number)
-                return collected_cards[:max_jobs], 1
+                logger.info("LinkedIn pagina %s sem cards visiveis; encerrando ciclo de paginas.", current_page_number)
+                return collected_cards[:max_jobs]
 
             await self._stabilize_results_page(page)
             remaining_jobs = max(1, max_jobs - len(collected_cards))
@@ -808,71 +773,95 @@ class LinkedInDeterministicCollector:
             )
             pages_scanned += 1
             if len(collected_cards) >= max_jobs:
-                return collected_cards[:max_jobs], self._wrap_page_number(current_page_number + 1)
+                return collected_cards[:max_jobs]
             if pages_scanned >= self.max_pages_per_cycle:
-                return collected_cards[:max_jobs], self._wrap_page_number(current_page_number + 1)
+                return collected_cards[:max_jobs]
+            if current_page_number >= self.max_page_depth:
+                logger.info(
+                    "LinkedIn atingiu o limite de profundidade configurado na pagina %s; encerrando ciclo.",
+                    current_page_number,
+                )
+                return collected_cards[:max_jobs]
             moved = await self._go_to_next_results_page(page, current_page_number + 1)
             if not moved:
-                logger.info("LinkedIn sem proxima pagina navegavel apos pagina %s; resetando janela.", current_page_number)
-                return collected_cards[:max_jobs], 1
+                logger.info("LinkedIn sem proxima pagina navegavel apos pagina %s; encerrando ciclo.", current_page_number)
+                return collected_cards[:max_jobs]
             await page.wait_for_timeout(1500)
             current_page_number += 1
 
-        return collected_cards[:max_jobs], self._wrap_page_number(current_page_number + 1)
-
-    async def _navigate_to_results_page(self, page: object, target_page_number: int) -> bool:
-        if target_page_number <= 1:
-            return True
-        current_page_number = 1
-        while current_page_number < target_page_number:
-            moved = await self._go_to_next_results_page(page, current_page_number + 1)
-            if not moved:
-                return False
-            await page.wait_for_timeout(1500)
-            current_page_number += 1
-        return True
-
-    def _wrap_page_number(self, page_number: int) -> int:
-        if page_number > self.max_page_depth:
-            return 1
-        return max(1, page_number)
+        return collected_cards[:max_jobs]
 
     async def _stabilize_results_page(self, page: object) -> None:
         stable_rounds = 0
         previous_count = -1
+        final_count = 0
+        final_target = "desconhecido"
+        executed_passes = 0
         for _ in range(self.scroll_stabilization_passes):
-            current_count = int(
-                await page.evaluate(
-                    """
-                    () => {
-                      const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
-                      const unique = new Set();
-                      for (const anchor of anchors) {
-                        const href = anchor.getAttribute("href") || anchor.href || "";
-                        if (href) unique.add(href);
+            state = await page.evaluate(
+                """
+                () => {
+                  const findScrollableAncestor = (node) => {
+                    let current = node;
+                    while (current && current !== document.body) {
+                      if (current.scrollHeight > current.clientHeight + 16) {
+                        return current;
                       }
-                      const container = document.querySelector(".jobs-search-results-list")
-                        || document.querySelector(".jobs-search-results__list")
-                        || document.querySelector(".scaffold-layout__list-container")
-                        || document.scrollingElement;
-                      if (container) {
-                        container.scrollTop = container.scrollHeight;
-                      } else {
-                        window.scrollTo(0, document.body.scrollHeight);
-                      }
-                      return unique.size;
+                      current = current.parentElement;
                     }
-                    """
-                )
+                    return null;
+                  };
+                  const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
+                  const unique = new Set();
+                  for (const anchor of anchors) {
+                    const href = anchor.getAttribute("href") || anchor.href || "";
+                    if (href) unique.add(href);
+                  }
+                  const container = document.querySelector(".jobs-search-results-list")
+                    || document.querySelector(".jobs-search-results__list")
+                    || document.querySelector(".scaffold-layout__list-container")
+                    || findScrollableAncestor(anchors[0] || null);
+                  if (container) {
+                    const previousTop = container.scrollTop;
+                    const step = Math.max(container.clientHeight || 0, 400);
+                    container.scrollTop = Math.min(container.scrollTop + step, container.scrollHeight);
+                    return {
+                      count: unique.size,
+                      target: "lista",
+                      moved: container.scrollTop > previousTop,
+                    };
+                  }
+                  const scrollingElement = document.scrollingElement || document.documentElement;
+                  const previousTop = scrollingElement ? scrollingElement.scrollTop : window.scrollY;
+                  const step = Math.max(window.innerHeight || 0, 400);
+                  window.scrollTo(0, previousTop + step);
+                  const nextTop = scrollingElement ? scrollingElement.scrollTop : window.scrollY;
+                  return {
+                    count: unique.size,
+                    target: "pagina",
+                    moved: nextTop > previousTop,
+                  };
+                }
+                """
             )
+            current_count = int(state.get("count", 0))
+            final_count = current_count
+            final_target = str(state.get("target", "desconhecido"))
+            executed_passes += 1
             await page.wait_for_timeout(600)
-            if current_count == previous_count:
+            if current_count == previous_count or not bool(state.get("moved")):
                 stable_rounds += 1
                 if stable_rounds >= 1:
                     break
             else:
                 stable_rounds = 0
             previous_count = current_count
+        logger.info(
+            "LinkedIn estabilizacao da pagina alvo=%s cards=%s passagens=%s",
+            final_target,
+            final_count,
+            executed_passes,
+        )
 
     async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:
         return bool(
