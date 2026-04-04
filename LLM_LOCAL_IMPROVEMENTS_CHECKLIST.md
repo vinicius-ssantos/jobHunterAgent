@@ -94,5 +94,5 @@ Definicao de pronto:
 - [x] Fase 4 concluida
 - [x] Fase 5 concluida
 - [x] README atualizado se a operacao mudar
-- [ ] AGENTS atualizado se as regras mudarem
+- [x] AGENTS atualizado se as regras mudarem
 - [x] loop principal validado ao final
