@@ -82,7 +82,7 @@ Definicao de pronto:
 - callbacks delegam para funcoes ou servicos menores
 - renderizacao nao fica misturada ao handler
 
-### Fase 3 - `collector.py`
+### Fase 3 - `collector.py` (concluida)
 
 Objetivo:
 - reduzir o papel de fachada e compatibilidade
@@ -120,7 +120,7 @@ Definicao de pronto:
 
 - [x] Fase 1 concluida
 - [x] Fase 2 concluida
-- [ ] Fase 3 concluida
+- [x] Fase 3 concluida
 - [ ] Fase 4 concluida
 - [ ] README atualizado se a estrutura publica mudar
 - [ ] AGENTS atualizado se a politica operacional mudar

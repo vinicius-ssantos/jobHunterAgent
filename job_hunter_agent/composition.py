@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Callable
 
 from job_hunter_agent.applicant import ApplicationPreparationService, ApplicationPreflightService
-from job_hunter_agent.collector import BrowserUseSiteCollector, HybridJobScorer, JobCollectionService
+from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
+from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
 from job_hunter_agent.repository import JobRepository, SqliteJobRepository
 from job_hunter_agent.runtime import RuntimeGuard
 from job_hunter_agent.settings import Settings
@@ -88,4 +89,3 @@ def create_notifier(
         on_approved=on_approved,
         on_application_preflight=on_application_preflight,
     )
-

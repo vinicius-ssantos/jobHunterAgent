@@ -6,18 +6,13 @@ from unittest import IsolatedAsyncioTestCase, TestCase
 
 from job_hunter_agent.collector import (
     automation_result_to_text,
-    BrowserUseSiteCollector,
     build_available_file_paths,
     clean_linkedin_company,
     clean_linkedin_description,
     clean_linkedin_location,
     clean_linkedin_summary,
     clean_linkedin_title,
-    DefaultPortalCollectorAdapter,
-    GupyCollectorAdapter,
-    IndeedCollectorAdapter,
     JobCollectionService,
-    LinkedInCollectorAdapter,
     build_external_key,
     extract_json_object,
     load_playwright_storage_state,
@@ -40,7 +35,15 @@ from job_hunter_agent.collector import (
 )
 from job_hunter_agent.domain import JobPosting, RawJob, ScoredJob, SiteConfig
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector
+from job_hunter_agent.portal_collectors import (
+    BrowserUseSiteCollector,
+    DefaultPortalCollectorAdapter,
+    GupyCollectorAdapter,
+    IndeedCollectorAdapter,
+    LinkedInCollectorAdapter,
+)
 from job_hunter_agent.repository import SqliteJobRepository
+from job_hunter_agent.scoring import HybridJobScorer
 from job_hunter_agent.settings import Settings
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
