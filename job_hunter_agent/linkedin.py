@@ -119,6 +119,14 @@ def strip_title_prefix_from_location(location: str, title: str) -> str:
     if lowered_location.startswith(lowered_title + " "):
         normalized_location = _normalize_whitespace(normalized_location[len(normalized_title) :])
         return clean_linkedin_location(normalized_location) or normalized_location
+    title_words = normalized_title.split()
+    for size in range(min(4, len(title_words)), 1, -1):
+        suffix_phrase = " ".join(title_words[-size:])
+        lowered_suffix = suffix_phrase.lower()
+        if lowered_location.startswith(lowered_suffix + " "):
+            candidate_location = _normalize_whitespace(normalized_location[len(suffix_phrase) :])
+            if looks_like_linkedin_location(candidate_location) or clean_linkedin_location(candidate_location):
+                return clean_linkedin_location(candidate_location) or candidate_location
     return normalized_location
 
 
@@ -295,6 +303,18 @@ def clean_linkedin_company(value: str) -> str:
     cleaned = re.sub(r"^(Desenvolvedor|Engenheiro|Software Engineer|Backend|Fullstack)\b.*?\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(São Paulo|Sao Paulo|Rio de Janeiro).*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"^\d+\s+(?:conex(?:ão|ões|oes)|ex-funcion[aá]rios?)\s+trabalha(?:m)?\s+aqui$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\s+(?:Pessoa\s+Desenvolvedora|Desenvolvedor(?:\(a\)|a)?|Engenheir[oa](?:\(a\))?|Software Engineer|Analista|Backend|Fullstack)\b.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
     cleaned = _normalize_whitespace(cleaned)
     noise_phrases = (
         "Promovida",
@@ -310,6 +330,8 @@ def clean_linkedin_company(value: str) -> str:
         normalized_segment = _normalize_whitespace(segment)
         lower_segment = normalized_segment.lower()
         if any(phrase.lower() in segment.lower() for phrase in noise_phrases):
+            continue
+        if _is_linkedin_social_proof_segment(normalized_segment):
             continue
         if "brasil (" in lower_segment or "brasil (" in lower_segment.replace("í", "i"):
             continue
@@ -434,11 +456,26 @@ def _split_linkedin_segments(value: str) -> list[str]:
     return [segment.strip() for segment in re.split(r"[·•|]", value) if segment.strip()]
 
 
+def _is_linkedin_social_proof_segment(value: str) -> bool:
+    normalized = _normalize_whitespace(value)
+    if not normalized:
+        return False
+    return bool(
+        re.fullmatch(
+            r"\d+\s+(?:conex(?:ão|ões|oes)|ex-funcion[aá]rios?)\s+trabalha(?:m)?\s+aqui",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
 def looks_like_linkedin_location(value: str) -> bool:
     normalized = _normalize_whitespace(value)
     if not normalized:
         return False
     lower = normalized.lower()
+    if lower in {"remoto", "remote", "híbrido", "hibrido", "hybrid", "presencial", "onsite"}:
+        return True
     if any(
         marker in lower
         for marker in (

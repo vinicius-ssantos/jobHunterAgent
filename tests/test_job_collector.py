@@ -592,10 +592,32 @@ class ExternalKeyTests(TestCase):
     def test_clean_linkedin_company_rejects_city_fragment(self) -> None:
         self.assertEqual(clean_linkedin_company("Osasco,"), "")
 
+    def test_clean_linkedin_company_rejects_social_proof_segments(self) -> None:
+        self.assertEqual(clean_linkedin_company("20 ex-funcionários trabalham aqui"), "")
+        self.assertEqual(clean_linkedin_company("3 conexões trabalham aqui"), "")
+
+    def test_clean_linkedin_company_strips_trailing_job_fragment(self) -> None:
+        self.assertEqual(clean_linkedin_company("EY Desenvolvedor (a)"), "EY")
+        self.assertEqual(
+            clean_linkedin_company(
+                "Grupo Boticário Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce) Brasil"
+            ),
+            "Grupo Boticário",
+        )
+
     def test_strip_title_prefix_from_location_removes_contaminated_title(self) -> None:
         self.assertEqual(
             strip_title_prefix_from_location(
                 "Desenvolvedor Java São Paulo, São Paulo, Brasil", "Desenvolvedor Java"
+            ),
+            "São Paulo, São Paulo, Brasil",
+        )
+
+    def test_strip_title_prefix_from_location_removes_partial_title_suffix(self) -> None:
+        self.assertEqual(
+            strip_title_prefix_from_location(
+                "Backend Java São Paulo, São Paulo, Brasil",
+                "Desenvolvedor (a) Backend Java",
             ),
             "São Paulo, São Paulo, Brasil",
         )
@@ -692,6 +714,45 @@ class ExternalKeyTests(TestCase):
 
         self.assertEqual(normalized["company"], "Verx Tecnologia e Inovação")
         self.assertEqual(normalized["location"], "São Paulo, São Paulo, Brasil")
+
+    def test_normalize_linkedin_card_replaces_social_proof_company_with_inferred_company(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor Java Full Stack Pleno",
+                "company": "20 ex-funcionários trabalham aqui",
+                "location": "Brasil (Remoto)",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Desenvolvedor Java Full Stack Pleno BRQ Digital Solutions Brasil (Remoto)",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "BRQ Digital Solutions")
+        self.assertEqual(normalized["location"], "Brasil (Remoto)")
+
+    def test_normalize_linkedin_card_strips_title_pollution_from_company_before_location(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce)",
+                "company": (
+                    "Grupo Boticário Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce) Brasil"
+                ),
+                "location": "Remoto",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": (
+                    "Pessoa Desenvolvedora Backend Java / Kotlin / Node.js III (E-commerce) "
+                    "Grupo Boticário Brasil (Remoto)"
+                ),
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Grupo Boticário")
+        self.assertEqual(normalized["location"], "Remoto")
 
     def test_should_repair_linkedin_fields_for_suspicious_company_or_location(self) -> None:
         self.assertTrue(
