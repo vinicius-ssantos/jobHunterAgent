@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-import re
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +14,7 @@ from job_hunter_agent.domain import (
     VALID_APPLICATION_SUPPORT_LEVELS,
     VALID_STATUSES,
 )
+from job_hunter_agent.job_identity import JobIdentityStrategy, PortalAwareJobIdentityStrategy
 
 
 class JobRepository(Protocol):
@@ -106,26 +106,22 @@ class JobRepository(Protocol):
 
 
 class SqliteJobRepository:
-    def __init__(self, db_path: str | Path = "jobs.db") -> None:
+    def __init__(
+        self,
+        db_path: str | Path = "jobs.db",
+        *,
+        identity_strategy: JobIdentityStrategy | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
+        self.identity_strategy = identity_strategy or PortalAwareJobIdentityStrategy()
         self._create_tables()
 
     def _connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         return sqlite3.connect(self.db_path)
 
-    @staticmethod
-    def _extract_linkedin_job_id(url: str) -> str:
-        match = re.search(r"linkedin\.com/jobs/view/(\d+)", url, flags=re.IGNORECASE)
-        return match.group(1) if match else ""
-
-    @classmethod
-    def _url_lookup_patterns(cls, url: str) -> list[str]:
-        patterns = [url]
-        linkedin_job_id = cls._extract_linkedin_job_id(url)
-        if linkedin_job_id:
-            patterns.append(f"%/jobs/view/{linkedin_job_id}%")
-        return patterns
+    def _url_lookup_patterns(self, url: str) -> list[str]:
+        return self.identity_strategy.url_lookup_patterns(url)
 
     def _create_tables(self) -> None:
         with self._connect() as connection:

@@ -5,7 +5,9 @@ from unittest.mock import patch
 from unittest import IsolatedAsyncioTestCase
 
 from job_hunter_agent.app import JobHunterApplication, parse_args
+from job_hunter_agent.composition import build_known_job_lookup, create_notifier
 from job_hunter_agent.domain import JobPosting
+from job_hunter_agent.notifier import NullNotifier
 
 
 class _FakeRuntimeGuard:
@@ -241,3 +243,37 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.ciclos, 3)
         self.assertEqual(args.intervalo_ciclos_segundos, 10)
         self.assertFalse(args.agora)
+
+
+class CompositionTests(IsolatedAsyncioTestCase):
+    async def test_build_known_job_lookup_checks_jobs_and_seen_jobs(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.job_urls: list[str] = []
+                self.seen_urls: list[str] = []
+
+            def job_url_exists(self, url: str) -> bool:
+                self.job_urls.append(url)
+                return False
+
+            def seen_job_url_exists(self, url: str) -> bool:
+                self.seen_urls.append(url)
+                return url.endswith("known")
+
+        repository = _Repository()
+        lookup = build_known_job_lookup(repository)
+
+        self.assertTrue(lookup("https://example.com/known"))
+        self.assertEqual(repository.job_urls, ["https://example.com/known"])
+        self.assertEqual(repository.seen_urls, ["https://example.com/known"])
+
+    async def test_create_notifier_returns_null_notifier_when_telegram_disabled(self) -> None:
+        notifier = create_notifier(
+            settings=object(),
+            repository=object(),
+            enable_telegram=False,
+            on_approved=None,
+            on_application_preflight=None,
+        )
+
+        self.assertIsInstance(notifier, NullNotifier)

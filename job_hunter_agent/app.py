@@ -5,16 +5,18 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from job_hunter_agent.applicant import ApplicationPreparationService, ApplicationPreflightService
-from job_hunter_agent.collector import (
-    BrowserUseSiteCollector,
-    HybridJobScorer,
-    JobCollectionService,
+from job_hunter_agent.collector import JobCollectionService
+from job_hunter_agent.composition import (
+    create_application_preflight_service,
+    create_application_preparation_service,
+    create_collection_service,
+    create_notifier,
+    create_repository,
+    create_runtime_guard,
 )
-from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
-from job_hunter_agent.repository import SqliteJobRepository
+from job_hunter_agent.repository import JobRepository
 from job_hunter_agent.settings import load_settings
 from job_hunter_agent.runtime import RuntimeGuard
 
@@ -27,58 +29,20 @@ class JobHunterApplication:
     def __init__(self, *, enable_telegram: bool = True) -> None:
         self.enable_telegram = enable_telegram
         self.settings = load_settings()
-        self.repository = SqliteJobRepository(self.settings.database_path)
-        self.runtime_guard = RuntimeGuard(
-            project_root=self.settings.database_path.resolve().parent,
-            browser_use_dir=self.settings.browser_use_config_dir.resolve(),
-            lock_path=(self.settings.browser_use_config_dir / "job_hunter_agent.lock").resolve(),
-        )
-        self.application_preparation = ApplicationPreparationService(self.repository)
-        self.application_preflight = ApplicationPreflightService(self.repository)
-        self.collector = JobCollectionService(
+        self.repository = create_repository(self.settings)
+        self.runtime_guard = create_runtime_guard(self.settings)
+        self.application_preparation = create_application_preparation_service(self.repository)
+        self.application_preflight = create_application_preflight_service(self.repository)
+        self.collector = create_collection_service(
             settings=self.settings,
             repository=self.repository,
-            site_collector=BrowserUseSiteCollector(
-                model_name=self.settings.ollama_model,
-                base_url=self.settings.ollama_url,
-                config_dir=self.settings.browser_use_config_dir,
-                persistent_profile_dir=self.settings.linkedin_persistent_profile_dir,
-                linkedin_storage_state_path=self.settings.linkedin_storage_state_path,
-                headless=self.settings.browser_headless,
-                known_job_url_exists=lambda url: (
-                    self.repository.job_url_exists(url) or self.repository.seen_job_url_exists(url)
-                ),
-                linkedin_collector=LinkedInDeterministicCollector(
-                    storage_state_path=self.settings.linkedin_storage_state_path,
-                    headless=self.settings.browser_headless,
-                    max_pages_per_cycle=self.settings.linkedin_max_pages_per_cycle,
-                    known_job_url_exists=lambda url: (
-                        self.repository.job_url_exists(url) or self.repository.seen_job_url_exists(url)
-                    ),
-                    field_repairer=(
-                        OllamaLinkedInFieldRepairer(
-                            model_name=self.settings.ollama_model,
-                            base_url=self.settings.ollama_url,
-                        )
-                        if self.settings.linkedin_field_repair_enabled
-                        else None
-                    ),
-                ),
-            ),
-            scorer=HybridJobScorer(
-                model_name=self.settings.ollama_model,
-                base_url=self.settings.ollama_url,
-            ),
         )
-        self.notifier = (
-            TelegramNotifier(
-                settings=self.settings,
-                repository=self.repository,
-                on_approved=self.handle_approved_jobs,
-                on_application_preflight=self.handle_application_preflight,
-            )
-            if enable_telegram
-            else NullNotifier()
+        self.notifier = create_notifier(
+            settings=self.settings,
+            repository=self.repository,
+            enable_telegram=enable_telegram,
+            on_approved=self.handle_approved_jobs,
+            on_application_preflight=self.handle_application_preflight,
         )
 
     async def handle_approved_jobs(self, job_ids: list[int]) -> None:
