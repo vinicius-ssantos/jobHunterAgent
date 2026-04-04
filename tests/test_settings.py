@@ -22,6 +22,7 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.collection_time, "09:30")
         self.assertEqual(settings.review_polling_grace_seconds, 120)
         self.assertEqual(settings.linkedin_max_pages_per_cycle, 2)
+        self.assertEqual(settings.linkedin_max_page_depth, 6)
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)
@@ -110,4 +111,12 @@ class SettingsTests(TestCase):
                 telegram_token="token",
                 telegram_chat_id="chat",
                 linkedin_max_pages_per_cycle=0,
+            )
+
+    def test_rejects_invalid_linkedin_max_page_depth(self) -> None:
+        with self.assertRaises(ValueError):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                linkedin_max_page_depth=0,
             )

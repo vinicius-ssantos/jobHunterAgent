@@ -610,14 +610,20 @@ class LinkedInDeterministicCollector:
         storage_state_path: str | Path,
         headless: bool,
         max_pages_per_cycle: int = 2,
+        max_page_depth: int = 6,
         field_repairer: object | None = None,
         known_job_url_exists: Callable[[str], bool] | None = None,
+        collection_cursor_lookup: Callable[[str, str], int] | None = None,
+        collection_cursor_updater: Callable[[str, str, int], None] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
         self.max_pages_per_cycle = max_pages_per_cycle
+        self.max_page_depth = max_page_depth
         self.field_repairer = field_repairer
         self.known_job_url_exists = known_job_url_exists
+        self.collection_cursor_lookup = collection_cursor_lookup
+        self.collection_cursor_updater = collection_cursor_updater
 
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
         if not self.storage_state_path.exists():
@@ -634,6 +640,7 @@ class LinkedInDeterministicCollector:
             ) from exc
 
         executable_path = resolve_local_chromium()
+        start_page = self._resolve_start_page(site)
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(
                 executable_path=str(executable_path),
@@ -652,7 +659,12 @@ class LinkedInDeterministicCollector:
                     raise RuntimeError(
                         "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
                     ) from exc
-                raw_cards = await self._collect_cards_across_pages(page, max_jobs)
+                raw_cards, next_page = await self._collect_cards_across_pages(
+                    page,
+                    max_jobs,
+                    start_page=start_page,
+                )
+                self._persist_next_page(site, next_page)
                 enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
                 await context.close()
@@ -702,6 +714,26 @@ class LinkedInDeterministicCollector:
             )
         return jobs
 
+    def _resolve_start_page(self, site: SiteConfig) -> int:
+        if self.collection_cursor_lookup is None:
+            return 1
+        try:
+            return max(1, min(self.max_page_depth, self.collection_cursor_lookup(site.name, site.search_url)))
+        except Exception:
+            return 1
+
+    def _persist_next_page(self, site: SiteConfig, next_page: int) -> None:
+        if self.collection_cursor_updater is None:
+            return
+        try:
+            self.collection_cursor_updater(
+                site.name,
+                site.search_url,
+                max(1, min(self.max_page_depth, next_page)),
+            )
+        except Exception:
+            logger.warning("Falha ao atualizar cursor de paginacao do LinkedIn para %s", site.name)
+
     def _filter_known_cards(self, cards: list[dict[str, str]]) -> list[dict[str, str]]:
         if not self.known_job_url_exists:
             return cards
@@ -717,7 +749,13 @@ class LinkedInDeterministicCollector:
             logger.info("LinkedIn pulou %s card(s) ja conhecidos antes do detalhe.", skipped)
         return filtered
 
-    async def _collect_cards_across_pages(self, page: object, max_jobs: int) -> list[dict[str, str]]:
+    async def _collect_cards_across_pages(
+        self,
+        page: object,
+        max_jobs: int,
+        *,
+        start_page: int = 1,
+    ) -> tuple[list[dict[str, str]], int]:
         try:
             from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         except ImportError as exc:
@@ -727,15 +765,24 @@ class LinkedInDeterministicCollector:
 
         collected_cards: list[dict[str, str]] = []
         seen_urls: set[str] = set()
-        for page_number in range(1, self.max_pages_per_cycle + 1):
+        current_page_number = 1
+        if start_page > 1:
+            moved = await self._navigate_to_results_page(page, start_page)
+            if not moved:
+                logger.info("LinkedIn nao conseguiu avancar ate a pagina inicial %s; resetando cursor.", start_page)
+                return await self._collect_cards_across_pages(page, max_jobs, start_page=1)
+            current_page_number = start_page
+
+        pages_scanned = 0
+        while pages_scanned < self.max_pages_per_cycle:
             await self._dismiss_sign_in_modal(page)
             try:
                 await page.wait_for_selector("a[href*='/jobs/view/']", timeout=7000)
             except PlaywrightTimeoutError:
-                if page_number == 1:
+                if current_page_number == 1:
                     raise RuntimeError("nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca")
-                logger.info("LinkedIn pagina %s sem cards visiveis; encerrando paginacao.", page_number)
-                break
+                logger.info("LinkedIn pagina %s sem cards visiveis; resetando janela para pagina 1.", current_page_number)
+                return collected_cards[:max_jobs], 1
 
             remaining_jobs = max(1, max_jobs - len(collected_cards))
             page_cards = await self._extract_visible_cards(page, remaining_jobs)
@@ -751,22 +798,41 @@ class LinkedInDeterministicCollector:
             collected_cards.extend(new_page_cards)
             logger.info(
                 "LinkedIn pagina %s analisada cards=%s novos=%s acumulado=%s",
-                page_number,
+                current_page_number,
                 len(page_cards),
                 len(new_page_cards),
                 len(collected_cards),
             )
+            pages_scanned += 1
             if len(collected_cards) >= max_jobs:
-                break
-            if page_number >= self.max_pages_per_cycle:
-                break
-            moved = await self._go_to_next_results_page(page, page_number + 1)
+                return collected_cards[:max_jobs], self._wrap_page_number(current_page_number + 1)
+            if pages_scanned >= self.max_pages_per_cycle:
+                return collected_cards[:max_jobs], self._wrap_page_number(current_page_number + 1)
+            moved = await self._go_to_next_results_page(page, current_page_number + 1)
             if not moved:
-                logger.info("LinkedIn sem proxima pagina navegavel apos pagina %s.", page_number)
-                break
+                logger.info("LinkedIn sem proxima pagina navegavel apos pagina %s; resetando janela.", current_page_number)
+                return collected_cards[:max_jobs], 1
             await page.wait_for_timeout(1500)
+            current_page_number += 1
 
-        return collected_cards[:max_jobs]
+        return collected_cards[:max_jobs], self._wrap_page_number(current_page_number + 1)
+
+    async def _navigate_to_results_page(self, page: object, target_page_number: int) -> bool:
+        if target_page_number <= 1:
+            return True
+        current_page_number = 1
+        while current_page_number < target_page_number:
+            moved = await self._go_to_next_results_page(page, current_page_number + 1)
+            if not moved:
+                return False
+            await page.wait_for_timeout(1500)
+            current_page_number += 1
+        return True
+
+    def _wrap_page_number(self, page_number: int) -> int:
+        if page_number > self.max_page_depth:
+            return 1
+        return max(1, page_number)
 
     async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:
         return bool(

@@ -39,6 +39,18 @@ def build_known_job_lookup(repository: JobRepository) -> Callable[[str], bool]:
     return lambda url: repository.job_url_exists(url) or repository.seen_job_url_exists(url)
 
 
+def build_collection_cursor_lookup(repository: JobRepository) -> Callable[[str, str], int]:
+    return lambda source_site, search_url: repository.get_collection_cursor(source_site, search_url)
+
+
+def build_collection_cursor_updater(repository: JobRepository) -> Callable[[str, str, int], None]:
+    return lambda source_site, search_url, next_page: repository.update_collection_cursor(
+        source_site,
+        search_url,
+        next_page,
+    )
+
+
 def create_application_support_assessor(settings: Settings) -> OllamaApplicationSupportAssessor | None:
     if not settings.application_support_llm_enabled:
         return None
@@ -84,6 +96,8 @@ def create_application_preflight_service(repository: JobRepository) -> Applicati
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
     known_job_lookup = build_known_job_lookup(repository)
+    cursor_lookup = build_collection_cursor_lookup(repository)
+    cursor_updater = build_collection_cursor_updater(repository)
     return JobCollectionService(
         settings=settings,
         repository=repository,
@@ -99,7 +113,10 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
                 storage_state_path=settings.linkedin_storage_state_path,
                 headless=settings.browser_headless,
                 max_pages_per_cycle=settings.linkedin_max_pages_per_cycle,
+                max_page_depth=settings.linkedin_max_page_depth,
                 known_job_url_exists=known_job_lookup,
+                collection_cursor_lookup=cursor_lookup,
+                collection_cursor_updater=cursor_updater,
                 field_repairer=create_linkedin_field_repairer(settings),
             ),
         ),

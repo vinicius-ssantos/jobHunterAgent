@@ -899,10 +899,11 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
 
         cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
 
-        self.assertEqual([card["url"] for card in cards], [
+        self.assertEqual([card["url"] for card in cards[0]], [
             "https://www.linkedin.com/jobs/view/1",
             "https://www.linkedin.com/jobs/view/2",
         ])
+        self.assertEqual(cards[1], 1)
         self.assertEqual(page.waited_timeouts, [1500])
 
     def test_linkedin_collect_cards_across_pages_stops_at_max_pages(self) -> None:
@@ -932,7 +933,45 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
 
         cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
 
-        self.assertEqual(len(cards), 1)
+        self.assertEqual(len(cards[0]), 1)
+        self.assertEqual(cards[1], 2)
+
+    def test_linkedin_collect_cards_across_pages_starts_from_persisted_page(self) -> None:
+        class FakePage:
+            def __init__(self) -> None:
+                self.waited_timeouts: list[int] = []
+
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                return None
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                self.waited_timeouts.append(timeout)
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=2,
+            max_page_depth=6,
+        )
+        page = FakePage()
+        visited_pages: list[int] = []
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return [{"url": f"https://www.linkedin.com/jobs/view/{len(visited_pages)+10}", "title": "Nova"}]
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            visited_pages.append(next_page_number)
+            return True
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards, next_page = asyncio.run(collector._collect_cards_across_pages(page, 5, start_page=3))
+
+        self.assertEqual(len(cards), 2)
+        self.assertEqual(next_page, 5)
+        self.assertEqual(visited_pages, [2, 3, 4])
 
     def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
         collector = LinkedInDeterministicCollector(

@@ -104,6 +104,12 @@ class JobRepository(Protocol):
     def application_summary(self) -> dict[str, int]:
         raise NotImplementedError
 
+    def get_collection_cursor(self, source_site: str, search_url: str) -> int:
+        raise NotImplementedError
+
+    def update_collection_cursor(self, source_site: str, search_url: str, next_page: int) -> None:
+        raise NotImplementedError
+
 
 class SqliteJobRepository:
     def __init__(
@@ -196,6 +202,18 @@ class SqliteJobRepository:
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (job_id) REFERENCES jobs(id)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS collection_cursors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_site TEXT NOT NULL,
+                    search_url TEXT NOT NULL,
+                    next_page INTEGER NOT NULL DEFAULT 1,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(source_site, search_url)
                 )
                 """
             )
@@ -587,6 +605,38 @@ class SqliteJobRepository:
             "error_submit": row[5] or 0,
             "cancelled": row[6] or 0,
         }
+
+    def get_collection_cursor(self, source_site: str, search_url: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT next_page
+                FROM collection_cursors
+                WHERE source_site = ? AND search_url = ?
+                """,
+                (source_site, search_url),
+            ).fetchone()
+        if not row:
+            return 1
+        return max(1, int(row[0]))
+
+    def update_collection_cursor(self, source_site: str, search_url: str, next_page: int) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO collection_cursors (source_site, search_url, next_page, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(source_site, search_url) DO UPDATE SET
+                    next_page = excluded.next_page,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    source_site,
+                    search_url,
+                    max(1, next_page),
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
 
     @staticmethod
     def _row_to_job(row: tuple) -> JobPosting:

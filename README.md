@@ -108,6 +108,7 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH`
 - `JOB_HUNTER_BROWSER_HEADLESS`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE`
+- `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
 - `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
 - `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
@@ -177,8 +178,17 @@ Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extrai
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
+- `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH=6`
 
-O recomendado para a fase atual e manter esse limite pequeno.
+O recomendado para a fase atual e manter essa janela pequena por ciclo.
+O coletor agora move essa janela entre execucoes, por exemplo:
+
+- ciclo A: paginas `1 -> 2`
+- ciclo B: paginas `3 -> 4`
+- ciclo C: paginas `5 -> 6`
+- depois volta para `1`
+
+Isso reduz retrabalho quando as primeiras paginas variam pouco entre runs sequenciais.
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

@@ -213,6 +213,19 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(rows[1][1], "interrupted")
         self.assertIsNotNone(rows[1][2])
 
+    def test_collection_cursor_defaults_to_first_page_and_persists_updates(self) -> None:
+        self.assertEqual(
+            self.repository.get_collection_cursor("LinkedIn", "https://example.com/search"),
+            1,
+        )
+
+        self.repository.update_collection_cursor("LinkedIn", "https://example.com/search", 3)
+
+        self.assertEqual(
+            self.repository.get_collection_cursor("LinkedIn", "https://example.com/search"),
+            3,
+        )
+
     def test_mark_status_rejects_invalid_transition_value(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])
 

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     linkedin_storage_state_path: Path = Path("./.browseruse/linkedin-storage-state.json")
     browser_headless: bool = False
     linkedin_max_pages_per_cycle: int = 2
+    linkedin_max_page_depth: int = 6
 
     include_keywords: tuple[str, ...] = (
         "java",
@@ -120,6 +121,13 @@ class Settings(BaseSettings):
     def validate_linkedin_max_pages_per_cycle(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_max_page_depth")
+    @classmethod
+    def validate_linkedin_max_page_depth(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH deve ser maior que zero.")
         return value
 
     @field_validator("sites")
