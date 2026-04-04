@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     linkedin_storage_state_path: Path = Path("./.browseruse/linkedin-storage-state.json")
     browser_headless: bool = False
     linkedin_max_pages_per_cycle: int = 2
+    linkedin_max_page_depth: int = 6
+    linkedin_scroll_stabilization_passes: int = 3
 
     include_keywords: tuple[str, ...] = (
         "java",
@@ -57,6 +59,10 @@ class Settings(BaseSettings):
     relaxed_testing_remove_exclude_keywords: tuple[str, ...] = ("junior",)
     relaxed_testing_minimum_relevance: int = 4
     linkedin_field_repair_enabled: bool = True
+    application_support_llm_enabled: bool = True
+    job_requirements_llm_enabled: bool = True
+    review_rationale_llm_enabled: bool = True
+    application_priority_llm_enabled: bool = True
     max_jobs_per_site: int = 20
     portal_collection_timeout_seconds: int = 180
     review_polling_grace_seconds: int = 120
@@ -116,6 +122,20 @@ class Settings(BaseSettings):
     def validate_linkedin_max_pages_per_cycle(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_max_page_depth")
+    @classmethod
+    def validate_linkedin_max_page_depth(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_scroll_stabilization_passes")
+    @classmethod
+    def validate_linkedin_scroll_stabilization_passes(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES deve ser maior que zero.")
         return value
 
     @field_validator("sites")

@@ -4,10 +4,26 @@ import unittest
 from job_hunter_agent.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
+    ApplicationSupportAssessment,
     classify_job_application_support,
+    parse_application_support_response,
+)
+from job_hunter_agent.application_priority import (
+    DeterministicApplicationPriorityAssessor,
+    extract_application_priority_level,
+    format_application_priority_note,
+    parse_application_priority_response,
 )
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
+from job_hunter_agent.job_requirements import (
+    DeterministicJobRequirementsExtractor,
+    JobRequirementSignals,
+    extract_job_requirement_signals,
+    format_job_requirement_signals,
+    format_job_requirement_summary,
+    parse_job_requirements_response,
+)
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
@@ -197,6 +213,19 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(rows[1][1], "interrupted")
         self.assertIsNotNone(rows[1][2])
 
+    def test_collection_cursor_defaults_to_first_page_and_persists_updates(self) -> None:
+        self.assertEqual(
+            self.repository.get_collection_cursor("LinkedIn", "https://example.com/search"),
+            1,
+        )
+
+        self.repository.update_collection_cursor("LinkedIn", "https://example.com/search", 3)
+
+        self.assertEqual(
+            self.repository.get_collection_cursor("LinkedIn", "https://example.com/search"),
+            3,
+        )
+
     def test_mark_status_rejects_invalid_transition_value(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])
 
@@ -292,9 +321,182 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual([draft.job_id for draft in drafts], [approved.id])
         stored = self.repository.get_application_by_job(approved.id)
         self.assertIsNotNone(stored)
-        self.assertEqual(stored.notes, "rascunho criado apos aprovacao humana")
+        self.assertIn("rascunho criado apos aprovacao humana", stored.notes)
+        self.assertIn("sinais estruturados:", stored.notes)
         self.assertEqual(stored.support_level, "manual_review")
         self.assertIsNone(self.repository.get_application_by_job(collected.id))
+
+    def test_application_preparation_service_appends_structured_signals_to_notes(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        service = ApplicationPreparationService(self.repository)
+
+        drafts = service.create_drafts_for_approved_jobs(
+            [approved.id],
+            notes="rascunho criado apos aprovacao humana",
+        )
+
+        self.assertEqual(len(drafts), 1)
+        self.assertIn("rascunho criado apos aprovacao humana", drafts[0].notes)
+        self.assertIn("sinais estruturados:", drafts[0].notes)
+        self.assertIn("prioridade sugerida:", drafts[0].notes)
+
+    def test_application_preparation_service_uses_assessor_when_available(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        class FakeAssessor:
+            def assess(self, job: JobPosting) -> ApplicationSupportAssessment:
+                return ApplicationSupportAssessment(
+                    support_level="auto_supported",
+                    rationale="fluxo simples detectado",
+                )
+
+        service = ApplicationPreparationService(self.repository, support_assessor=FakeAssessor())
+
+        drafts = service.create_drafts_for_approved_jobs([approved.id])
+
+        self.assertEqual(len(drafts), 1)
+        self.assertEqual(drafts[0].support_level, "auto_supported")
+        self.assertEqual(drafts[0].support_rationale, "fluxo simples detectado")
+
+    def test_application_preparation_service_falls_back_when_assessor_fails(self) -> None:
+        approved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        self.repository.mark_status(approved.id, "approved")
+
+        class BrokenAssessor:
+            def assess(self, job: JobPosting) -> ApplicationSupportAssessment:
+                raise RuntimeError("falha")
+
+        service = ApplicationPreparationService(self.repository, support_assessor=BrokenAssessor())
+
+        drafts = service.create_drafts_for_approved_jobs([approved.id])
+
+        self.assertEqual(len(drafts), 1)
+        self.assertEqual(drafts[0].support_level, "manual_review")
+
+    def test_parse_application_support_response_accepts_valid_json(self) -> None:
+        assessment = parse_application_support_response(
+            '{"support_level":"manual_review","rationale":"requer confirmacao humana"}'
+        )
+
+        self.assertEqual(assessment.support_level, "manual_review")
+        self.assertEqual(assessment.rationale, "requer confirmacao humana")
+
+    def test_parse_application_support_response_rejects_invalid_support_level(self) -> None:
+        assessment = parse_application_support_response('{"support_level":"maybe"}')
+
+        self.assertEqual(assessment.support_level, "unsupported")
+        self.assertIn("invalido", assessment.rationale)
+
+    def test_deterministic_job_requirements_extractor_derives_basic_signals(self) -> None:
+        extractor = DeterministicJobRequirementsExtractor()
+        signals = extractor.extract(
+            JobPosting(
+                title="Desenvolvedor Java Senior",
+                company="ACME",
+                location="Brasil",
+                work_mode="remoto",
+                salary_text="Nao informado",
+                url="https://example.com/job-1",
+                source_site="LinkedIn",
+                summary="Java com Spring Boot e AWS. Ingles avancado. Mentoria tecnica.",
+                relevance=8,
+                rationale="Boa aderencia",
+                external_key="key-1",
+            )
+        )
+
+        self.assertEqual(signals.seniority, "senior")
+        self.assertIn("java", signals.primary_stack)
+        self.assertIn("spring", signals.primary_stack)
+        self.assertIn("aws", signals.secondary_stack)
+        self.assertEqual(signals.english_level, "avancado")
+        self.assertTrue(signals.leadership_signals)
+
+    def test_parse_job_requirements_response_accepts_valid_json(self) -> None:
+        signals = parse_job_requirements_response(
+            '{"seniority":"pleno","primary_stack":["java","spring"],"secondary_stack":["aws"],"english_level":"intermediario","leadership_signals":false,"rationale":"sinais extraidos"}'
+        )
+
+        self.assertEqual(signals.seniority, "pleno")
+        self.assertEqual(signals.primary_stack, ("java", "spring"))
+        self.assertEqual(signals.secondary_stack, ("aws",))
+        self.assertEqual(signals.english_level, "intermediario")
+        self.assertFalse(signals.leadership_signals)
+
+    def test_parse_job_requirements_response_falls_back_on_invalid_values(self) -> None:
+        signals = parse_job_requirements_response('{"seniority":"guru","english_level":"x"}')
+
+        self.assertEqual(signals.seniority, "nao_informada")
+        self.assertEqual(signals.english_level, "nao_informado")
+
+    def test_format_job_requirement_signals_is_concise(self) -> None:
+        rendered = format_job_requirement_signals(
+            JobRequirementSignals(
+                seniority="pleno",
+                primary_stack=("java", "spring"),
+                secondary_stack=("aws",),
+                english_level="intermediario",
+                leadership_signals=False,
+                rationale="sinais extraidos",
+            )
+        )
+
+        self.assertIn("senioridade=pleno", rendered)
+        self.assertIn("stack_principal=java, spring", rendered)
+        self.assertIn("ingles=intermediario", rendered)
+
+    def test_extract_job_requirement_signals_reads_structured_note(self) -> None:
+        signals = extract_job_requirement_signals(
+            "rascunho criado apos aprovacao humana\n"
+            "sinais estruturados: senioridade=pleno; stack_principal=java, spring; "
+            "stack_secundaria=aws; ingles=intermediario; lideranca=nao"
+        )
+
+        self.assertEqual(signals.seniority, "pleno")
+        self.assertEqual(signals.primary_stack, ("java", "spring"))
+        self.assertEqual(signals.secondary_stack, ("aws",))
+        self.assertEqual(signals.english_level, "intermediario")
+        self.assertFalse(signals.leadership_signals)
+
+    def test_format_job_requirement_summary_is_operational(self) -> None:
+        rendered = format_job_requirement_summary(
+            JobRequirementSignals(
+                seniority="senior",
+                primary_stack=("java", "spring", "aws"),
+                english_level="avancado",
+                leadership_signals=True,
+            )
+        )
+
+        self.assertIn("senioridade=senior", rendered)
+        self.assertIn("stack=java, spring, aws", rendered)
+        self.assertIn("ingles=avancado", rendered)
+        self.assertIn("lideranca=sim", rendered)
+
+    def test_parse_application_priority_response_accepts_valid_json(self) -> None:
+        assessment = parse_application_priority_response(
+            '{"level":"alta","rationale":"aderencia forte e modalidade favoravel"}'
+        )
+
+        self.assertEqual(assessment.level, "alta")
+        self.assertEqual(assessment.rationale, "aderencia forte e modalidade favoravel")
+
+    def test_parse_application_priority_response_rejects_invalid_level(self) -> None:
+        assessment = parse_application_priority_response('{"level":"urgente"}')
+
+        self.assertEqual(assessment.level, "baixa")
+        self.assertIn("invalido", assessment.rationale)
+
+    def test_format_and_extract_application_priority_note(self) -> None:
+        note = format_application_priority_note(
+            DeterministicApplicationPriorityAssessor().assess(sample_job("https://example.com/job-1", "key-1"))
+        )
+
+        self.assertIn("prioridade sugerida: alta", note)
+        self.assertEqual(extract_application_priority_level(note), "alta")
 
     def test_create_application_draft_persists_support_metadata(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]

@@ -108,12 +108,17 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH`
 - `JOB_HUNTER_BROWSER_HEADLESS`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE`
+- `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
 - `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
 - `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
 - `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
 - `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
+- `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
+- `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED`
+- `JOB_HUNTER_REVIEW_RATIONALE_LLM_ENABLED`
+- `JOB_HUNTER_APPLICATION_PRIORITY_LLM_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -144,11 +149,51 @@ Tambem existe um fallback opcional de reparo local de campos do LinkedIn:
 
 Ele so atua em casos residuais e suspeitos, depois da extracao deterministica e da tentativa de enriquecimento pela pagina de detalhe.
 
+Tambem existe um assessor opcional de suporte de candidatura com LLM local:
+
+- `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED=true`
+
+Ele enriquece a classificacao de aplicabilidade da candidatura durante a criacao de rascunhos, mas mantem o fallback deterministico atual quando estiver desabilitado ou quando o modelo falhar.
+
+Tambem existe um extractor opcional de requisitos estruturados:
+
+- `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED=true`
+
+Ele deriva sinais operacionais da vaga, como senioridade, stack principal/secundaria, ingles e sinais de lideranca, anexando isso aos rascunhos de candidatura como nota estruturada. Se o modelo falhar, o sistema cai para uma heuristica local deterministica.
+
+Tambem existe um formatter opcional de rationale para revisao humana:
+
+- `JOB_HUNTER_REVIEW_RATIONALE_LLM_ENABLED=true`
+
+Ele reestrutura o motivo da vaga em pontos a favor, pontos contra e risco principal na hora de montar o card do Telegram. Se o modelo falhar ou estiver desligado, o texto original continua sendo usado.
+
+Tambem existe um assessor opcional de prioridade operacional para candidaturas:
+
+- `JOB_HUNTER_APPLICATION_PRIORITY_LLM_ENABLED=true`
+
+Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fila de rascunhos e candidaturas em andamento. Se o modelo falhar ou estiver desligado, o sistema usa uma heuristica local conservadora.
+
+Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extraidos da vaga, exibindo um resumo curto com senioridade, stack, ingles e sinais de lideranca quando houver dados uteis.
+
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
+- `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH=6`
+- `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES=3`
 
-O recomendado para a fase atual e manter esse limite pequeno.
+O recomendado para a fase atual e manter essa janela pequena por ciclo.
+Cada ciclo sempre comeca pela pagina `1`, tenta esgotar a lista visivel daquela pagina com scroll incremental no painel de resultados e so depois avanca pela paginacao da propria interface do LinkedIn para a pagina seguinte.
+
+Na pratica, com `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`, o comportamento esperado por ciclo e:
+
+- abrir a busca padrao
+- estabilizar a pagina `1` com scroll da lista
+- extrair os cards visiveis da pagina `1`
+- clicar na pagina `2` pela UI
+- estabilizar a pagina `2`
+- extrair os cards visiveis da pagina `2`
+
+`JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH` continua como limite de seguranca para nao aprofundar demais a navegacao dentro de um unico ciclo.
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

@@ -49,12 +49,20 @@ Keep responsibilities separated and directional:
   Persistence contracts and SQLite implementation.
 - `job_hunter_agent/collector.py`
   Collection contracts, orchestration, filtering, and persistence-facing scoring flow.
+- `job_hunter_agent/applicant.py`
+  Assisted application preparation, support classification, and preflight orchestration.
 - `job_hunter_agent/portal_collectors.py`
   Portal adapters and browser automation integration.
 - `job_hunter_agent/linkedin.py`
   LinkedIn deterministic extraction, enrichment, and field repair helpers.
 - `job_hunter_agent/scoring.py`
   Scoring implementation and parsing helpers for model responses.
+- `job_hunter_agent/job_requirements.py`
+  Structured extraction and formatting of operational requirement signals from job text.
+- `job_hunter_agent/review_rationale.py`
+  Assistive formatting of review rationale for human decision-making.
+- `job_hunter_agent/application_priority.py`
+  Assistive prioritization of application drafts and queue ordering.
 - `job_hunter_agent/notifier.py`
   Telegram transport and handler wiring.
 - `job_hunter_agent/notifier_rendering.py`
@@ -136,6 +144,14 @@ Rules:
 - Use the LLM as an assistive scorer, not as an unquestioned authority.
 - Positive scoring must produce a concise rationale.
 - Never allow the model to invent candidate data absent from settings.
+
+## Local LLM Usage Rules
+
+- Local LLM features are assistive only and must preserve deterministic fallback behavior.
+- Support classification, requirement extraction, rationale formatting, and queue prioritization must degrade safely when the model fails.
+- LLM outputs must be parsed into explicit structured data before use.
+- Invalid or incomplete model responses must fall back to conservative deterministic behavior.
+- LLM-assisted metadata must not silently overwrite trusted source data with invented values.
 
 ## Telegram and Review Rules
 

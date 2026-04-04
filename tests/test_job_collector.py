@@ -894,6 +894,7 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
             return moves.pop(0)
 
         collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._stabilize_results_page = lambda current_page: asyncio.sleep(0)
         collector._extract_visible_cards = fake_extract_visible_cards
         collector._go_to_next_results_page = fake_go_to_next_results_page
 
@@ -927,12 +928,50 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
             raise AssertionError("nao deveria tentar proxima pagina")
 
         collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._stabilize_results_page = lambda current_page: asyncio.sleep(0)
         collector._extract_visible_cards = fake_extract_visible_cards
         collector._go_to_next_results_page = fake_go_to_next_results_page
 
         cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
 
         self.assertEqual(len(cards), 1)
+
+    def test_linkedin_collect_cards_across_pages_always_starts_from_first_page_and_clicks_forward(self) -> None:
+        class FakePage:
+            def __init__(self) -> None:
+                self.waited_timeouts: list[int] = []
+
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                return None
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                self.waited_timeouts.append(timeout)
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=2,
+            max_page_depth=6,
+        )
+        page = FakePage()
+        visited_pages: list[int] = []
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return [{"url": f"https://www.linkedin.com/jobs/view/{len(visited_pages)+10}", "title": "Nova"}]
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            visited_pages.append(next_page_number)
+            return True
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._stabilize_results_page = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 5))
+
+        self.assertEqual(len(cards), 2)
+        self.assertEqual(visited_pages, [2])
 
     def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
         collector = LinkedInDeterministicCollector(
@@ -949,6 +988,36 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         )
 
         self.assertEqual([card["url"] for card in filtered], ["https://www.linkedin.com/jobs/view/2"])
+
+    def test_linkedin_stabilize_results_page_scrolls_until_count_stops_changing(self) -> None:
+        class FakePage:
+            def __init__(self) -> None:
+                self.states = [
+                    {"count": 4, "target": "lista", "moved": True},
+                    {"count": 7, "target": "lista", "moved": True},
+                    {"count": 7, "target": "lista", "moved": False},
+                ]
+                self.waited_timeouts: list[int] = []
+                self.evaluate_calls = 0
+
+            async def evaluate(self, script: str) -> dict[str, object]:
+                self.evaluate_calls += 1
+                return self.states.pop(0)
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                self.waited_timeouts.append(timeout)
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            scroll_stabilization_passes=4,
+        )
+        page = FakePage()
+
+        asyncio.run(collector._stabilize_results_page(page))
+
+        self.assertEqual(page.evaluate_calls, 3)
+        self.assertEqual(page.waited_timeouts, [600, 600, 600])
 
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()
