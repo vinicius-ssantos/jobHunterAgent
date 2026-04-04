@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 import re
@@ -135,7 +135,7 @@ def is_suspicious_linkedin_company(company: str, location: str) -> bool:
         "local nao informado",
         "osasco",
         "osasco,",
-        "sÃ£o paulo",
+        "sÃƒÂ£o paulo",
         "sao paulo",
         "brasil",
     }:
@@ -156,7 +156,7 @@ def is_suspicious_linkedin_location(location: str, title: str) -> bool:
     if not normalized_location:
         return True
     lower_location = normalized_location.lower()
-    if lower_location in {"local nao informado", "nÃ£o informado", "nao informado"}:
+    if lower_location in {"local nao informado", "não informado", "nao informado"}:
         return True
     if normalized_title and lower_location.startswith(normalized_title.lower() + " "):
         return True
@@ -167,11 +167,11 @@ def strip_linkedin_chrome_prefix(value: str) -> str:
     cleaned = _normalize_whitespace(value)
     chrome_markers = (
         "Reative Premium:",
-        "Para negÃ³cios",
-        "NotificaÃ§Ãµes",
+        "Para negócios",
+        "Notificações",
         "Mensagens",
         "Minha rede",
-        "Pular para conteÃºdo principal",
+        "Pular para conteúdo principal",
     )
     for marker in chrome_markers:
         marker_index = cleaned.lower().rfind(marker.lower())
@@ -216,14 +216,14 @@ def clean_linkedin_company(value: str) -> str:
     cleaned = re.sub(r"^with verification\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^(Desenvolvedor|Engenheiro|Software Engineer|Backend|Fullstack)\b.*?\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\b(SÃ£o Paulo|Sao Paulo|Rio de Janeiro).*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(São Paulo|Sao Paulo|Rio de Janeiro).*$", "", cleaned, flags=re.IGNORECASE)
     noise_phrases = (
         "Promovida",
         "Candidatura simplificada",
         "Avaliando candidaturas",
         "Visualizado",
-        "1 conexÃ£o trabalha aqui",
-        "hÃ¡ ",
+        "1 conexão trabalha aqui",
+        "há ",
     )
     segments = _split_linkedin_segments(cleaned)
     kept: list[str] = []
@@ -232,15 +232,17 @@ def clean_linkedin_company(value: str) -> str:
         lower_segment = normalized_segment.lower()
         if any(phrase.lower() in segment.lower() for phrase in noise_phrases):
             continue
+        if "brasil (" in lower_segment or "brasil (" in lower_segment.replace("í", "i"):
+            continue
         if looks_like_linkedin_location(normalized_segment):
             continue
-        if lower_segment in {"hibrido", "hÃ­brido", "remoto", "presencial", "hybrid", "onsite"}:
+        if lower_segment in {"hibrido", "híbrido", "remoto", "presencial", "hybrid", "onsite"}:
             continue
         if normalized_segment.endswith(",") and len(normalized_segment.split()) <= 1:
             continue
         if lower_segment in {
             "osasco",
-            "sÃ£o paulo",
+            "são paulo",
             "sao paulo",
             "rio de janeiro",
             "curitiba",
@@ -264,7 +266,7 @@ def clean_linkedin_company(value: str) -> str:
         in {
             "osasco",
             "osasco,",
-            "sÃ£o paulo",
+            "são paulo",
             "sao paulo",
             "rio de janeiro",
             "curitiba",
@@ -309,7 +311,7 @@ def normalize_linkedin_work_mode(raw_work_mode: str, location: str) -> str:
     combined = f"{raw_work_mode} {location}".lower()
     if "remoto" in combined or "remote" in combined:
         return "remoto"
-    if "hÃ­brido" in combined or "hibrido" in combined or "hybrid" in combined:
+    if "híbrido" in combined or "hibrido" in combined or "hybrid" in combined:
         return "hibrido"
     if "presencial" in combined or "onsite" in combined:
         return "presencial"
@@ -338,7 +340,7 @@ def _clean_linkedin_text_block(value: str, *, limit: int) -> str:
         r"\bVisualizado\b",
         r"\bwith verification\b",
         r"\b\d+\s+candidaturas\b",
-        r"\bhÃ¡\s+\d+\s+\w+\b",
+        r"\bhá\s+\d+\s+\w+\b",
     )
     for pattern in noise_patterns:
         cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
@@ -347,7 +349,7 @@ def _clean_linkedin_text_block(value: str, *, limit: int) -> str:
 
 
 def _split_linkedin_segments(value: str) -> list[str]:
-    return [segment.strip() for segment in re.split(r"[Â·â€¢|]", value) if segment.strip()]
+    return [segment.strip() for segment in re.split(r"[·•|]", value) if segment.strip()]
 
 
 def looks_like_linkedin_location(value: str) -> bool:
@@ -358,7 +360,7 @@ def looks_like_linkedin_location(value: str) -> bool:
     if any(
         marker in lower
         for marker in (
-            "(hÃ­brido)",
+            "(híbrido)",
             "(hibrido)",
             "(remoto)",
             "(presencial)",
@@ -386,9 +388,9 @@ def _extract_linkedin_location_snippet(value: str) -> str:
     window_end = min(len(value), brasil_index + 40)
     tail = value[window_start:window_end]
     match = re.search(
-        r"([A-Za-zÃ€-Ã¿]+(?: [A-Za-zÃ€-Ã¿]+){0,3},\s*"
-        r"[A-Za-zÃ€-Ã¿]+(?: [A-Za-zÃ€-Ã¿]+){0,3},\s*"
-        r"Brasil(?:\s+\((?:HÃ­brido|Hibrido|Remoto|Presencial)\))?)",
+        r"([^,()|]+(?: [^,()|]+){0,3},\s*"
+        r"[^,()|]+(?: [^,()|]+){0,3},\s*"
+        r"Brasil(?:\s+\((?:Híbrido|Hibrido|Remoto|Presencial)\))?)",
         tail,
         flags=re.IGNORECASE,
     )
@@ -690,10 +692,10 @@ class LinkedInDeterministicCollector:
                   const lower = line.toLowerCase();
                   return (
                     lower.includes("brasil") ||
-                    lower.includes("sÃ£o paulo") ||
+                    lower.includes("sÃƒÂ£o paulo") ||
                     lower.includes("sao paulo") ||
                     lower.includes("rio de janeiro") ||
-                    lower.includes("(hÃ­brido)") ||
+                    lower.includes("(hÃƒÂ­brido)") ||
                     lower.includes("(hibrido)") ||
                     lower.includes("(remoto)") ||
                     lower.includes("(presencial)") ||
@@ -743,7 +745,7 @@ class LinkedInDeterministicCollector:
                 const lowerText = cardText.toLowerCase();
                 let workMode = "";
                 if (lowerText.includes("remoto")) workMode = "remoto";
-                else if (lowerText.includes("hÃ­brido") || lowerText.includes("hibrido") || lowerText.includes("hybrid")) workMode = "hibrido";
+                else if (lowerText.includes("hÃƒÂ­brido") || lowerText.includes("hibrido") || lowerText.includes("hybrid")) workMode = "hibrido";
                 else if (lowerText.includes("presencial") || lowerText.includes("onsite")) workMode = "presencial";
                 const salaryMatch = cardText.match(/R\\$\\s?[\\d\\.]+(?:\\s*[-a]\\s*R\\$?\\s?[\\d\\.]+)?/i);
                 seen.add(href);
