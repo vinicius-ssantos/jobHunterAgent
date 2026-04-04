@@ -96,7 +96,7 @@ Definicao de pronto:
 - menos superficie publica acidental
 - responsabilidades mais obvias por modulo
 
-### Fase 4 - `repository.py`
+### Fase 4 - `repository.py` (concluida)
 
 Objetivo:
 - separar persistencia de regras especificas de identidade por portal
@@ -121,7 +121,7 @@ Definicao de pronto:
 - [x] Fase 1 concluida
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
-- [ ] Fase 4 concluida
+- [x] Fase 4 concluida
 - [ ] README atualizado se a estrutura publica mudar
 - [ ] AGENTS atualizado se a politica operacional mudar
-- [ ] loop principal validado ao final
+- [x] loop principal validado ao final

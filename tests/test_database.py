@@ -7,6 +7,7 @@ from job_hunter_agent.applicant import (
     classify_job_application_support,
 )
 from job_hunter_agent.domain import JobPosting
+from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
@@ -109,6 +110,21 @@ class SqliteJobRepositoryTests(unittest.TestCase):
                 "https://www.linkedin.com/jobs/view/987654321/?currentJobId=987654321",
                 "different-key",
             )
+        )
+
+    def test_identity_strategy_preserves_linkedin_lookup_patterns(self) -> None:
+        strategy = PortalAwareJobIdentityStrategy()
+
+        self.assertEqual(
+            strategy.url_lookup_patterns("https://www.linkedin.com/jobs/view/123456789/?trackingId=abc"),
+            [
+                "https://www.linkedin.com/jobs/view/123456789/?trackingId=abc",
+                "%/jobs/view/123456789%",
+            ],
+        )
+        self.assertEqual(
+            strategy.url_lookup_patterns("https://example.com/job-1"),
+            ["https://example.com/job-1"],
         )
 
     def test_summary_counts_statuses(self) -> None:

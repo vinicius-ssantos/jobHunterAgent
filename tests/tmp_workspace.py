@@ -16,6 +16,10 @@ def prepare_workspace_tmp_dir(prefix: str) -> Path:
     for child in root.iterdir():
         if child == temp_dir or child.name == f"LATEST-{prefix}.txt":
             continue
+        if child.is_dir() and not child.name.startswith(f"{prefix}-"):
+            continue
+        if child.is_file() and not child.name.startswith(f"LATEST-{prefix}"):
+            continue
         if child.is_dir():
             _remove_path_with_retries(child, required=False)
         else:

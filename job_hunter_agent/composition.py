@@ -4,6 +4,7 @@ from typing import Callable
 
 from job_hunter_agent.applicant import ApplicationPreparationService, ApplicationPreflightService
 from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
+from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
@@ -13,7 +14,10 @@ from job_hunter_agent.settings import Settings
 
 
 def create_repository(settings: Settings) -> JobRepository:
-    return SqliteJobRepository(settings.database_path)
+    return SqliteJobRepository(
+        settings.database_path,
+        identity_strategy=PortalAwareJobIdentityStrategy(),
+    )
 
 
 def create_runtime_guard(settings: Settings) -> RuntimeGuard:
