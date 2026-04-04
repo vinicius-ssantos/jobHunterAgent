@@ -2,16 +2,20 @@ from __future__ import annotations
 
 from job_hunter_agent.domain import JobApplication, JobPosting
 from job_hunter_agent.repository import JobRepository
+from job_hunter_agent.review_rationale import StructuredReviewRationale, render_review_rationale
 
 
-def build_job_card_message(job: JobPosting) -> str:
+def build_job_card_message(
+    job: JobPosting,
+    structured_rationale: StructuredReviewRationale | None = None,
+) -> str:
     return (
         f"*{job.title}*\n"
         f"Empresa: {job.company}\n"
         f"Local: {job.location} | Modalidade: {job.work_mode}\n"
         f"Salario: {job.salary_text}\n"
         f"Relevancia: {job.relevance}/10\n"
-        f"Motivo: {job.rationale}\n"
+        f"Motivo: {render_review_rationale(job, structured_rationale)}\n"
         f"Resumo: {job.summary}\n"
         f"[Abrir vaga]({job.url})"
     )

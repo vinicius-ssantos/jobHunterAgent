@@ -14,6 +14,7 @@ from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLink
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
 from job_hunter_agent.repository import JobRepository, SqliteJobRepository
+from job_hunter_agent.review_rationale import OllamaReviewRationaleFormatter
 from job_hunter_agent.runtime import RuntimeGuard
 from job_hunter_agent.settings import Settings
 
@@ -122,4 +123,14 @@ def create_notifier(
         repository=repository,
         on_approved=on_approved,
         on_application_preflight=on_application_preflight,
+        review_rationale_formatter=create_review_rationale_formatter(settings),
+    )
+
+
+def create_review_rationale_formatter(settings: Settings) -> OllamaReviewRationaleFormatter | None:
+    if not settings.review_rationale_llm_enabled:
+        return None
+    return OllamaReviewRationaleFormatter(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_url,
     )

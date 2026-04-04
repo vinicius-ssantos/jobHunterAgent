@@ -16,6 +16,11 @@ from job_hunter_agent.notifier import (
     resolve_review_action,
 )
 from job_hunter_agent.repository import SqliteJobRepository
+from job_hunter_agent.review_rationale import (
+    StructuredReviewRationale,
+    parse_structured_review_rationale,
+    render_review_rationale,
+)
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
@@ -66,6 +71,21 @@ class ReviewActionTests(TestCase):
         self.assertIn("Modalidade: remoto", message)
         self.assertIn("Relevancia: 8/10", message)
         self.assertIn("Abrir vaga", message)
+
+    def test_build_job_card_message_accepts_structured_rationale(self) -> None:
+        message = build_job_card_message(
+            sample_job(),
+            StructuredReviewRationale(
+                strengths=("stack aderente",),
+                concerns=("senioridade incerta",),
+                risk="detalhes insuficientes",
+            ),
+        )
+
+        self.assertIn("Pontos a favor:", message)
+        self.assertIn("- stack aderente", message)
+        self.assertIn("Pontos contra:", message)
+        self.assertIn("Risco principal: detalhes insuficientes", message)
 
     def test_build_missing_job_reply_is_safe(self) -> None:
         reply = build_missing_job_reply(999)
@@ -142,6 +162,20 @@ class ReviewActionTests(TestCase):
             resolve_application_preflight_request(draft),
             (False, "Candidatura ainda nao foi confirmada para preflight: id=2"),
         )
+
+    def test_parse_structured_review_rationale_accepts_valid_json(self) -> None:
+        structured = parse_structured_review_rationale(
+            '{"strengths":["stack aderente"],"concerns":["senioridade incerta"],"risk":"detalhes insuficientes"}'
+        )
+
+        self.assertEqual(structured.strengths, ("stack aderente",))
+        self.assertEqual(structured.concerns, ("senioridade incerta",))
+        self.assertEqual(structured.risk, "detalhes insuficientes")
+
+    def test_render_review_rationale_falls_back_to_raw_text(self) -> None:
+        rendered = render_review_rationale(sample_job())
+
+        self.assertEqual(rendered, "Boa aderencia ao perfil.")
 
 
 class NullNotifierTests(TestCase):

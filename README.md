@@ -116,6 +116,7 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
 - `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
 - `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED`
+- `JOB_HUNTER_REVIEW_RATIONALE_LLM_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
 
@@ -157,6 +158,12 @@ Tambem existe um extractor opcional de requisitos estruturados:
 - `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED=true`
 
 Ele deriva sinais operacionais da vaga, como senioridade, stack principal/secundaria, ingles e sinais de lideranca, anexando isso aos rascunhos de candidatura como nota estruturada. Se o modelo falhar, o sistema cai para uma heuristica local deterministica.
+
+Tambem existe um formatter opcional de rationale para revisao humana:
+
+- `JOB_HUNTER_REVIEW_RATIONALE_LLM_ENABLED=true`
+
+Ele reestrutura o motivo da vaga em pontos a favor, pontos contra e risco principal na hora de montar o card do Telegram. Se o modelo falhar ou estiver desligado, o texto original continua sendo usado.
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 

@@ -14,6 +14,7 @@ from job_hunter_agent.notifier_rendering import (
     build_missing_job_reply as rendering_build_missing_job_reply,
 )
 from job_hunter_agent.repository import JobRepository
+from job_hunter_agent.review_rationale import ReviewRationaleFormatter
 from job_hunter_agent.review_workflow import (
     resolve_application_action as workflow_resolve_application_action,
     resolve_application_preflight_request as workflow_resolve_application_preflight_request,
@@ -76,6 +77,7 @@ class TelegramNotifier:
         repository: JobRepository,
         on_approved: Optional[ApprovalCallback] = None,
         on_application_preflight: Optional[ApplicationPreflightCallback] = None,
+        review_rationale_formatter: ReviewRationaleFormatter | None = None,
     ) -> None:
         try:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -89,6 +91,7 @@ class TelegramNotifier:
         self.repository = repository
         self.on_approved = on_approved
         self.on_application_preflight = on_application_preflight
+        self.review_rationale_formatter = review_rationale_formatter
         self._inline_keyboard_button = InlineKeyboardButton
         self._inline_keyboard_markup = InlineKeyboardMarkup
         self.application = Application.builder().token(settings.telegram_token).build()
@@ -135,7 +138,13 @@ class TelegramNotifier:
                 ]
             ]
         )
-        message = build_job_card_message(job)
+        structured_rationale = None
+        if self.review_rationale_formatter is not None:
+            try:
+                structured_rationale = self.review_rationale_formatter.format(job)
+            except Exception:
+                structured_rationale = None
+        message = build_job_card_message(job, structured_rationale)
         await self.application.bot.send_message(
             chat_id=self.settings.telegram_chat_id,
             text=message,
