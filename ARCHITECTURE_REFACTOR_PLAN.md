@@ -54,7 +54,7 @@ Achados principais:
 
 ## Ordem De Ataque
 
-### Fase 1 - `app.py`
+### Fase 1 - `app.py` (concluida)
 
 Objetivo:
 - deixar `app.py` mais proximo de composition root puro
@@ -118,11 +118,10 @@ Definicao de pronto:
 
 ## Checklist De Refatoracao
 
-- [ ] Fase 1 concluida
+- [x] Fase 1 concluida
 - [ ] Fase 2 concluida
 - [ ] Fase 3 concluida
 - [ ] Fase 4 concluida
 - [ ] README atualizado se a estrutura publica mudar
 - [ ] AGENTS atualizado se a politica operacional mudar
 - [ ] loop principal validado ao final
-
