@@ -11,6 +11,7 @@ from job_hunter_agent.domain import (
     JobApplication,
     JobPosting,
     VALID_APPLICATION_STATUSES,
+    VALID_APPLICATION_SUPPORT_LEVELS,
     VALID_STATUSES,
 )
 
@@ -57,7 +58,14 @@ class JobRepository(Protocol):
     def interrupt_running_collection_runs(self) -> int:
         raise NotImplementedError
 
-    def create_application_draft(self, job_id: int, notes: str = "") -> JobApplication:
+    def create_application_draft(
+        self,
+        job_id: int,
+        notes: str = "",
+        *,
+        support_level: str = "manual_review",
+        support_rationale: str = "",
+    ) -> JobApplication:
         raise NotImplementedError
 
     def get_application_by_job(self, job_id: int) -> Optional[JobApplication]:
@@ -142,6 +150,8 @@ class SqliteJobRepository:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id INTEGER NOT NULL UNIQUE,
                     status TEXT NOT NULL DEFAULT 'draft',
+                    support_level TEXT NOT NULL DEFAULT 'manual_review',
+                    support_rationale TEXT NOT NULL DEFAULT '',
                     notes TEXT NOT NULL DEFAULT '',
                     last_error TEXT NOT NULL DEFAULT '',
                     submitted_at TEXT,
@@ -150,6 +160,22 @@ class SqliteJobRepository:
                     FOREIGN KEY (job_id) REFERENCES jobs(id)
                 )
                 """
+            )
+            self._ensure_job_applications_columns(connection)
+
+    @staticmethod
+    def _ensure_job_applications_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(job_applications)").fetchall()
+        }
+        if "support_level" not in columns:
+            connection.execute(
+                "ALTER TABLE job_applications ADD COLUMN support_level TEXT NOT NULL DEFAULT 'manual_review'"
+            )
+        if "support_rationale" not in columns:
+            connection.execute(
+                "ALTER TABLE job_applications ADD COLUMN support_rationale TEXT NOT NULL DEFAULT ''"
             )
 
     def save_new_jobs(self, jobs: list[JobPosting]) -> list[JobPosting]:
@@ -321,23 +347,32 @@ class SqliteJobRepository:
             )
         return cursor.rowcount
 
-    def create_application_draft(self, job_id: int, notes: str = "") -> JobApplication:
+    def create_application_draft(
+        self,
+        job_id: int,
+        notes: str = "",
+        *,
+        support_level: str = "manual_review",
+        support_rationale: str = "",
+    ) -> JobApplication:
         if not self.get_job(job_id):
             raise ValueError(f"Job not found: {job_id}")
+        if support_level not in VALID_APPLICATION_SUPPORT_LEVELS:
+            raise ValueError(f"Invalid application support level: {support_level}")
         existing = self.get_application_by_job(job_id)
         if existing:
             return existing
         with self._connect() as connection:
             cursor = connection.execute(
                 """
-                INSERT INTO job_applications (job_id, status, notes)
-                VALUES (?, 'draft', ?)
+                INSERT INTO job_applications (job_id, status, support_level, support_rationale, notes)
+                VALUES (?, 'draft', ?, ?, ?)
                 """,
-                (job_id, notes),
+                (job_id, support_level, support_rationale, notes),
             )
             row = connection.execute(
                 """
-                SELECT id, job_id, status, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE id = ?
                 """,
@@ -349,7 +384,7 @@ class SqliteJobRepository:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, job_id, status, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE job_id = ?
                 """,
@@ -402,7 +437,7 @@ class SqliteJobRepository:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, job_id, status, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE status = ?
                 ORDER BY updated_at DESC, id DESC
@@ -473,9 +508,11 @@ class SqliteJobRepository:
             id=row[0],
             job_id=row[1],
             status=row[2],
-            notes=row[3],
-            last_error=row[4],
-            created_at=row[5],
-            updated_at=row[6],
-            submitted_at=row[7],
+            support_level=row[3],
+            support_rationale=row[4],
+            notes=row[5],
+            last_error=row[6],
+            created_at=row[7],
+            updated_at=row[8],
+            submitted_at=row[9],
         )

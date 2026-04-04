@@ -31,6 +31,7 @@ Ja existe uma pre-fase de candidatura assistida preparada na arquitetura:
 - contratos em `job_hunter_agent/applicant.py`
 - persistencia separada de candidaturas em `job_applications`
 - criacao de rascunho quando uma vaga e aprovada no Telegram
+- classificacao conservadora de suporte: `auto_supported`, `manual_review` ou `unsupported`
 
 Isso ainda nao dispara aplicacao automatica. Serve apenas para preparar a proxima fase sem contaminar o loop atual de coleta e revisao.
 
@@ -201,6 +202,7 @@ python main.py
 - `/status` mostra os contadores atuais
 - `/pendentes` lista vagas aguardando revisao
 - `/recentes` mostra as ultimas vagas registradas
+- `/candidaturas` mostra rascunhos e candidaturas em andamento
 
 ## Observabilidade
 
@@ -222,6 +224,14 @@ Estados de candidatura ficam separados dos estados de vaga:
 - `cancelled`
 
 Esses estados vivem em uma tabela separada (`job_applications`) para evitar misturar revisao humana de vaga com tentativa de candidatura.
+
+Cada rascunho de candidatura tambem recebe uma classificacao de suporte:
+
+- `auto_supported`
+- `manual_review`
+- `unsupported`
+
+No estado atual, essa classificacao e conservadora e serve para filtrar o que pode entrar numa futura automacao, sem ainda disparar submissao real.
 
 ## Como adicionar um novo adapter
 

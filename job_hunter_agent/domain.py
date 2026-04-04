@@ -13,6 +13,11 @@ VALID_APPLICATION_STATUSES = {
     "error_submit",
     "cancelled",
 }
+VALID_APPLICATION_SUPPORT_LEVELS = {
+    "auto_supported",
+    "manual_review",
+    "unsupported",
+}
 
 
 @dataclass(frozen=True)
@@ -84,6 +89,8 @@ class JobApplication:
     job_id: int
     status: str = "draft"
     id: Optional[int] = None
+    support_level: str = "manual_review"
+    support_rationale: str = ""
     notes: str = ""
     last_error: str = ""
     created_at: Optional[str] = None

@@ -184,6 +184,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] `/status` com resumo completo
 - [x] `/pendentes` com amostra dos itens
 - [x] `/recentes` opcional
+- [x] `/candidaturas` com visibilidade dos rascunhos e candidaturas em andamento
 - [x] Nao acoplar callbacks a acoes fora do escopo do MVP.
 - [ ] Resultado esperado:
   - [x] revisao humana operacional via Telegram
@@ -305,6 +306,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] listagem por status
 - [x] resumo agregado
 - [x] Integrar candidatura assistida ao fluxo humano de revisao.
+- [x] Classificar rascunhos entre `auto_supported`, `manual_review` e `unsupported`.
 - [ ] Implementar automacao real de candidatura por portal.
 
 ## Modelo de comentario de finalizacao
@@ -384,3 +386,12 @@ Comentario: a pre-fase de candidatura assistida foi aberta com contratos proprio
 
 Concluido em: 2026-04-04
 Comentario: a aprovacao humana no Telegram agora cria rascunhos de candidatura apenas para vagas `approved`, usando um servico proprio de preparacao; isso integra a pre-fase ao fluxo real sem habilitar submissao automatica.
+
+Concluido em: 2026-04-04
+Comentario: o Telegram ganhou visibilidade da pre-fase de candidatura via comando `/candidaturas`, mostrando resumo e fila de rascunhos/candidaturas em andamento sem adicionar automacao de submissao.
+
+Concluido em: 2026-04-04
+Comentario: a pre-fase de candidatura passou a classificar cada rascunho como `auto_supported`, `manual_review` ou `unsupported`, e o comando `/candidaturas` agora expõe essa classificacao para orientar a futura automacao por portal.
+
+Concluido em: 2026-04-04
+Comentario: a classificacao conservadora de aplicabilidade foi integrada ao fluxo real dos rascunhos de candidatura e passou a ficar visivel no Telegram, distinguindo claramente o que pode entrar em automacao futura do que deve permanecer manual ou nao suportado.

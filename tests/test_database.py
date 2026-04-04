@@ -1,7 +1,7 @@
 import shutil
 import unittest
 
-from job_hunter_agent.applicant import ApplicationPreparationService
+from job_hunter_agent.applicant import ApplicationPreparationService, classify_job_application_support
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
@@ -218,4 +218,26 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         stored = self.repository.get_application_by_job(approved.id)
         self.assertIsNotNone(stored)
         self.assertEqual(stored.notes, "rascunho criado apos aprovacao humana")
+        self.assertEqual(stored.support_level, "manual_review")
         self.assertIsNone(self.repository.get_application_by_job(collected.id))
+
+    def test_create_application_draft_persists_support_metadata(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+
+        draft = self.repository.create_application_draft(
+            saved.id,
+            support_level="unsupported",
+            support_rationale="portal externo nao suportado",
+        )
+
+        self.assertEqual(draft.support_level, "unsupported")
+        self.assertEqual(draft.support_rationale, "portal externo nao suportado")
+
+    def test_classify_job_application_support_is_conservative(self) -> None:
+        linkedin_job = sample_job("https://www.linkedin.com/jobs/view/123", "key-1")
+        gupy_job = sample_job("https://empresa.gupy.io/job/123", "key-2")
+        indeed_job = sample_job("https://www.indeed.com/viewjob?jk=123", "key-3")
+
+        self.assertEqual(classify_job_application_support(linkedin_job).support_level, "manual_review")
+        self.assertEqual(classify_job_application_support(gupy_job).support_level, "unsupported")
+        self.assertEqual(classify_job_application_support(indeed_job).support_level, "manual_review")

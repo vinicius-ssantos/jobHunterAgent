@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, Optional, Protocol
 
-from job_hunter_agent.domain import JobPosting
+from job_hunter_agent.domain import JobApplication, JobPosting
 from job_hunter_agent.repository import JobRepository
 from job_hunter_agent.settings import Settings
 
@@ -68,6 +68,7 @@ class TelegramNotifier:
         self.application.add_handler(CommandHandler("status", self._command_status))
         self.application.add_handler(CommandHandler("pendentes", self._command_pending))
         self.application.add_handler(CommandHandler("recentes", self._command_recent))
+        self.application.add_handler(CommandHandler("candidaturas", self._command_applications))
         self.application.add_handler(CallbackQueryHandler(self._handle_callback))
 
     async def start(self) -> None:
@@ -179,6 +180,9 @@ class TelegramNotifier:
         preview_lines = [f"{job.id}: {job.title} - {job.company} [{job.status}]" for job in jobs]
         await update.message.reply_text("Recentes:\n" + "\n".join(preview_lines))
 
+    async def _command_applications(self, update, context) -> None:
+        await update.message.reply_text(build_application_queue_message(self.repository))
+
 
 def resolve_review_action(job: JobPosting, action: str) -> tuple[str | None, str]:
     if action == "approve":
@@ -213,3 +217,41 @@ def build_job_card_message(job: JobPosting) -> str:
 
 def build_missing_job_reply(job_id: int) -> str:
     return f"Vaga nao encontrada ou ja removida. id={job_id}"
+
+
+def build_application_queue_message(repository: JobRepository) -> str:
+    summary = repository.application_summary()
+    tracked_statuses = ("draft", "ready_for_review", "confirmed")
+    preview_lines: list[str] = []
+    for status in tracked_statuses:
+        applications = repository.list_applications_by_status(status)
+        for application in applications[:3]:
+            preview_lines.append(build_application_preview_line(repository, application))
+    lines = [
+        "Candidaturas:",
+        f"Total: {summary['total']}",
+        f"Rascunhos: {summary['draft']}",
+        f"Prontas para revisao: {summary['ready_for_review']}",
+        f"Confirmadas: {summary['confirmed']}",
+        f"Enviadas: {summary['submitted']}",
+        f"Com erro: {summary['error_submit']}",
+        f"Canceladas: {summary['cancelled']}",
+    ]
+    if preview_lines:
+        lines.append("")
+        lines.append("Fila atual:")
+        lines.extend(preview_lines)
+    else:
+        lines.append("")
+        lines.append("Nao ha rascunhos ou candidaturas em andamento.")
+    return "\n".join(lines)
+
+
+def build_application_preview_line(repository: JobRepository, application: JobApplication) -> str:
+    job = repository.get_job(application.job_id)
+    if not job:
+        return f"{application.job_id}: vaga ausente [{application.status}]"
+    return (
+        f"{job.id}: {job.title} - {job.company} "
+        f"[{application.status} | {application.support_level}]"
+    )

@@ -126,9 +126,25 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
             def get_job(self, job_id: int):
                 return self.jobs.get(job_id)
 
-            def create_application_draft(self, job_id: int, notes: str = ""):
+            def create_application_draft(
+                self,
+                job_id: int,
+                notes: str = "",
+                *,
+                support_level: str = "manual_review",
+                support_rationale: str = "",
+            ):
                 self.created.append(job_id)
-                return type("Draft", (), {"job_id": job_id, "notes": notes})
+                return type(
+                    "Draft",
+                    (),
+                    {
+                        "job_id": job_id,
+                        "notes": notes,
+                        "support_level": support_level,
+                        "support_rationale": support_rationale,
+                    },
+                )
 
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _RepositoryWithJobs()

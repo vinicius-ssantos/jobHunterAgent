@@ -2,7 +2,14 @@ import shutil
 from unittest import TestCase
 
 from job_hunter_agent.domain import JobPosting
-from job_hunter_agent.notifier import NullNotifier, build_job_card_message, build_missing_job_reply, resolve_review_action
+from job_hunter_agent.notifier import (
+    NullNotifier,
+    build_application_preview_line,
+    build_application_queue_message,
+    build_job_card_message,
+    build_missing_job_reply,
+    resolve_review_action,
+)
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
@@ -61,6 +68,25 @@ class ReviewActionTests(TestCase):
         self.assertIn("nao encontrada", reply)
         self.assertIn("999", reply)
 
+    def test_build_application_preview_line_uses_job_data(self) -> None:
+        temp_dir = prepare_workspace_tmp_dir("application-preview")
+        repository = SqliteJobRepository(temp_dir / "jobs.db")
+        try:
+            saved = repository.save_new_jobs([sample_job(status="approved")])[0]
+            draft = repository.create_application_draft(
+                saved.id,
+                support_level="manual_review",
+                support_rationale="linkedin interno ainda requer confirmacao",
+            )
+
+            line = build_application_preview_line(repository, draft)
+
+            self.assertIn("Senior Kotlin Engineer", line)
+            self.assertIn("[draft | manual_review]", line)
+            self.assertIn("manual_review", line)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
 
 class NullNotifierTests(TestCase):
     def test_null_notifier_can_be_instantiated(self) -> None:
@@ -92,3 +118,20 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIsNotNone(updated)
         self.assertEqual(updated.status, "approved")
         self.assertEqual(self.repository.summary()["approved"], 1)
+
+    def test_build_application_queue_message_summarizes_drafts(self) -> None:
+        approved_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
+        self.repository.mark_status(approved_job.id, "approved")
+        application = self.repository.create_application_draft(
+            approved_job.id,
+            notes="rascunho criado apos aprovacao humana",
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="ready_for_review")
+
+        message = build_application_queue_message(self.repository)
+
+        self.assertIn("Candidaturas:", message)
+        self.assertIn("Prontas para revisao: 1", message)
+        self.assertIn("Senior Kotlin Engineer - ACME [ready_for_review | manual_review]", message)
