@@ -67,6 +67,18 @@ Escopo:
 Definicao de pronto:
 - filas e candidatos podem ser ordenados com apoio do modelo
 
+### Fase 5 - Enriquecimento contextual dos cards de candidatura
+
+Objetivo:
+- tornar a fila de candidatura mais acionavel com os sinais estruturados ja extraidos
+
+Escopo:
+- reaproveitar senioridade, stack, ingles e lideranca nas mensagens do Telegram
+- manter a exibicao curta e operacional
+
+Definicao de pronto:
+- os cards de candidatura mostram resumo estruturado util sem inflar a fila
+
 ## Regras
 
 - usar LLM apenas como apoio, nao como autoridade unica
@@ -80,6 +92,7 @@ Definicao de pronto:
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
 - [x] Fase 4 concluida
+- [x] Fase 5 concluida
 - [x] README atualizado se a operacao mudar
 - [ ] AGENTS atualizado se as regras mudarem
 - [x] loop principal validado ao final

@@ -19,7 +19,9 @@ from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.job_requirements import (
     DeterministicJobRequirementsExtractor,
     JobRequirementSignals,
+    extract_job_requirement_signals,
     format_job_requirement_signals,
+    format_job_requirement_summary,
     parse_job_requirements_response,
 )
 from job_hunter_agent.repository import SqliteJobRepository
@@ -432,6 +434,34 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertIn("senioridade=pleno", rendered)
         self.assertIn("stack_principal=java, spring", rendered)
         self.assertIn("ingles=intermediario", rendered)
+
+    def test_extract_job_requirement_signals_reads_structured_note(self) -> None:
+        signals = extract_job_requirement_signals(
+            "rascunho criado apos aprovacao humana\n"
+            "sinais estruturados: senioridade=pleno; stack_principal=java, spring; "
+            "stack_secundaria=aws; ingles=intermediario; lideranca=nao"
+        )
+
+        self.assertEqual(signals.seniority, "pleno")
+        self.assertEqual(signals.primary_stack, ("java", "spring"))
+        self.assertEqual(signals.secondary_stack, ("aws",))
+        self.assertEqual(signals.english_level, "intermediario")
+        self.assertFalse(signals.leadership_signals)
+
+    def test_format_job_requirement_summary_is_operational(self) -> None:
+        rendered = format_job_requirement_summary(
+            JobRequirementSignals(
+                seniority="senior",
+                primary_stack=("java", "spring", "aws"),
+                english_level="avancado",
+                leadership_signals=True,
+            )
+        )
+
+        self.assertIn("senioridade=senior", rendered)
+        self.assertIn("stack=java, spring, aws", rendered)
+        self.assertIn("ingles=avancado", rendered)
+        self.assertIn("lideranca=sim", rendered)
 
     def test_parse_application_priority_response_accepts_valid_json(self) -> None:
         assessment = parse_application_priority_response(

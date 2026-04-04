@@ -130,6 +130,43 @@ def format_job_requirement_signals(signals: JobRequirementSignals) -> str:
     )
 
 
+def extract_job_requirement_signals(notes: str) -> JobRequirementSignals:
+    normalized = notes.strip()
+    if "sinais estruturados:" not in normalized.lower():
+        return JobRequirementSignals()
+
+    payload = normalized.split("sinais estruturados:", 1)[1].strip().splitlines()[0]
+    fields: dict[str, str] = {}
+    for chunk in payload.split(";"):
+        token = chunk.strip()
+        if not token or "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        fields[key.strip().lower()] = value.strip()
+
+    return JobRequirementSignals(
+        seniority=fields.get("senioridade", "nao_informada") or "nao_informada",
+        primary_stack=_parse_stack_field(fields.get("stack_principal", "")),
+        secondary_stack=_parse_stack_field(fields.get("stack_secundaria", "")),
+        english_level=fields.get("ingles", "nao_informado") or "nao_informado",
+        leadership_signals=fields.get("lideranca", "nao").lower() == "sim",
+        rationale="extraido das observacoes da candidatura",
+    )
+
+
+def format_job_requirement_summary(signals: JobRequirementSignals) -> str:
+    parts: list[str] = []
+    if signals.seniority != "nao_informada":
+        parts.append(f"senioridade={signals.seniority}")
+    if signals.primary_stack:
+        parts.append(f"stack={', '.join(signals.primary_stack[:3])}")
+    if signals.english_level != "nao_informado":
+        parts.append(f"ingles={signals.english_level}")
+    if signals.leadership_signals:
+        parts.append("lideranca=sim")
+    return " | ".join(parts) if parts else "nao informados"
+
+
 def _infer_seniority(text: str) -> str:
     if any(token in text for token in ("tech lead", "lideranca", "lead ", "liderar")):
         return "lideranca"
@@ -172,4 +209,15 @@ def _normalize_stack(value: object) -> tuple[str, ...]:
         token = str(item).strip().lower()
         if token and token not in normalized:
             normalized.append(token)
+    return tuple(normalized)
+
+
+def _parse_stack_field(value: str) -> tuple[str, ...]:
+    if not value or value == "-":
+        return ()
+    normalized: list[str] = []
+    for token in value.split(","):
+        item = token.strip().lower()
+        if item and item not in normalized:
+            normalized.append(item)
     return tuple(normalized)

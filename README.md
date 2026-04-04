@@ -172,6 +172,8 @@ Tambem existe um assessor opcional de prioridade operacional para candidaturas:
 
 Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fila de rascunhos e candidaturas em andamento. Se o modelo falhar ou estiver desligado, o sistema usa uma heuristica local conservadora.
 
+Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extraidos da vaga, exibindo um resumo curto com senioridade, stack, ingles e sinais de lideranca quando houver dados uteis.
+
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`

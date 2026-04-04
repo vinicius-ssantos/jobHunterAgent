@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from job_hunter_agent.application_priority import extract_application_priority_level
 from job_hunter_agent.domain import JobApplication, JobPosting
+from job_hunter_agent.job_requirements import (
+    extract_job_requirement_signals,
+    format_job_requirement_summary,
+)
 from job_hunter_agent.repository import JobRepository
 from job_hunter_agent.review_rationale import StructuredReviewRationale, render_review_rationale
 
@@ -72,6 +76,7 @@ def build_application_preview_line(repository: JobRepository, application: JobAp
 def build_application_card_message(repository: JobRepository, application: JobApplication) -> str:
     job = repository.get_job(application.job_id)
     priority = extract_application_priority_level(application.notes)
+    requirement_summary = format_job_requirement_summary(extract_job_requirement_signals(application.notes))
     if not job:
         return (
             f"Candidatura {application.id}\n"
@@ -79,6 +84,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
             f"Status: {application.status}\n"
             f"Suporte: {application.support_level}\n"
             f"Prioridade: {priority}\n"
+            f"Sinais: {requirement_summary}\n"
             f"Racional: {application.support_rationale or 'Nao informado'}"
         )
     return (
@@ -88,6 +94,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
         f"Status: {application.status}\n"
         f"Suporte: {application.support_level}\n"
         f"Prioridade: {priority}\n"
+        f"Sinais: {requirement_summary}\n"
         f"Racional: {application.support_rationale or 'Nao informado'}\n"
         f"Observacoes: {application.notes or 'Nenhuma'}\n"
         f"Abrir vaga: {job.url}"

@@ -273,7 +273,12 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.repository.mark_status(approved_job.id, "approved")
         application = self.repository.create_application_draft(
             approved_job.id,
-            notes="rascunho criado apos aprovacao humana\nprioridade sugerida: media | motivo: revisar em seguida",
+            notes=(
+                "rascunho criado apos aprovacao humana\n"
+                "sinais estruturados: senioridade=senior; stack_principal=java, spring; "
+                "stack_secundaria=aws; ingles=avancado; lideranca=sim\n"
+                "prioridade sugerida: media | motivo: revisar em seguida"
+            ),
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
@@ -284,4 +289,5 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Vaga: Senior Kotlin Engineer", message)
         self.assertIn("Suporte: manual_review", message)
         self.assertIn("Prioridade: media", message)
+        self.assertIn("Sinais: senioridade=senior | stack=java, spring | ingles=avancado | lideranca=sim", message)
         self.assertIn("Observacoes: rascunho criado apos aprovacao humana", message)
