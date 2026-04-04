@@ -10,6 +10,7 @@ from job_hunter_agent.settings import Settings
 
 logger = logging.getLogger(__name__)
 ApprovalCallback = Callable[[list[int]], Awaitable[None]]
+ApplicationPreflightCallback = Callable[[int], Awaitable[str]]
 
 
 class ReviewNotifier(Protocol):
@@ -49,6 +50,7 @@ class TelegramNotifier:
         settings: Settings,
         repository: JobRepository,
         on_approved: Optional[ApprovalCallback] = None,
+        on_application_preflight: Optional[ApplicationPreflightCallback] = None,
     ) -> None:
         try:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -61,6 +63,7 @@ class TelegramNotifier:
         self.settings = settings
         self.repository = repository
         self.on_approved = on_approved
+        self.on_application_preflight = on_application_preflight
         self._inline_keyboard_button = InlineKeyboardButton
         self._inline_keyboard_markup = InlineKeyboardMarkup
         self.application = Application.builder().token(settings.telegram_token).build()
@@ -150,6 +153,18 @@ class TelegramNotifier:
         if not application:
             await query.edit_message_reply_markup(reply_markup=None)
             await query.message.reply_text(build_missing_application_reply(target_id))
+            return
+
+        if action == "app_preflight":
+            allowed, reply_text = resolve_application_preflight_request(application)
+            await query.edit_message_reply_markup(reply_markup=None)
+            if not allowed:
+                await query.message.reply_text(reply_text)
+                return
+            if not self.on_application_preflight:
+                await query.message.reply_text("Preflight de candidatura indisponivel nesta execucao.")
+                return
+            await query.message.reply_text(await self.on_application_preflight(target_id))
             return
 
         next_status, reply_text = resolve_application_action(application, action)
@@ -334,7 +349,24 @@ def build_application_action_rows(application: JobApplication, button_factory) -
                 button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
             ]
         ]
+    if application.status == "confirmed":
+        return [
+            [
+                button_factory("Validar fluxo", callback_data=f"app_preflight:{application.id}"),
+                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
+            ]
+        ]
     return []
+
+
+def resolve_application_preflight_request(application: JobApplication) -> tuple[bool, str]:
+    if application.status == "confirmed":
+        return True, f"Executando preflight da candidatura: id={application.id}"
+    if application.status == "cancelled":
+        return False, f"Candidatura ja estava cancelada: id={application.id}"
+    if application.status == "error_submit":
+        return False, f"Candidatura esta em erro de submissao: id={application.id}"
+    return False, f"Candidatura ainda nao foi confirmada para preflight: id={application.id}"
 
 
 def resolve_application_action(application: JobApplication, action: str) -> tuple[str | None, str]:

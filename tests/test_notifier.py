@@ -11,6 +11,7 @@ from job_hunter_agent.notifier import (
     build_job_card_message,
     build_missing_application_reply,
     build_missing_job_reply,
+    resolve_application_preflight_request,
     resolve_application_action,
     resolve_review_action,
 )
@@ -128,7 +129,19 @@ class ReviewActionTests(TestCase):
 
         self.assertEqual(draft_rows[0][0], ("Preparar", "app_prepare:1"))
         self.assertEqual(ready_rows[0][0], ("Confirmar", "app_confirm:1"))
-        self.assertEqual(confirmed_rows, [])
+        self.assertEqual(confirmed_rows[0][0], ("Validar fluxo", "app_preflight:1"))
+
+    def test_resolve_application_preflight_request_requires_confirmed_status(self) -> None:
+        from job_hunter_agent.domain import JobApplication
+
+        confirmed = JobApplication(id=1, job_id=1, status="confirmed")
+        draft = JobApplication(id=2, job_id=2, status="draft")
+
+        self.assertEqual(resolve_application_preflight_request(confirmed), (True, "Executando preflight da candidatura: id=1"))
+        self.assertEqual(
+            resolve_application_preflight_request(draft),
+            (False, "Candidatura ainda nao foi confirmada para preflight: id=2"),
+        )
 
 
 class NullNotifierTests(TestCase):

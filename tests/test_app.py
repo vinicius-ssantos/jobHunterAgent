@@ -156,3 +156,28 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
         await app.handle_approved_jobs([1, 2, 999])
 
         self.assertEqual(app.repository.created, [1])
+
+    async def test_handle_application_preflight_returns_service_message(self) -> None:
+        class _PreflightService:
+            def __init__(self) -> None:
+                self.called_with: list[int] = []
+
+            def run_for_application(self, application_id: int):
+                self.called_with.append(application_id)
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "outcome": "ready",
+                        "detail": "preflight ok",
+                        "application_status": "confirmed",
+                    },
+                )
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.application_preflight = _PreflightService()
+
+        reply = await app.handle_application_preflight(42)
+
+        self.assertEqual(app.application_preflight.called_with, [42])
+        self.assertEqual(reply, "Preflight: preflight ok (status=confirmed)")

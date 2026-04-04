@@ -205,6 +205,7 @@ python main.py
 - `/candidaturas` mostra rascunhos e candidaturas em andamento
   - `Preparar` move `draft -> ready_for_review`
   - `Confirmar` move `ready_for_review -> confirmed`
+  - `Validar fluxo` executa um preflight manual em candidaturas `confirmed`
   - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
@@ -235,6 +236,14 @@ Cada rascunho de candidatura tambem recebe uma classificacao de suporte:
 - `unsupported`
 
 No estado atual, essa classificacao e conservadora e serve para filtrar o que pode entrar numa futura automacao, sem ainda disparar submissao real.
+
+Depois da confirmacao humana, a candidatura tambem pode passar por um `preflight` manual.
+Esse preflight:
+
+- nao envia candidatura
+- valida se o fluxo esta num portal minimamente suportado
+- registra sucesso mantendo `confirmed`
+- ou registra bloqueio em `error_submit` quando o fluxo nao e suportado
 
 ## Como adicionar um novo adapter
 

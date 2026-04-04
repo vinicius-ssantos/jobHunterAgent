@@ -21,6 +21,13 @@ class ApplicationSupportAssessment:
     rationale: str
 
 
+@dataclass(frozen=True)
+class ApplicationPreflightResult:
+    outcome: str
+    detail: str
+    application_status: str
+
+
 class JobApplicant(Protocol):
     def submit(self, application: JobApplication, job: JobPosting) -> ApplicationSubmissionResult:
         raise NotImplementedError
@@ -46,6 +53,71 @@ class ApplicationPreparationService:
                 )
             )
         return drafts
+
+
+class ApplicationPreflightService:
+    def __init__(self, repository: JobRepository) -> None:
+        self.repository = repository
+
+    def run_for_application(self, application_id: int) -> ApplicationPreflightResult:
+        application = self.repository.get_application(application_id)
+        if not application:
+            raise ValueError(f"Application not found: {application_id}")
+        job = self.repository.get_job(application.job_id)
+        if not job:
+            raise ValueError(f"Job not found for application: {application_id}")
+
+        if application.status != "confirmed":
+            detail = "preflight disponivel apenas para candidaturas confirmadas"
+            return ApplicationPreflightResult(
+                outcome="ignored",
+                detail=detail,
+                application_status=application.status,
+            )
+
+        if application.support_level == "unsupported":
+            detail = "preflight bloqueado: fluxo classificado como nao suportado"
+            self.repository.mark_application_status(
+                application.id,
+                status="error_submit",
+                notes=_append_note(application.notes, detail),
+                last_error=detail,
+            )
+            return ApplicationPreflightResult(
+                outcome="blocked",
+                detail=detail,
+                application_status="error_submit",
+            )
+
+        if job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
+            if application.support_level == "auto_supported":
+                detail = "preflight ok: fluxo do LinkedIn com indicio de candidatura simplificada"
+            else:
+                detail = "preflight ok: vaga interna do LinkedIn pronta para futura automacao assistida"
+            self.repository.mark_application_status(
+                application.id,
+                status="confirmed",
+                notes=_append_note(application.notes, detail),
+                last_error="",
+            )
+            return ApplicationPreflightResult(
+                outcome="ready",
+                detail=detail,
+                application_status="confirmed",
+            )
+
+        detail = "preflight bloqueado: portal ainda nao possui executor suportado"
+        self.repository.mark_application_status(
+            application.id,
+            status="error_submit",
+            notes=_append_note(application.notes, detail),
+            last_error=detail,
+        )
+        return ApplicationPreflightResult(
+            outcome="blocked",
+            detail=detail,
+            application_status="error_submit",
+        )
 
 
 def classify_job_application_support(job: JobPosting) -> ApplicationSupportAssessment:
@@ -80,3 +152,14 @@ def classify_job_application_support(job: JobPosting) -> ApplicationSupportAsses
         support_level="unsupported",
         rationale="fluxo de candidatura ainda nao classificado para suporte automatico",
     )
+
+
+def _append_note(existing_notes: str, new_note: str) -> str:
+    normalized_existing = existing_notes.strip()
+    normalized_new = new_note.strip()
+    if not normalized_existing:
+        return normalized_new
+    existing_lines = {line.strip() for line in normalized_existing.splitlines() if line.strip()}
+    if normalized_new in existing_lines:
+        return normalized_existing
+    return f"{normalized_existing}\n{normalized_new}"

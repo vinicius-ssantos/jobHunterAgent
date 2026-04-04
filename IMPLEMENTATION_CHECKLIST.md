@@ -308,6 +308,7 @@ Comentario: <o que foi entregue, o que ficou pendente, riscos ou observacoes>
 - [x] Integrar candidatura assistida ao fluxo humano de revisao.
 - [x] Classificar rascunhos entre `auto_supported`, `manual_review` e `unsupported`.
 - [x] Permitir confirmacao humana explicita da candidatura antes de qualquer submissao.
+- [x] Permitir preflight manual da candidatura confirmada antes da submissao real.
 - [ ] Implementar automacao real de candidatura por portal.
 
 ## Modelo de comentario de finalizacao

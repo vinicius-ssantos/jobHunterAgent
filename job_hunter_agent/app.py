@@ -5,7 +5,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from job_hunter_agent.applicant import ApplicationPreparationService
+from job_hunter_agent.applicant import ApplicationPreparationService, ApplicationPreflightService
 from job_hunter_agent.collector import (
     BrowserUseSiteCollector,
     HybridJobScorer,
@@ -34,6 +34,7 @@ class JobHunterApplication:
             lock_path=(self.settings.browser_use_config_dir / "job_hunter_agent.lock").resolve(),
         )
         self.application_preparation = ApplicationPreparationService(self.repository)
+        self.application_preflight = ApplicationPreflightService(self.repository)
         self.collector = JobCollectionService(
             settings=self.settings,
             repository=self.repository,
@@ -67,6 +68,7 @@ class JobHunterApplication:
                 settings=self.settings,
                 repository=self.repository,
                 on_approved=self.handle_approved_jobs,
+                on_application_preflight=self.handle_application_preflight,
             )
             if enable_telegram
             else NullNotifier()
@@ -79,6 +81,16 @@ class JobHunterApplication:
         )
         if drafts:
             logger.info("Pre-fase de candidatura criou %s rascunho(s) para vagas aprovadas.", len(drafts))
+
+    async def handle_application_preflight(self, application_id: int) -> str:
+        result = self.application_preflight.run_for_application(application_id)
+        logger.info(
+            "Preflight de candidatura concluido. application_id=%s outcome=%s status=%s",
+            application_id,
+            result.outcome,
+            result.application_status,
+        )
+        return f"Preflight: {result.detail} (status={result.application_status})"
 
     async def run_collection_cycle(self) -> bool:
         run = self.repository.start_collection_run()

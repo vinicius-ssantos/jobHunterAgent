@@ -1,7 +1,11 @@
 import shutil
 import unittest
 
-from job_hunter_agent.applicant import ApplicationPreparationService, classify_job_application_support
+from job_hunter_agent.applicant import (
+    ApplicationPreparationService,
+    ApplicationPreflightService,
+    classify_job_application_support,
+)
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
@@ -241,3 +245,38 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(classify_job_application_support(linkedin_job).support_level, "manual_review")
         self.assertEqual(classify_job_application_support(gupy_job).support_level, "unsupported")
         self.assertEqual(classify_job_application_support(indeed_job).support_level, "manual_review")
+
+    def test_application_preflight_keeps_confirmed_linkedin_as_confirmed(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationPreflightService(self.repository).run_for_application(application.id)
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(result.application_status, "confirmed")
+        self.assertEqual(stored.status, "confirmed")
+        self.assertIn("preflight ok", stored.notes)
+        self.assertEqual(stored.last_error, "")
+
+    def test_application_preflight_moves_unsupported_to_error_submit(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://empresa.gupy.io/job/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="unsupported",
+            support_rationale="portal externo com formulario proprio ainda nao suportado",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationPreflightService(self.repository).run_for_application(application.id)
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.application_status, "error_submit")
+        self.assertEqual(stored.status, "error_submit")
+        self.assertIn("nao suportado", stored.last_error)
