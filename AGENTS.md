@@ -206,6 +206,45 @@ Before changing code, verify:
 
 Do not add features just because they are technically possible.
 
+## Branching Policy
+
+Use feature branches when the change is substantial enough to put the stable MVP loop at risk.
+
+Typical cases where a branch is recommended:
+
+- new product capabilities outside the current validated loop
+- architectural refactors spanning multiple modules
+- new automation flows with external side effects
+- changes that introduce new states, persistence rules, or review flows
+- portal-specific application flows
+
+Typical cases where a branch is usually not necessary:
+
+- small fixes
+- localized parser cleanup
+- test-only changes
+- documentation-only updates
+- checklist alignment without runtime impact
+
+Recommended branch naming:
+
+- `feature/<tema-curto>`
+- `fix/<tema-curto>`
+- `refactor/<tema-curto>`
+- `docs/<tema-curto>`
+
+Examples:
+
+- `feature/candidatura-assistida-arquitetura`
+- `fix/linkedin-parser-residual`
+- `refactor/separa-modulo-applicant`
+- `docs/fluxo-candidatura-v1`
+
+Rule of thumb:
+
+- if the work can destabilize `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`, prefer a branch
+- if the work is narrow and easily reversible, committing directly on the current branch is acceptable
+
 - Sempre que houver modificacoes significativas ainda nao commitadas, preparar e criar commits no padrao adotado no repositorio.
 - As mensagens de commit devem ser escritas em portugues.
 
