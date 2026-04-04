@@ -1,0 +1,1008 @@
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import logging
+import os
+import re
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol
+
+from job_hunter_agent.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.repository import JobRepository
+from job_hunter_agent.settings import Settings
+
+
+logger = logging.getLogger(__name__)
+
+
+class SiteCollector(Protocol):
+    async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+        raise NotImplementedError
+
+
+class JobScorer(Protocol):
+    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+        raise NotImplementedError
+
+
+class BrowserAutomationAdapter(Protocol):
+    async def run(self, task: str, site: SiteConfig | None = None) -> object:
+        raise NotImplementedError
+
+
+class PortalCollectorAdapter(Protocol):
+    def supports(self, site: SiteConfig) -> bool:
+        raise NotImplementedError
+
+    def build_task(self, site: SiteConfig, max_jobs: int) -> str:
+        raise NotImplementedError
+
+    def normalize(self, site: SiteConfig, payload: dict) -> list[RawJob]:
+        raise NotImplementedError
+
+
+class DeterministicPortalCollector(Protocol):
+    async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+        raise NotImplementedError
+
+
+class BrowserUseAutomationAdapter:
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str,
+        config_dir: str | Path | None = None,
+        persistent_profile_dir: str | Path | None = None,
+        linkedin_storage_state_path: str | Path | None = None,
+        *,
+        headless: bool = True,
+    ) -> None:
+        resolved_config_dir = Path(config_dir or "./.browseruse").resolve()
+        resolved_config_dir.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("BROWSER_USE_CONFIG_DIR", str(resolved_config_dir))
+
+        try:
+            from browser_use import Agent, BrowserProfile, BrowserSession, ChatOllama
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de coleta nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+
+        self._agent_cls = Agent
+        self._browser_profile_cls = BrowserProfile
+        self._browser_session_cls = BrowserSession
+        self._llm_cls = ChatOllama
+        self.model_name = model_name
+        self.base_url = base_url
+        self.config_dir = resolved_config_dir
+        self.persistent_profile_dir = Path(
+            persistent_profile_dir or resolved_config_dir / "profiles" / "linkedin-persistent"
+        ).resolve()
+        self.persistent_profile_dir.mkdir(parents=True, exist_ok=True)
+        self.linkedin_storage_state_path = Path(
+            linkedin_storage_state_path or resolved_config_dir / "linkedin-storage-state.json"
+        ).resolve()
+        self.headless = headless
+
+    async def run(self, task: str, site: SiteConfig | None = None) -> object:
+        executable_path = self._resolve_local_chromium()
+        available_file_paths = build_available_file_paths(self.config_dir)
+        browser_profile = self._build_browser_profile(site, executable_path)
+        browser = self._browser_session_cls(browser_profile=browser_profile)
+        llm = self._llm_cls(model=self.model_name, host=self.base_url)
+        agent = self._agent_cls(
+            task=task,
+            llm=llm,
+            browser=browser,
+            available_file_paths=available_file_paths,
+        )
+        try:
+            result = await agent.run()
+        finally:
+            await browser.stop()
+        return result
+
+    def _build_browser_profile(self, site: SiteConfig | None, executable_path: Path) -> object:
+        profile_kwargs = {
+            "headless": self.headless,
+            "executable_path": executable_path,
+            "chromium_sandbox": False,
+            "enable_default_extensions": False,
+            "downloads_path": self.config_dir / "downloads",
+        }
+        if site and site.name.lower() == "linkedin" and self.linkedin_storage_state_path.exists():
+            profile_kwargs["storage_state"] = self.linkedin_storage_state_path
+        else:
+            profile_kwargs["user_data_dir"] = self._resolve_user_data_dir(site)
+        return self._browser_profile_cls(**profile_kwargs)
+
+    def _resolve_user_data_dir(self, site: SiteConfig | None) -> Path:
+        if site and site.name.lower() == "linkedin" and not self.linkedin_storage_state_path.exists():
+            return self.persistent_profile_dir
+        return Path(tempfile.mkdtemp(prefix="job-hunter-browser-", dir=self.config_dir))
+
+    def _resolve_local_chromium(self) -> Path:
+        return resolve_local_chromium()
+
+
+@dataclass(frozen=True)
+class BasePortalCollectorAdapter:
+    portal_name: str
+    portal_hint: str
+
+    def supports(self, site: SiteConfig) -> bool:
+        return site.name.lower() == self.portal_name.lower()
+
+    def build_task(self, site: SiteConfig, max_jobs: int) -> str:
+        return f"""
+        Abra a busca de vagas em {site.search_url}.
+        Voce esta operando no portal {site.name}.
+        {self.portal_hint}
+
+        Colete no maximo {max_jobs} vagas de tecnologia da lista inicial.
+        Abra detalhes apenas quando necessario para enriquecer os campos.
+
+        Para cada vaga, retorne:
+        - title
+        - company
+        - location
+        - work_mode
+        - salary_text
+        - url
+        - summary
+        - description
+
+        Regras:
+        - priorize links diretos da vaga
+        - se um campo nao estiver disponivel, use texto curto como fallback
+        - nao retorne texto fora do JSON
+
+        Responda apenas JSON no formato:
+        {{
+          "jobs": [
+            {{
+              "title": "...",
+              "company": "...",
+              "location": "...",
+              "work_mode": "...",
+              "salary_text": "...",
+              "url": "...",
+              "summary": "...",
+              "description": "..."
+            }}
+          ]
+        }}
+        """
+
+    def normalize(self, site: SiteConfig, payload: dict) -> list[RawJob]:
+        jobs: list[RawJob] = []
+        for item in payload.get("jobs", []):
+            title = str(item.get("title", "")).strip()
+            url = str(item.get("url", "")).strip()
+            if not title or not url:
+                continue
+            jobs.append(
+                RawJob(
+                    title=title,
+                    company=str(item.get("company", "")).strip() or "Empresa nao informada",
+                    location=str(item.get("location", "")).strip() or "Local nao informado",
+                    work_mode=str(item.get("work_mode", "")).strip() or "Nao informado",
+                    salary_text=str(item.get("salary_text", "")).strip() or "Nao informado",
+                    url=url,
+                    source_site=site.name,
+                    summary=str(item.get("summary", "")).strip(),
+                    description=str(item.get("description", "")).strip(),
+                )
+            )
+        return jobs
+
+
+class LinkedInCollectorAdapter(BasePortalCollectorAdapter):
+    def __init__(self) -> None:
+        super().__init__(
+            portal_name="LinkedIn",
+            portal_hint=(
+                "Priorize vagas com contexto de LinkedIn Jobs. "
+                "Tente capturar localidade, modalidade de trabalho e sinais de senioridade. "
+                "Quando houver pagina de detalhes, resuma a stack pedida em summary. "
+                "Se aparecer modal ou pop-up pedindo login, tente fecha-lo antes de continuar. "
+                "Se o portal bloquear a listagem sem login, retorne {'jobs': []} sem inventar dados."
+            ),
+        )
+
+    def build_task(self, site: SiteConfig, max_jobs: int) -> str:
+        base_task = super().build_task(site, max_jobs)
+        return (
+            f"{base_task}\n\n"
+            "Tratamento especifico para o LinkedIn:\n"
+            "- Este fluxo e exclusivamente sobre vagas. Nunca trate a pagina como e-commerce, catalogo, produto, loja ou checkout.\n"
+            "- Nunca procure, extraia ou role ate textos como 'Product Name', 'Price', 'Add to cart', 'Buy now', 'SKU', 'Checkout' ou equivalentes.\n"
+            "- Nunca use queries, XPath, seletores ou labels relacionados a produto, preco, carrinho, catalogo ou ficha tecnica.\n"
+            "- Extraia apenas sinais de vaga: titulo, empresa, localidade, modalidade, senioridade, faixa salarial quando houver, link absoluto da vaga e resumo/descricao.\n"
+            "- Se aparecer um modal com textos como 'Entre para ver mais vagas', "
+            "'Entrar com e-mail' ou 'Nunca usou o LinkedIn? Cadastre-se agora', trate isso como bloqueio de login.\n"
+            "- O modal pode usar classes contendo 'contextual-sign-in-modal'.\n"
+            "- Nunca clique em botoes de login, cadastro, Google sign-in, 'Entrar com e-mail' ou campos de credenciais.\n"
+            "- Antes de desistir, tente fechar o modal com o botao de fechar visivel. "
+            "Priorize botoes com aria-label='Fechar' ou classes como "
+            "'modal__dismiss contextual-sign-in-modal__modal-dismiss'.\n"
+            "- Se o botao de fechar nao funcionar, tente Escape e depois clique fora do modal.\n"
+            "- Nao preencha credenciais e nao tente autenticar.\n"
+            "- Se o modal continuar bloqueando a lista de vagas, retorne exatamente {'jobs': []}.\n"
+            "- So colete vagas realmente visiveis na pagina apos remover ou contornar o modal.\n"
+            "- Nunca navegue para textos, labels, placeholders, JSONPath ou expressoes como "
+            "'$.results[0][...]', '@aria-label', 'aria-label' ou conteudo que nao seja URL real.\n"
+            "- Nunca navegue para '#', 'javascript:', links vazios, ancora local ou qualquer valor que nao seja URL absoluta valida.\n"
+            "- So use navigate se a string comecar com 'https://'. Caso contrario, nao navegue.\n"
+            "- Se precisar abrir a vaga, prefira clicar no card visivel da vaga na lista em vez de construir uma URL manualmente.\n"
+            "- Ao preencher o campo 'url' no JSON, use apenas links absolutos validos iniciando com 'https://'.\n"
+            "- Se nao houver href absoluto confiavel para a vaga, mantenha a coleta na lista e extraia apenas o que estiver visivel.\n"
+        )
+
+
+class GupyCollectorAdapter(BasePortalCollectorAdapter):
+    def __init__(self) -> None:
+        super().__init__(
+            portal_name="Gupy",
+            portal_hint=(
+                "Priorize o titulo da vaga, empresa, local e descricao curta do fluxo da Gupy. "
+                "Se o link direto da vaga estiver disponivel, use-o."
+            ),
+        )
+
+
+class IndeedCollectorAdapter(BasePortalCollectorAdapter):
+    def __init__(self) -> None:
+        super().__init__(
+            portal_name="Indeed",
+            portal_hint=(
+                "Priorize o titulo da vaga, empresa, local, faixa salarial quando houver "
+                "e um resumo enxuto da oportunidade."
+            ),
+        )
+
+
+class DefaultPortalCollectorAdapter(BasePortalCollectorAdapter):
+    def __init__(self) -> None:
+        super().__init__(
+            portal_name="__default__",
+            portal_hint="Colete vagas genericas de tecnologia com estrutura consistente.",
+        )
+
+    def supports(self, site: SiteConfig) -> bool:
+        return True
+
+
+class LinkedInDeterministicCollector:
+    def __init__(
+        self,
+        *,
+        storage_state_path: str | Path,
+        headless: bool,
+    ) -> None:
+        self.storage_state_path = Path(storage_state_path).resolve()
+        self.headless = headless
+
+    async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+        if not self.storage_state_path.exists():
+            raise RuntimeError(
+                "Sessao autenticada do LinkedIn nao encontrada. Rode --bootstrap-linkedin-session."
+            )
+
+        try:
+            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+            from playwright.async_api import async_playwright
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de coleta nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+
+        executable_path = resolve_local_chromium()
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
+                executable_path=str(executable_path),
+                headless=self.headless,
+                args=["--start-maximized"],
+            )
+            context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
+            page = await context.new_page()
+            try:
+                await page.goto(site.search_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(3000)
+                await self._dismiss_sign_in_modal(page)
+                try:
+                    await page.wait_for_selector("a[href*='/jobs/view/']", timeout=10000)
+                except PlaywrightTimeoutError as exc:
+                    raise RuntimeError(
+                        "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
+                    ) from exc
+                raw_cards = await self._extract_visible_cards(page, max_jobs)
+            finally:
+                await context.close()
+                await browser.close()
+
+        jobs: list[RawJob] = []
+        seen_urls: set[str] = set()
+        for card in raw_cards:
+            normalized_card = normalize_linkedin_card(card)
+            url = normalized_card["url"].strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            jobs.append(
+                RawJob(
+                    title=normalized_card["title"].strip(),
+                    company=normalized_card["company"].strip() or "Empresa nao informada",
+                    location=normalized_card["location"].strip() or "Local nao informado",
+                    work_mode=normalized_card["work_mode"].strip() or "Nao informado",
+                    salary_text=normalized_card["salary_text"].strip() or "Nao informado",
+                    url=url,
+                    source_site=site.name,
+                    summary=normalized_card["summary"].strip(),
+                    description=normalized_card["description"].strip(),
+                )
+            )
+        return jobs
+
+    async def _dismiss_sign_in_modal(self, page: object) -> None:
+        modal_button_selectors = (
+            "button[aria-label='Fechar']",
+            "button.contextual-sign-in-modal__modal-dismiss",
+            "button.modal__dismiss",
+        )
+        for selector in modal_button_selectors:
+            locator = page.locator(selector)
+            if await locator.count():
+                try:
+                    await locator.first.click(timeout=1000)
+                    await page.wait_for_timeout(500)
+                    return
+                except Exception:
+                    continue
+
+    async def _extract_visible_cards(self, page: object, max_jobs: int) -> list[dict[str, str]]:
+        return await page.evaluate(
+            """
+            ({ maxJobs }) => {
+              const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
+              const normalized = [];
+              const seen = new Set();
+              const normalizeHref = (href) => {
+                if (!href) return "";
+                try {
+                  return new URL(href, window.location.origin).toString();
+                } catch {
+                  return "";
+                }
+              };
+              for (const anchor of anchors) {
+                const href = normalizeHref(anchor.getAttribute("href") || anchor.href || "");
+                if (!href || !href.startsWith("https://") || seen.has(href)) {
+                  continue;
+                }
+                const card = anchor.closest("li, .job-card-container, .jobs-search-results__list-item, .job-card-list");
+                const rawText = (card?.innerText || anchor.innerText || "").trim();
+                const cardText = rawText.replace(/\\s+/g, " ").trim();
+                if (!cardText) {
+                  continue;
+                }
+                const normalizeLine = (line) => (line || "").replace(/\\s+/g, " ").trim();
+                const noiseMarkers = ["promovida", "candidatura simplificada", "avaliando candidaturas", "visualizado", "with verification"];
+                const isNoiseLine = (line) => {
+                  const lower = line.toLowerCase();
+                  return noiseMarkers.some((marker) => lower.includes(marker)) || /\\b\\d+\\s+candidaturas\\b/i.test(lower);
+                };
+                const isLocationLine = (line) => {
+                  const lower = line.toLowerCase();
+                  return (
+                    lower.includes("brasil") ||
+                    lower.includes("são paulo") ||
+                    lower.includes("sao paulo") ||
+                    lower.includes("rio de janeiro") ||
+                    lower.includes("(híbrido)") ||
+                    lower.includes("(hibrido)") ||
+                    lower.includes("(remoto)") ||
+                    lower.includes("(presencial)") ||
+                    lower.includes(" hybrid") ||
+                    lower.includes(" remoto") ||
+                    lower.includes(" presencial")
+                  );
+                };
+                const lines = rawText
+                  .split(/\\n+/)
+                  .map((line) => normalizeLine(line))
+                  .filter(Boolean);
+                const title = normalizeLine(lines[0] || anchor.textContent || "");
+                if (!title) {
+                  continue;
+                }
+                const filteredLines = lines.filter((line) => line !== title && !isNoiseLine(line));
+                const company = filteredLines.find((line) => line !== title && !isLocationLine(line)) || "";
+                const location = filteredLines.find((line) => isLocationLine(line)) || "";
+                const lowerText = cardText.toLowerCase();
+                let workMode = "";
+                if (lowerText.includes("remoto")) workMode = "remoto";
+                else if (lowerText.includes("híbrido") || lowerText.includes("hibrido") || lowerText.includes("hybrid")) workMode = "hibrido";
+                else if (lowerText.includes("presencial") || lowerText.includes("onsite")) workMode = "presencial";
+                const salaryMatch = cardText.match(/R\\$\\s?[\\d\\.]+(?:\\s*[-a]\\s*R\\$?\\s?[\\d\\.]+)?/i);
+                seen.add(href);
+                normalized.push({
+                  title,
+                  company,
+                  location,
+                  work_mode: workMode,
+                  salary_text: salaryMatch ? salaryMatch[0] : "",
+                  url: href,
+                  summary: cardText.slice(0, 240),
+                  description: cardText.slice(0, 1000),
+                });
+                if (normalized.length >= maxJobs) {
+                  break;
+                }
+              }
+              return normalized;
+            }
+            """,
+            {"maxJobs": max_jobs},
+        )
+
+
+class BrowserUseSiteCollector:
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str,
+        config_dir: str | Path | None = None,
+        persistent_profile_dir: str | Path | None = None,
+        linkedin_storage_state_path: str | Path | None = None,
+        headless: bool = True,
+        automation: BrowserAutomationAdapter | None = None,
+        linkedin_collector: DeterministicPortalCollector | None = None,
+        portal_adapters: tuple[PortalCollectorAdapter, ...] | None = None,
+    ) -> None:
+        resolved_storage_state = Path(
+            linkedin_storage_state_path or Path(config_dir or "./.browseruse") / "linkedin-storage-state.json"
+        ).resolve()
+        self.automation = automation or BrowserUseAutomationAdapter(
+            model_name=model_name,
+            base_url=base_url,
+            config_dir=config_dir,
+            persistent_profile_dir=persistent_profile_dir,
+            linkedin_storage_state_path=resolved_storage_state,
+            headless=headless,
+        )
+        self.linkedin_collector = linkedin_collector or LinkedInDeterministicCollector(
+            storage_state_path=resolved_storage_state,
+            headless=headless,
+        )
+        self.portal_adapters: tuple[PortalCollectorAdapter, ...] = portal_adapters or (
+            LinkedInCollectorAdapter(),
+            GupyCollectorAdapter(),
+            IndeedCollectorAdapter(),
+            DefaultPortalCollectorAdapter(),
+        )
+
+    async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+        if site.name.lower() == "linkedin":
+            logger.info("Coletando vagas com estrategia deterministica site=%s", site.name)
+            return await self.linkedin_collector.collect(site, max_jobs)
+        adapter = self._adapter_for(site)
+        logger.info("Coletando vagas com adapter=%s site=%s", adapter.__class__.__name__, site.name)
+        task = adapter.build_task(site, max_jobs)
+        logger.info(
+            "Disparando automacao de coleta site=%s max_jobs=%s task_chars=%s",
+            site.name,
+            max_jobs,
+            len(task),
+        )
+        started_at = time.monotonic()
+        result = await self.automation.run(task, site)
+        elapsed_seconds = time.monotonic() - started_at
+        logger.info("Automacao concluida site=%s duracao=%.2fs", site.name, elapsed_seconds)
+        result_text = automation_result_to_text(result)
+        payload = extract_json_object(result_text)
+        if result_text.strip() and not payload:
+            logger.warning(
+                standardize_error_message("erro de parsing", site.name, "resposta sem JSON valido"),
+            )
+            logger.info("Resposta bruta sem JSON valido site=%s trecho=%r", site.name, result_text[:240])
+        jobs = adapter.normalize(site, payload)
+        logger.info("Coleta concluida site=%s vagas=%s", site.name, len(jobs))
+        return jobs
+
+    def _adapter_for(self, site: SiteConfig) -> PortalCollectorAdapter:
+        for adapter in self.portal_adapters:
+            if adapter.supports(site):
+                return adapter
+        return DefaultPortalCollectorAdapter()
+
+
+class HybridJobScorer:
+    def __init__(self, model_name: str, base_url: str) -> None:
+        try:
+            from langchain_ollama import ChatOllama
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de scoring nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+        self._llm = ChatOllama(model=model_name, base_url=base_url, temperature=0.1)
+
+    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+        combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
+        if any(keyword in combined_text for keyword in settings.exclude_keywords):
+            return ScoredJob(relevance=1, rationale="Contem termos excluidos do perfil.", accepted=False)
+
+        prompt = f"""
+        Avalie aderencia de uma vaga ao perfil profissional abaixo.
+
+        Perfil:
+        {settings.profile_text}
+
+        Regras:
+        - Nota de 1 a 10.
+        - Considere palavras positivas: {", ".join(settings.include_keywords)}
+        - Considere palavras negativas: {", ".join(settings.exclude_keywords)}
+        - Modalidades aceitas: {", ".join(settings.accepted_work_modes) or "qualquer"}
+        - Salario minimo em BRL: {settings.minimum_salary_brl}
+        - Seja conservador. So aprove quando a vaga realmente fizer sentido.
+
+        Vaga:
+        titulo: {raw_job.title}
+        empresa: {raw_job.company}
+        local: {raw_job.location}
+        modalidade: {raw_job.work_mode}
+        salario: {raw_job.salary_text}
+        resumo: {raw_job.summary}
+        descricao: {raw_job.description}
+
+        Retorne apenas JSON:
+        {{
+          "relevance": 7,
+          "rationale": "motivo curto em portugues"
+        }}
+        """
+
+        response = self._llm.invoke(prompt)
+        response_text = response.content if hasattr(response, "content") else str(response)
+        return parse_scoring_response(response_text, settings.minimum_relevance)
+
+
+class JobCollectionService:
+    def __init__(
+        self,
+        settings: Settings,
+        repository: JobRepository,
+        site_collector: SiteCollector,
+        scorer: JobScorer,
+    ) -> None:
+        self.settings = settings
+        self.repository = repository
+        self.site_collector = site_collector
+        self.scorer = scorer
+
+    async def collect_new_jobs(self) -> list[JobPosting]:
+        return list((await self.collect_new_jobs_report()).jobs)
+
+    async def collect_new_jobs_report(self) -> CollectionReport:
+        saved_jobs: list[JobPosting] = []
+        total_seen = 0
+        total_errors = 0
+        for site in [candidate for candidate in self.settings.sites if candidate.enabled]:
+            try:
+                logger.info(
+                    "Iniciando coleta no portal site=%s timeout=%ss",
+                    site.name,
+                    self.settings.portal_collection_timeout_seconds,
+                )
+                started_at = time.monotonic()
+                raw_jobs = await asyncio.wait_for(
+                    self.site_collector.collect(site, self.settings.max_jobs_per_site),
+                    timeout=self.settings.portal_collection_timeout_seconds,
+                )
+                elapsed_seconds = time.monotonic() - started_at
+                logger.info("Portal concluido site=%s duracao=%.2fs", site.name, elapsed_seconds)
+            except asyncio.TimeoutError:
+                message = standardize_error_message(
+                    "erro de coleta",
+                    site.name,
+                    f"timeout apos {self.settings.portal_collection_timeout_seconds}s",
+                )
+                logger.exception(message)
+                self.repository.record_collection_log(site.name, "error", message)
+                total_errors += 1
+                continue
+            except Exception as exc:
+                message = standardize_error_message("erro de coleta", site.name, str(exc))
+                logger.exception(message)
+                self.repository.record_collection_log(site.name, "error", message)
+                total_errors += 1
+                continue
+
+            total_seen += len(raw_jobs)
+            scored_jobs = self._score_and_filter(raw_jobs)
+            new_jobs = [job for job in scored_jobs if not self.repository.job_exists(job.url, job.external_key)]
+            duplicate_jobs = len(scored_jobs) - len(new_jobs)
+            saved_jobs.extend(self.repository.save_new_jobs(new_jobs))
+            portal_summary = (
+                f"resultado por portal site={site.name} "
+                f"vistas={len(raw_jobs)} aprovadas={len(scored_jobs)} "
+                f"persistidas={len(new_jobs)} duplicadas={duplicate_jobs}"
+            )
+            logger.info(portal_summary)
+            self.repository.record_collection_log(
+                site.name,
+                "info",
+                portal_summary,
+            )
+
+        saved_jobs.sort(key=lambda item: item.relevance, reverse=True)
+        logger.info(
+            "Ciclo de coleta finalizado: vistas=%s persistidas=%s erros=%s",
+            total_seen,
+            len(saved_jobs),
+            total_errors,
+        )
+        return CollectionReport(
+            jobs=tuple(saved_jobs),
+            jobs_seen=total_seen,
+            jobs_saved=len(saved_jobs),
+            errors=total_errors,
+        )
+
+    def _score_and_filter(self, raw_jobs: list[RawJob]) -> list[JobPosting]:
+        accepted_jobs: list[JobPosting] = []
+        for raw_job in raw_jobs:
+            if not self._is_minimally_valid(raw_job):
+                logger.info("Vaga descartada por validade minima: %s", raw_job.title or "<sem titulo>")
+                continue
+
+            prefilter = self._apply_rule_filters(raw_job)
+            if prefilter is not None:
+                logger.info("Vaga descartada por regra: %s | motivo=%s", raw_job.title, prefilter)
+                continue
+
+            try:
+                score = self.scorer.score(raw_job, self.settings)
+            except Exception as exc:
+                logger.exception(
+                    standardize_error_message("erro de scoring", raw_job.source_site, str(exc)),
+                )
+                continue
+            if not score.accepted:
+                logger.info(
+                    "Vaga descartada por score: %s | nota=%s | motivo=%s",
+                    raw_job.title,
+                    score.relevance,
+                    score.rationale,
+                )
+                continue
+            accepted_jobs.append(
+                JobPosting(
+                    title=raw_job.title,
+                    company=raw_job.company,
+                    location=raw_job.location,
+                    work_mode=raw_job.work_mode,
+                    salary_text=raw_job.salary_text,
+                    url=raw_job.url,
+                    source_site=raw_job.source_site,
+                    summary=raw_job.summary or raw_job.description[:240],
+                    relevance=score.relevance,
+                    rationale=score.rationale,
+                    external_key=build_external_key(raw_job),
+                )
+            )
+        return accepted_jobs
+
+    def _is_minimally_valid(self, raw_job: RawJob) -> bool:
+        return bool(
+            raw_job.title.strip()
+            and raw_job.company.strip()
+            and raw_job.url.strip()
+            and raw_job.source_site.strip()
+        )
+
+    def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
+        combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
+        if any(keyword in combined_text for keyword in self.settings.exclude_keywords):
+            return "conta com termos excluidos"
+
+        work_mode = raw_job.work_mode.strip().lower()
+        if work_mode and work_mode not in {"nao informado", "não informado"}:
+            if self.settings.accepted_work_modes and not any(mode in work_mode for mode in self.settings.accepted_work_modes):
+                return "modalidade fora do perfil"
+
+        salary_floor = parse_salary_floor(raw_job.salary_text)
+        if salary_floor is not None and salary_floor < self.settings.minimum_salary_brl:
+            return "salario abaixo do minimo"
+
+        return None
+
+
+def build_external_key(raw_job: RawJob) -> str:
+    normalized = "|".join(
+        [
+            raw_job.title.strip().lower(),
+            raw_job.company.strip().lower(),
+            raw_job.location.strip().lower(),
+        ]
+    )
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def resolve_local_chromium() -> Path:
+    browsers_root = Path(os.getenv("PLAYWRIGHT_BROWSERS_PATH", ".playwright-browsers")).resolve()
+    candidates = sorted(browsers_root.rglob("chrome.exe"))
+    if not candidates:
+        raise RuntimeError(
+            "Nenhum chrome.exe do Playwright foi encontrado. Configure PLAYWRIGHT_BROWSERS_PATH e rode playwright install chromium."
+        )
+    return candidates[0]
+
+
+def load_playwright_storage_state(path: str | Path) -> dict:
+    state = json.loads(Path(path).read_text(encoding="utf-8"))
+    sanitized_cookies: list[dict] = []
+    for cookie in state.get("cookies", []):
+        sanitized = dict(cookie)
+        partition_key = sanitized.get("partitionKey")
+        if isinstance(partition_key, dict):
+            top_level_site = partition_key.get("topLevelSite")
+            if isinstance(top_level_site, str) and top_level_site.strip():
+                sanitized["partitionKey"] = top_level_site
+            else:
+                sanitized.pop("partitionKey", None)
+        elif partition_key is not None and not isinstance(partition_key, str):
+            sanitized.pop("partitionKey", None)
+        sanitized_cookies.append(sanitized)
+    state["cookies"] = sanitized_cookies
+    return state
+
+
+def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
+    title = clean_linkedin_title(card.get("title", ""))
+    company = clean_linkedin_company(card.get("company", ""))
+    location = clean_linkedin_location(card.get("location", ""))
+    work_mode = normalize_linkedin_work_mode(card.get("work_mode", ""), location)
+    salary_text = clean_linkedin_salary(card.get("salary_text", ""))
+    summary = clean_linkedin_summary(card.get("summary", ""))
+    description = clean_linkedin_description(card.get("description", ""))
+    return {
+        "title": title,
+        "company": company,
+        "location": location,
+        "work_mode": work_mode,
+        "salary_text": salary_text,
+        "url": str(card.get("url", "")).strip(),
+        "summary": summary,
+        "description": description,
+    }
+
+
+def clean_linkedin_title(value: str) -> str:
+    cleaned = _normalize_whitespace(value)
+    repeated_prefix = re.match(r"^(.{5,120}?)\s+\1$", cleaned, flags=re.IGNORECASE)
+    if repeated_prefix:
+        cleaned = repeated_prefix.group(1).strip()
+    else:
+        collapsed_repeat = _collapse_repeated_title(cleaned)
+        if collapsed_repeat:
+            cleaned = collapsed_repeat
+    cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bPromovida\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bCandidatura simplificada\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bAvaliando candidaturas\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bVisualizado\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = _normalize_whitespace(cleaned)
+    if "\n" in value:
+        first_line = _normalize_whitespace(value.splitlines()[0])
+        if first_line:
+            return clean_linkedin_title(first_line)
+    parts = [part.strip() for part in cleaned.split("  ") if part.strip()]
+    if parts:
+        return parts[0]
+    return cleaned
+
+
+def clean_linkedin_company(value: str) -> str:
+    cleaned = _normalize_whitespace(value)
+    repeated_prefix = re.match(r"^(.{10,80}?)\s+\1\s+(.+)$", cleaned, flags=re.IGNORECASE)
+    if repeated_prefix:
+        cleaned = repeated_prefix.group(2).strip()
+    cleaned = re.sub(r"^with verification\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(Desenvolvedor|Engenheiro|Software Engineer|Backend|Fullstack)\b.*?\bwith verification\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+with verification\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\b(São Paulo|Sao Paulo|Brasil|Rio de Janeiro).*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    noise_phrases = (
+        "Promovida",
+        "Candidatura simplificada",
+        "Avaliando candidaturas",
+        "Visualizado",
+        "1 conexão trabalha aqui",
+        "há ",
+    )
+    segments = _split_linkedin_segments(cleaned)
+    kept: list[str] = []
+    for segment in segments:
+        if any(phrase.lower() in segment.lower() for phrase in noise_phrases):
+            continue
+        if looks_like_linkedin_location(segment):
+            continue
+        if segment.lower() in {"hibrido", "híbrido", "remoto", "presencial", "hybrid", "onsite"}:
+            continue
+        if len(segment.split()) <= 1:
+            continue
+        kept.append(segment)
+        break
+    return kept[0] if kept else cleaned
+
+
+def clean_linkedin_location(value: str) -> str:
+    cleaned = _normalize_whitespace(value)
+    segments = _split_linkedin_segments(cleaned)
+    for segment in segments:
+        if looks_like_linkedin_location(segment):
+            return segment
+    return cleaned
+
+
+def normalize_linkedin_work_mode(raw_work_mode: str, location: str) -> str:
+    combined = f"{raw_work_mode} {location}".lower()
+    if "remoto" in combined or "remote" in combined:
+        return "remoto"
+    if "híbrido" in combined or "hibrido" in combined or "hybrid" in combined:
+        return "hibrido"
+    if "presencial" in combined or "onsite" in combined:
+        return "presencial"
+    return _normalize_whitespace(raw_work_mode)
+
+
+def clean_linkedin_salary(value: str) -> str:
+    cleaned = _normalize_whitespace(value)
+    return cleaned if cleaned else "Nao informado"
+
+
+def clean_linkedin_summary(value: str) -> str:
+    return _clean_linkedin_text_block(value, limit=240)
+
+
+def clean_linkedin_description(value: str) -> str:
+    return _clean_linkedin_text_block(value, limit=1000)
+
+
+def _clean_linkedin_text_block(value: str, *, limit: int) -> str:
+    cleaned = _normalize_whitespace(value)
+    noise_patterns = (
+        r"\bPromovida\b",
+        r"\bCandidatura simplificada\b",
+        r"\bAvaliando candidaturas\b",
+        r"\bVisualizado\b",
+        r"\bwith verification\b",
+        r"\b\d+\s+candidaturas\b",
+        r"\bhá\s+\d+\s+\w+\b",
+    )
+    for pattern in noise_patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    cleaned = _normalize_whitespace(cleaned)
+    return cleaned[:limit]
+
+
+def _split_linkedin_segments(value: str) -> list[str]:
+    return [segment.strip() for segment in re.split(r"[·•|]", value) if segment.strip()]
+
+
+def looks_like_linkedin_location(value: str) -> bool:
+    lower = value.lower()
+    return any(
+        marker in lower
+        for marker in (
+            "brasil",
+            "são paulo",
+            "sao paulo",
+            "rio de janeiro",
+            "br",
+            "(híbrido)",
+            "(hibrido)",
+            "(remoto)",
+            "(presencial)",
+        )
+    )
+
+
+def _normalize_whitespace(value: str) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _collapse_repeated_title(value: str) -> str | None:
+    cleaned = _normalize_whitespace(value)
+    if not cleaned:
+        return None
+    length = len(cleaned)
+    if length % 2 == 0:
+        midpoint = length // 2
+        left = cleaned[:midpoint].strip()
+        right = cleaned[midpoint:].strip()
+        if left and left == right:
+            return left
+    return None
+
+
+def build_available_file_paths(base_dir: Path, limit: int = 20) -> list[str]:
+    paths: list[str] = []
+    for index in range(1, limit + 1):
+        relative = f"./screenshot{index}.png"
+        absolute = (base_dir / f"screenshot{index}.png").resolve()
+        paths.append(relative)
+        paths.append(str(absolute))
+    return paths
+
+
+def automation_result_to_text(result: object) -> str:
+    if isinstance(result, str):
+        return result
+
+    final_result = getattr(result, "final_result", None)
+    if callable(final_result):
+        extracted = final_result()
+        if isinstance(extracted, str):
+            return extracted
+
+    return str(result)
+
+
+def extract_json_object(result: object) -> dict:
+    result_text = automation_result_to_text(result)
+    start = result_text.find("{")
+    end = result_text.rfind("}") + 1
+    if start == -1 or end <= start:
+        return {}
+    try:
+        return json.loads(result_text[start:end])
+    except json.JSONDecodeError:
+        return {}
+
+
+def parse_scoring_response(response_text: str, minimum_relevance: int) -> ScoredJob:
+    payload = extract_json_object(response_text)
+    if not payload:
+        return ScoredJob(
+            relevance=1,
+            rationale="Resposta do modelo sem JSON valido.",
+            accepted=False,
+        )
+
+    try:
+        relevance = int(payload.get("relevance", 0) or 0)
+    except (TypeError, ValueError):
+        relevance = 0
+
+    relevance = max(1, min(relevance, 10))
+    rationale = str(payload.get("rationale", "")).strip() or "Sem justificativa do modelo."
+    accepted = relevance >= minimum_relevance
+    return ScoredJob(relevance=relevance, rationale=rationale, accepted=accepted)
+
+
+def parse_salary_floor(salary_text: str) -> int | None:
+    normalized = salary_text.lower().replace(".", "").replace(",", ".")
+    matches = re.findall(r"(\d{3,6}(?:\.\d{1,2})?)", normalized)
+    if not matches:
+        return None
+    try:
+        first_value = float(matches[0])
+    except ValueError:
+        return None
+    return int(first_value)
+
+
+def standardize_error_message(error_type: str, site_name: str, detail: str) -> str:
+    return f"{error_type} | site={site_name} | detalhe={detail}"
