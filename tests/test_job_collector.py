@@ -531,7 +531,7 @@ class ExternalKeyTests(TestCase):
                 "title": "Desenvolvedor Java",
                 "company": "Stefanini Brasil",
                 "location": "Osasco, São Paulo, Brasil (Híbrido)",
-                "summary": "Detalhe da vaga",
+                "summary": "Desenvolvedor Java Stefanini Brasil Osasco, São Paulo, Brasil (Híbrido)",
                 "raw_company_candidates": "Stefanini Brasil",
                 "raw_metadata_candidates": "Osasco, São Paulo, Brasil (Híbrido)",
             },
@@ -539,8 +539,12 @@ class ExternalKeyTests(TestCase):
 
         self.assertEqual(merged["company"], "Stefanini Brasil")
         self.assertEqual(merged["location"], "Osasco, São Paulo, Brasil (Híbrido)")
+        self.assertEqual(
+            merged["summary"], "Desenvolvedor Java Stefanini Brasil Osasco, São Paulo, Brasil (Híbrido)"
+        )
         self.assertEqual(merged["detail_company_candidates"], "Stefanini Brasil")
         self.assertEqual(merged["detail_metadata_candidates"], "Osasco, São Paulo, Brasil (Híbrido)")
+        self.assertIn("Stefanini Brasil", merged["detail_summary"])
 
 
 class BrowserUseSiteCollectorAdapterTests(TestCase):

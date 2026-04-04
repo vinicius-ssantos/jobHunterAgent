@@ -936,12 +936,15 @@ def merge_linkedin_card_with_detail(card: dict[str, str], detail: dict[str, str]
         merged["company"] = company
     if location:
         merged["location"] = location
-    if summary and not str(merged.get("summary", "")).strip():
+    existing_summary = str(merged.get("summary", "")).strip()
+    if summary and len(summary) > len(existing_summary):
         merged["summary"] = summary
     if detail.get("raw_company_candidates"):
         merged["detail_company_candidates"] = detail["raw_company_candidates"]
     if detail.get("raw_metadata_candidates"):
         merged["detail_metadata_candidates"] = detail["raw_metadata_candidates"]
+    if summary:
+        merged["detail_summary"] = summary
     return merged
 
 
@@ -1198,6 +1201,7 @@ def summarize_linkedin_raw_card(card: dict[str, str]) -> str:
         "raw_metadata_candidates",
         "detail_company_candidates",
         "detail_metadata_candidates",
+        "detail_summary",
         "raw_lines",
         "anchor_text",
         "summary",
