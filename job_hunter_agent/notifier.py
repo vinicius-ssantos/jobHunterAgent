@@ -229,7 +229,6 @@ class TelegramNotifier:
         await self.application.bot.send_message(
             chat_id=self.settings.telegram_chat_id,
             text=message,
-            parse_mode="Markdown",
             disable_web_page_preview=True,
             reply_markup=keyboard,
         )
@@ -316,21 +315,21 @@ def build_application_card_message(repository: JobRepository, application: JobAp
     job = repository.get_job(application.job_id)
     if not job:
         return (
-            f"*Candidatura {application.id}*\n"
+            f"Candidatura {application.id}\n"
             f"Job id: {application.job_id}\n"
             f"Status: {application.status}\n"
             f"Suporte: {application.support_level}\n"
             f"Racional: {application.support_rationale or 'Nao informado'}"
         )
     return (
-        f"*Candidatura {application.id}*\n"
+        f"Candidatura {application.id}\n"
         f"Vaga: {job.title}\n"
         f"Empresa: {job.company}\n"
         f"Status: {application.status}\n"
         f"Suporte: {application.support_level}\n"
         f"Racional: {application.support_rationale or 'Nao informado'}\n"
         f"Observacoes: {application.notes or 'Nenhuma'}\n"
-        f"[Abrir vaga]({job.url})"
+        f"Abrir vaga: {job.url}"
     )
 
 
