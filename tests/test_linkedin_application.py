@@ -1,6 +1,7 @@
 import unittest
 
 from job_hunter_agent.linkedin_application import (
+    build_linkedin_modal_snapshot,
     LinkedInApplicationPageState,
     classify_linkedin_application_page_state,
     describe_linkedin_modal_blocker,
@@ -99,3 +100,17 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertIn("etapa_intermediaria", blocker)
         self.assertIn("botao_submit_ausente", blocker)
         self.assertIn("campos_nao_preenchidos", blocker)
+
+    def test_build_linkedin_modal_snapshot_uses_headings_buttons_and_fields(self) -> None:
+        snapshot = build_linkedin_modal_snapshot(
+            LinkedInApplicationPageState(
+                modal_open=True,
+                modal_headings=("informacoes de contato", "curriculo"),
+                modal_buttons=("next", "review", "submit application"),
+                modal_fields=("email", "phone", "country code"),
+            )
+        )
+
+        self.assertIn("titulos=informacoes de contato, curriculo", snapshot)
+        self.assertIn("botoes=next, review, submit application", snapshot)
+        self.assertIn("campos_detectados=email, phone, country code", snapshot)

@@ -87,7 +87,7 @@ Definicao de pronto:
 
 ## Checklist
 
-- [ ] Fase 1 concluida
+- [x] Fase 1 concluida
 - [ ] Fase 2 concluida
 - [ ] Fase 3 concluida
 - [ ] Fase 4 concluida

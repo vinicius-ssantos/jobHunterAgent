@@ -41,6 +41,22 @@ class LinkedInApplicationPageState:
     uploaded_resume: bool = False
     reached_review_step: bool = False
     ready_to_submit: bool = False
+    modal_headings: tuple[str, ...] = ()
+    modal_buttons: tuple[str, ...] = ()
+    modal_fields: tuple[str, ...] = ()
+
+
+def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
+    parts: list[str] = []
+    if state.modal_headings:
+        parts.append(f"titulos={', '.join(state.modal_headings[:3])}")
+    if state.modal_buttons:
+        parts.append(f"botoes={', '.join(state.modal_buttons[:5])}")
+    if state.modal_fields:
+        parts.append(f"campos_detectados={', '.join(state.modal_fields[:5])}")
+    if not parts:
+        return "snapshot_modal=indisponivel"
+    return "snapshot_modal=" + " | ".join(parts)
 
 
 def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
@@ -92,6 +108,7 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
                 detail_parts.append(f"cta={state.cta_text}")
             if state.modal_sample:
                 detail_parts.append(f"modal={state.modal_sample}")
+            detail_parts.append(build_linkedin_modal_snapshot(state))
             return LinkedInApplicationInspection(
                 outcome="ready",
                 detail=" | ".join(detail_parts),
@@ -118,6 +135,7 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail_parts.append(f"cta={state.cta_text}")
         if state.modal_sample:
             detail_parts.append(f"modal={state.modal_sample}")
+        detail_parts.append(build_linkedin_modal_snapshot(state))
         return LinkedInApplicationInspection(
             outcome="manual_review",
             detail=" | ".join(detail_parts),
@@ -313,6 +331,11 @@ class LinkedInApplicationFlowInspector:
                     .map((node) => normalize(node.getAttribute("name") || node.getAttribute("aria-label") || node.id || ""))
                     .filter(Boolean)
                 : [];
+              const modalHeadings = modal
+                ? Array.from(modal.querySelectorAll("h1, h2, h3, legend"))
+                    .map((node) => normalize(node.textContent))
+                    .filter(Boolean)
+                : [];
               const hasText = (items, parts) => parts.some((part) => items.some((value) => value.includes(part)));
               const resumableFields = [];
               const contactEmailVisible = hasText(modalTexts, ["email"]) || hasText(modalInputNames, ["email"]);
@@ -349,12 +372,18 @@ class LinkedInApplicationFlowInspector:
                 uploaded_resume: false,
                 reached_review_step: false,
                 ready_to_submit: false,
+                modal_headings: modalHeadings.slice(0, 6),
+                modal_buttons: modalButtonTexts.slice(0, 8),
+                modal_fields: modalInputNames.slice(0, 8),
               };
             }
             """
         )
         raw_state["resumable_fields"] = tuple(raw_state.get("resumable_fields", ()))
         raw_state["filled_fields"] = tuple(raw_state.get("filled_fields", ()))
+        raw_state["modal_headings"] = tuple(raw_state.get("modal_headings", ()))
+        raw_state["modal_buttons"] = tuple(raw_state.get("modal_buttons", ()))
+        raw_state["modal_fields"] = tuple(raw_state.get("modal_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
 
     async def _inspect_easy_apply_modal(
