@@ -101,6 +101,9 @@ Variaveis principais:
 - `JOB_HUNTER_TELEGRAM_TOKEN`
 - `JOB_HUNTER_TELEGRAM_CHAT_ID`
 - `JOB_HUNTER_PROFILE_TEXT`
+- `JOB_HUNTER_APPLICATION_CONTACT_EMAIL`
+- `JOB_HUNTER_APPLICATION_PHONE`
+- `JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE`
 - `JOB_HUNTER_COLLECTION_TIME`
 - `JOB_HUNTER_DATABASE_PATH`
 - `JOB_HUNTER_BROWSER_USE_CONFIG_DIR`
@@ -181,6 +184,7 @@ O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e 
 - o inspetor procura sinais como `Easy Apply`, candidatura externa ou ausencia de CTA
 - quando encontra `Easy Apply`, ele tenta abrir o modal e mapear se o fluxo parece simples ou multi-etapas
 - o preflight tambem registra campos basicos detectados no modal, como email, telefone e codigo do pais
+- quando os dados de contato estiverem configurados, ele tenta preencher esses campos em dry-run, sem enviar candidatura
 - nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:

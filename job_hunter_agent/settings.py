@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         "Engenheiro de Software Senior com experiencia em Java, Kotlin, Spring Boot, "
         "PostgreSQL, Docker e cloud."
     )
+    application_contact_email: str = ""
+    application_phone: str = ""
+    application_phone_country_code: str = ""
     resume_path: Path = Path("./curriculo.pdf")
     database_path: Path = Path("./jobs.db")
     browser_use_config_dir: Path = Path("./.browseruse")

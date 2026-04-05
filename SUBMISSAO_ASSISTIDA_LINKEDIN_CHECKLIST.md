@@ -59,6 +59,16 @@ Definicao de pronto:
 - o detalhe do resultado diferencia contato, autorizacao e experiencia quando visiveis
 - ainda sem clicar em enviar candidatura
 
+### Fase 6 - Dry-run de preenchimento seguro
+
+Objetivo:
+- tentar preencher somente campos basicos e reversiveis quando houver dados locais explicitos
+
+Definicao de pronto:
+- o inspetor tenta preencher email, telefone e codigo do pais quando configurados
+- o detalhe do preflight registra quais campos foram preenchidos com sucesso
+- nenhum clique de envio real e executado
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -73,6 +83,7 @@ Definicao de pronto:
 - [x] Fase 3 concluida
 - [x] Fase 4 concluida
 - [x] Fase 5 concluida
+- [x] Fase 6 concluida
 - [x] README atualizado se a operacao mudar
 - [x] AGENTS reavaliado; sem mudancas necessarias nesta fase
 

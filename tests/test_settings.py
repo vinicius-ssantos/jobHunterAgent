@@ -24,6 +24,9 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.linkedin_max_pages_per_cycle, 2)
         self.assertEqual(settings.linkedin_max_page_depth, 6)
         self.assertEqual(settings.linkedin_scroll_stabilization_passes, 3)
+        self.assertEqual(settings.application_contact_email, "")
+        self.assertEqual(settings.application_phone, "")
+        self.assertEqual(settings.application_phone_country_code, "")
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)
@@ -54,6 +57,19 @@ class SettingsTests(TestCase):
 
         self.assertEqual(settings.telegram_token, "token")
         self.assertEqual(settings.telegram_chat_id, "chat")
+
+    def test_load_settings_accepts_application_contact_overrides(self) -> None:
+        settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            application_contact_email="vinicius@example.com",
+            application_phone="11999999999",
+            application_phone_country_code="Brazil (+55)",
+        )
+
+        self.assertEqual(settings.application_contact_email, "vinicius@example.com")
+        self.assertEqual(settings.application_phone, "11999999999")
+        self.assertEqual(settings.application_phone_country_code, "Brazil (+55)")
 
     def test_rejects_invalid_collection_time(self) -> None:
         with self.assertRaises(ValueError):

@@ -34,6 +34,7 @@ class LinkedInApplicationPageState:
     work_authorization_visible: bool = False
     years_of_experience_visible: bool = False
     resumable_fields: tuple[str, ...] = ()
+    filled_fields: tuple[str, ...] = ()
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
@@ -41,6 +42,8 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
         detail_parts: list[str] = ["preflight real"]
         if state.resumable_fields:
             detail_parts.append(f"campos={', '.join(state.resumable_fields)}")
+        if state.filled_fields:
+            detail_parts.append(f"preenchidos={', '.join(state.filled_fields)}")
         if state.modal_submit_visible and not (
             state.modal_next_visible
             or state.modal_review_visible
@@ -97,9 +100,20 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
 
 
 class LinkedInApplicationFlowInspector:
-    def __init__(self, *, storage_state_path: str | Path, headless: bool) -> None:
+    def __init__(
+        self,
+        *,
+        storage_state_path: str | Path,
+        headless: bool,
+        contact_email: str = "",
+        phone: str = "",
+        phone_country_code: str = "",
+    ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
+        self.contact_email = contact_email.strip()
+        self.phone = phone.strip()
+        self.phone_country_code = phone_country_code.strip()
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
         if "linkedin.com/jobs/" not in job.url.lower():
@@ -143,7 +157,16 @@ class LinkedInApplicationFlowInspector:
                 if state.easy_apply:
                     await self._try_open_easy_apply_modal(page)
                     await page.wait_for_timeout(2500)
+                    filled_fields = await self._try_fill_safe_fields(page)
+                    await page.wait_for_timeout(1200)
                     state = await self._read_page_state(page)
+                    if filled_fields:
+                        state = LinkedInApplicationPageState(
+                            **{
+                                **state.__dict__,
+                                "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
+                            }
+                        )
                     await self._try_close_modal(page)
             finally:
                 await context.close()
@@ -211,11 +234,13 @@ class LinkedInApplicationFlowInspector:
                 work_authorization_visible: workAuthorizationVisible,
                 years_of_experience_visible: yearsOfExperienceVisible,
                 resumable_fields: resumableFields,
+                filled_fields: [],
               };
             }
             """
         )
         raw_state["resumable_fields"] = tuple(raw_state.get("resumable_fields", ()))
+        raw_state["filled_fields"] = tuple(raw_state.get("filled_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
 
     async def _try_open_easy_apply_modal(self, page) -> None:
@@ -249,6 +274,97 @@ class LinkedInApplicationFlowInspector:
             return True
         except Exception:
             return False
+
+    async def _try_fill_safe_fields(self, page) -> tuple[str, ...]:
+        if await page.locator('[role="dialog"]').count() == 0:
+            return ()
+        filled = await page.evaluate(
+            """
+            ({ email, phone, countryCode }) => {
+              const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+              const modal = document.querySelector('[role="dialog"]');
+              if (!modal) return [];
+
+              const fields = Array.from(modal.querySelectorAll('input, textarea, select'));
+              const descriptorFor = (node) => {
+                const parts = [];
+                const labelId = node.getAttribute('aria-labelledby');
+                if (labelId) {
+                  labelId.split(/\\s+/).forEach((id) => {
+                    const labelNode = document.getElementById(id);
+                    if (labelNode) parts.push(labelNode.textContent || '');
+                  });
+                }
+                const closestLabel = node.closest('label');
+                if (closestLabel) parts.push(closestLabel.textContent || '');
+                const parentText = node.parentElement ? node.parentElement.textContent || '' : '';
+                parts.push(parentText);
+                parts.push(node.getAttribute('aria-label') || '');
+                parts.push(node.getAttribute('name') || '');
+                parts.push(node.id || '');
+                return normalize(parts.join(' '));
+              };
+              const findField = (patterns, tagName) => {
+                return fields.find((field) => {
+                  if (tagName && field.tagName.toLowerCase() !== tagName) return false;
+                  const descriptor = descriptorFor(field);
+                  return patterns.some((pattern) => descriptor.includes(pattern));
+                });
+              };
+              const filled = [];
+              const dispatch = (node) => {
+                node.dispatchEvent(new Event('input', { bubbles: true }));
+                node.dispatchEvent(new Event('change', { bubbles: true }));
+                node.dispatchEvent(new Event('blur', { bubbles: true }));
+              };
+
+              if (email) {
+                const field = findField(['email'], null);
+                if (field && !field.disabled && !field.readOnly) {
+                  field.focus();
+                  field.value = email;
+                  dispatch(field);
+                  filled.push('email');
+                }
+              }
+
+              if (phone) {
+                const field = findField(['phone', 'telefone', 'celular'], null);
+                if (field && !field.disabled && !field.readOnly) {
+                  field.focus();
+                  field.value = phone;
+                  dispatch(field);
+                  filled.push('telefone');
+                }
+              }
+
+              if (countryCode) {
+                const field = findField(['country code', 'codigo do pais', 'código do país', 'country/region phone number'], 'select');
+                if (field && !field.disabled) {
+                  const options = Array.from(field.options || []);
+                  const target = options.find((option) => {
+                    const label = normalize(option.label || option.textContent || '');
+                    const value = normalize(option.value || '');
+                    return label.includes(normalize(countryCode)) || value.includes(normalize(countryCode));
+                  });
+                  if (target) {
+                    field.value = target.value;
+                    dispatch(field);
+                    filled.push('codigo_pais');
+                  }
+                }
+              }
+
+              return filled;
+            }
+            """,
+            {
+                "email": self.contact_email,
+                "phone": self.phone,
+                "countryCode": self.phone_country_code,
+            },
+        )
+        return tuple(filled)
 
     async def _try_close_modal(self, page) -> None:
         if await page.locator('[role="dialog"]').count() == 0:
