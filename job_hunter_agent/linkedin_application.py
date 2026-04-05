@@ -258,6 +258,7 @@ class LinkedInApplicationFlowInspector:
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
                 await page.wait_for_timeout(2500)
+                await self._prepare_job_page_for_apply(page)
                 state = await self._read_page_state(page)
                 if state.easy_apply:
                     state = await self._inspect_easy_apply_modal(page, state)
@@ -298,6 +299,7 @@ class LinkedInApplicationFlowInspector:
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
                 await page.wait_for_timeout(2500)
+                await self._prepare_job_page_for_apply(page)
                 state = await self._read_page_state(page)
                 if not state.easy_apply:
                     return ApplicationSubmissionResult(
@@ -343,11 +345,29 @@ class LinkedInApplicationFlowInspector:
             """
             () => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-              const texts = Array.from(document.querySelectorAll("button, a"))
+              const main = document.querySelector('main') || document.body;
+              const topCard = document.querySelector('.jobs-details-top-card') || main;
+              const prioritizedSelectors = [
+                '[data-live-test-job-apply-button]',
+                '[data-control-name="jobdetails_topcard_inapply"]',
+                '[data-control-name="topcard_inapply"]',
+                '[data-control-name="jobs-details-top-card-apply-button"]',
+                '.jobs-apply-button',
+                '.jobs-apply-button--top-card button',
+                '.jobs-s-apply button',
+              ];
+              const prioritizedNodes = prioritizedSelectors.flatMap((selector) =>
+                Array.from(topCard.querySelectorAll(selector))
+              );
+              const prioritizedTexts = prioritizedNodes
+                .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
+                .filter(Boolean);
+              const texts = Array.from(main.querySelectorAll("button, a"))
                 .map((node) => normalize(node.textContent))
                 .filter(Boolean);
-              const joined = texts.join(" | ");
-              const easyApplyTexts = texts.filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
+              const joined = normalize(main.innerText || "").slice(0, 400);
+              const easyApplyTexts = (prioritizedTexts.length ? prioritizedTexts : texts)
+                .filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
               const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
               const submitVisible = texts.some((text) => text.includes("enviar candidatura") || text.includes("submit application"));
 
@@ -395,7 +415,7 @@ class LinkedInApplicationFlowInspector:
                 modal_file_upload: modal ? modal.querySelectorAll('input[type="file"]').length > 0 : false,
                 modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
                 cta_text: easyApplyTexts[0] || "",
-                sample: joined.slice(0, 400),
+                sample: joined,
                 modal_sample: modalTexts.join(" | ").slice(0, 400),
                 contact_email_visible: contactEmailVisible,
                 contact_phone_visible: contactPhoneVisible,
@@ -582,10 +602,14 @@ class LinkedInApplicationFlowInspector:
             return ""
 
     async def _try_open_easy_apply_modal(self, page) -> bool:
+        await self._dismiss_interfering_dialogs(page)
         candidates = [
+            page.locator('[data-live-test-job-apply-button] button, button[data-live-test-job-apply-button]').first,
             page.locator('[data-control-name="jobdetails_topcard_inapply"]').first,
             page.locator('[data-control-name="topcard_inapply"]').first,
             page.locator('[data-control-name="jobs-details-top-card-apply-button"]').first,
+            page.locator('.jobs-apply-button--top-card button').first,
+            page.locator('.jobs-s-apply button').first,
             page.locator('button.jobs-apply-button').first,
             page.locator('button[aria-label*="Easy Apply" i]').first,
             page.locator('button[aria-label*="Candidatura simplificada" i]').first,
@@ -640,6 +664,7 @@ class LinkedInApplicationFlowInspector:
         )
         if fallback_opened and await self._wait_for_modal(page):
             return True
+        await self._dismiss_interfering_dialogs(page)
         return False
 
     async def _wait_for_modal(self, page) -> bool:
@@ -650,6 +675,44 @@ class LinkedInApplicationFlowInspector:
             return True
         except Exception:
             return False
+
+    async def _prepare_job_page_for_apply(self, page) -> None:
+        try:
+            await page.locator("main").first.wait_for(state="visible", timeout=5000)
+        except Exception:
+            return
+        await page.wait_for_timeout(1200)
+        await self._dismiss_interfering_dialogs(page)
+        await page.evaluate(
+            """
+            () => {
+              const target =
+                document.querySelector('.jobs-details-top-card') ||
+                document.querySelector('[data-live-test-job-apply-button]') ||
+                document.querySelector('.jobs-search__job-details--container') ||
+                document.querySelector('main');
+              if (target) {
+                target.scrollIntoView({ behavior: 'instant', block: 'center' });
+              }
+            }
+            """
+        )
+        await page.wait_for_timeout(600)
+
+    async def _dismiss_interfering_dialogs(self, page) -> None:
+        candidates = [
+            page.get_by_role("button", name=re.compile(r"(dismiss|close|fechar|cancel|cancelar|not now|agora nao|agora não|skip)", re.IGNORECASE)).first,
+            page.locator('[role="dialog"] button[aria-label*="Dismiss"], [role="dialog"] button[aria-label*="Close"], [role="dialog"] button[aria-label*="Fechar"]').first,
+            page.locator('button[aria-label*="Dismiss"], button[aria-label*="Close"], button[aria-label*="Fechar"]').first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.click(timeout=1500)
+                await page.wait_for_timeout(500)
+            except Exception:
+                continue
 
     async def _try_fill_safe_fields(self, page) -> tuple[str, ...]:
         if await page.locator('[role="dialog"]').count() == 0:
