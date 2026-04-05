@@ -752,6 +752,56 @@ class ExternalKeyTests(TestCase):
         self.assertEqual(normalized["company"], "BRQ Digital Solutions")
         self.assertEqual(normalized["location"], "Brasil (Remoto)")
 
+    def test_normalize_linkedin_card_keeps_regional_location_and_cleans_company(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor full stack",
+                "company": "Instituto de Pesquisas ELDORADO Desenvolvedor full stack",
+                "location": "Campinas e RegiÃ£o",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Instituto de Pesquisas ELDORADO Desenvolvedor full stack Campinas e RegiÃ£o",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Instituto de Pesquisas ELDORADO")
+        self.assertEqual(normalized["location"], "Campinas e RegiÃ£o")
+
+    def test_normalize_linkedin_card_cleans_truncated_premium_prefix_and_role_suffix(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor FullStack Pleno",
+                "company": "mium: 50% de desconto btime Desenvolvedor FullStack Pleno",
+                "location": "mium: 50% de desconto btime Desenvolvedor FullStack Pleno SÃ£o Paulo, SÃ£o Paulo, Brasil",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "mium: 50% de desconto btime Desenvolvedor FullStack Pleno SÃ£o Paulo, SÃ£o Paulo, Brasil",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "btime")
+        self.assertEqual(normalized["location"], "SÃ£o Paulo, SÃ£o Paulo, Brasil")
+
+    def test_normalize_linkedin_card_cleans_ai_stealth_company_from_title_pollution(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Full Stack Engineer",
+                "company": "AI Stealth Full Stack Engineer Brasil",
+                "location": "",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "AI Stealth Full Stack Engineer Brasil",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "AI Stealth")
+
     def test_normalize_linkedin_card_strips_title_pollution_from_company_before_location(self) -> None:
         normalized = normalize_linkedin_card(
             {

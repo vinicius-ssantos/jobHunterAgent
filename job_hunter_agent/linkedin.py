@@ -256,6 +256,7 @@ def strip_linkedin_chrome_prefix(value: str) -> str:
     cleaned = _normalize_whitespace(value)
     chrome_markers = (
         "Reative Premium:",
+        "Premium:",
         "Para negócios",
         "Notificações",
         "Mensagens",
@@ -267,6 +268,8 @@ def strip_linkedin_chrome_prefix(value: str) -> str:
         if marker_index != -1:
             cleaned = _normalize_whitespace(cleaned[marker_index + len(marker) :])
             break
+    cleaned = re.sub(r"^[A-Za-zÀ-ÿ]+:\s*\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^.*?\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
     return cleaned
 
@@ -298,7 +301,7 @@ def clean_linkedin_title(value: str) -> str:
 
 
 def clean_linkedin_company(value: str) -> str:
-    cleaned = _normalize_whitespace(value)
+    cleaned = strip_linkedin_chrome_prefix(_normalize_whitespace(value))
     repeated_prefix = re.match(r"^(.{10,80}?)\s+\1\s+(.+)$", cleaned, flags=re.IGNORECASE)
     if repeated_prefix:
         cleaned = repeated_prefix.group(2).strip()
@@ -313,11 +316,13 @@ def clean_linkedin_company(value: str) -> str:
         flags=re.IGNORECASE,
     )
     cleaned = re.sub(
-        r"\s+(?:Pessoa\s+Desenvolvedora|Desenvolvedor(?:\(a\)|a)?|Engenheir[oa](?:\(a\))?|Software Engineer|Analista|Backend|Fullstack)\b.*$",
+        r"\s+(?:Pessoa\s+Desenvolvedora|Desenvolvedor(?:\(a\)|a)?|Engenheir[oa](?:\(a\))?|Software Engineer|Full Stack Engineer|Analista|Backend|Fullstack)\b.*$",
         "",
         cleaned,
         flags=re.IGNORECASE,
     )
+    cleaned = re.sub(r"\s+Full Stack Engineer\s+Brasil$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+(?:Engineer|Developer)\s+Brasil$", "", cleaned, flags=re.IGNORECASE)
     cleaned = _normalize_whitespace(cleaned)
     noise_phrases = (
         "Promovida",
@@ -386,10 +391,13 @@ def clean_linkedin_company(value: str) -> str:
 
 
 def clean_linkedin_location(value: str) -> str:
-    cleaned = _normalize_whitespace(value)
+    cleaned = strip_linkedin_chrome_prefix(_normalize_whitespace(value))
     preserved = preserve_explicit_linkedin_location(cleaned)
     if preserved:
         return preserved
+    regional_match = re.search(r"([A-Za-zÀ-ÿÃ£ ]{2,40}\s+e\s+Regi(?:ã|a|Ã£)o)", cleaned, flags=re.IGNORECASE)
+    if regional_match:
+        return _normalize_whitespace(regional_match.group(1))
     snippet = _extract_linkedin_location_snippet(cleaned)
     if snippet:
         return snippet
@@ -477,6 +485,8 @@ def looks_like_linkedin_location(value: str) -> bool:
     if not normalized:
         return False
     lower = normalized.lower()
+    if re.search(r"\be\s+regi(?:ã|a|ã£)o\b", lower):
+        return True
     if lower in {"remoto", "remote", "híbrido", "hibrido", "hybrid", "presencial", "onsite"}:
         return True
     if any(
