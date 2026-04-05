@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 import re
 
 from job_hunter_agent.browser_support import load_playwright_storage_state, resolve_local_chromium
+from job_hunter_agent.applicant import ApplicationSubmissionResult
 from job_hunter_agent.domain import JobPosting
 
 
@@ -152,10 +154,28 @@ class LinkedInApplicationFlowInspector:
             )
         return self._inspect_sync(job)
 
+    def submit(self, application, job: JobPosting) -> ApplicationSubmissionResult:
+        if "linkedin.com/jobs/" not in job.url.lower():
+            return ApplicationSubmissionResult(
+                status="error_submit",
+                detail="submissao real indisponivel para vaga fora do LinkedIn interno",
+            )
+        if not self.storage_state_path.exists():
+            return ApplicationSubmissionResult(
+                status="error_submit",
+                detail="sessao autenticada do LinkedIn nao encontrada para submissao real",
+            )
+        return self._submit_sync(job)
+
     def _inspect_sync(self, job: JobPosting) -> LinkedInApplicationInspection:
         import asyncio
 
         return asyncio.run(self._inspect_async(job))
+
+    def _submit_sync(self, job: JobPosting) -> ApplicationSubmissionResult:
+        import asyncio
+
+        return asyncio.run(self._submit_async(job))
 
     async def _inspect_async(self, job: JobPosting) -> LinkedInApplicationInspection:
         try:
@@ -185,6 +205,53 @@ class LinkedInApplicationFlowInspector:
                 await browser.close()
 
         return classify_linkedin_application_page_state(state)
+
+    async def _submit_async(self, job: JobPosting) -> ApplicationSubmissionResult:
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de candidatura assistida nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+
+        executable_path = resolve_local_chromium()
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
+                executable_path=str(executable_path),
+                headless=self.headless,
+                args=["--start-maximized"],
+            )
+            context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
+            page = await context.new_page()
+            try:
+                await page.goto(job.url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(2500)
+                state = await self._read_page_state(page)
+                if not state.easy_apply:
+                    return ApplicationSubmissionResult(
+                        status="error_submit",
+                        detail="submissao real bloqueada: CTA de candidatura simplificada nao encontrado",
+                    )
+                state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
+                if not state.modal_open or not state.modal_submit_visible:
+                    return ApplicationSubmissionResult(
+                        status="error_submit",
+                        detail="submissao real bloqueada: fluxo nao chegou ao botao de envio",
+                    )
+                submitted = await self._try_submit_application(page)
+                if not submitted:
+                    return ApplicationSubmissionResult(
+                        status="error_submit",
+                        detail="submissao real falhou: clique final de envio nao confirmou sucesso",
+                    )
+                return ApplicationSubmissionResult(
+                    status="submitted",
+                    detail="submissao real concluida no LinkedIn",
+                    submitted_at=datetime.now().isoformat(timespec="seconds"),
+                )
+            finally:
+                await context.close()
+                await browser.close()
 
     async def _read_page_state(self, page) -> LinkedInApplicationPageState:
         raw_state = await page.evaluate(
@@ -259,7 +326,13 @@ class LinkedInApplicationFlowInspector:
         raw_state["filled_fields"] = tuple(raw_state.get("filled_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
 
-    async def _inspect_easy_apply_modal(self, page, initial_state: LinkedInApplicationPageState) -> LinkedInApplicationPageState:
+    async def _inspect_easy_apply_modal(
+        self,
+        page,
+        initial_state: LinkedInApplicationPageState,
+        *,
+        close_modal: bool = True,
+    ) -> LinkedInApplicationPageState:
         state = initial_state
         opened = False
         for _ in range(2):
@@ -336,7 +409,8 @@ class LinkedInApplicationFlowInspector:
                     "ready_to_submit": True,
                 }
             )
-        await self._try_close_modal(page)
+        if close_modal:
+            await self._try_close_modal(page)
         return state
 
     async def _try_open_easy_apply_modal(self, page) -> None:
@@ -538,3 +612,51 @@ class LinkedInApplicationFlowInspector:
                     return
             except Exception:
                 continue
+
+    async def _try_submit_application(self, page) -> bool:
+        candidates = [
+            page.get_by_role(
+                "button",
+                name=re.compile(r"(submit application|enviar candidatura)", re.IGNORECASE),
+            ).first,
+            page.locator('[role="dialog"] button').filter(
+                has_text=re.compile(r"(submit application|enviar candidatura)", re.IGNORECASE)
+            ).first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.scroll_into_view_if_needed()
+                await candidate.click(timeout=4000, force=True)
+                await page.wait_for_timeout(2500)
+                if await self._detect_submit_success(page):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    async def _detect_submit_success(self, page) -> bool:
+        try:
+            return bool(
+                await page.evaluate(
+                    """
+                    () => {
+                      const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+                      const bodyText = normalize(document.body.innerText || "");
+                      const successHints = [
+                        "application submitted",
+                        "candidatura enviada",
+                        "your application was sent",
+                        "sua candidatura foi enviada",
+                      ];
+                      if (successHints.some((hint) => bodyText.includes(hint))) {
+                        return true;
+                      }
+                      return document.querySelector('[role="dialog"]') === null;
+                    }
+                    """
+                )
+            )
+        except Exception:
+            return False

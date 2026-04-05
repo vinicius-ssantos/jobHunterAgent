@@ -14,6 +14,7 @@ from job_hunter_agent.notifier import (
     resolve_application_preflight_request,
     resolve_application_action,
     resolve_review_action,
+    resolve_application_submit_request,
 )
 from job_hunter_agent.repository import SqliteJobRepository
 from job_hunter_agent.review_rationale import (
@@ -157,7 +158,8 @@ class ReviewActionTests(TestCase):
         self.assertEqual(ready_rows[0][0], ("Confirmar", "app_confirm:1"))
         self.assertEqual(confirmed_rows[0][0], ("Validar fluxo", "app_preflight:1"))
         self.assertEqual(confirmed_rows[0][1], ("Autorizar envio", "app_authorize:1"))
-        self.assertEqual(authorized_rows[0][0], ("Cancelar", "app_cancel:1"))
+        self.assertEqual(authorized_rows[0][0], ("Enviar candidatura", "app_submit:1"))
+        self.assertEqual(authorized_rows[0][1], ("Cancelar", "app_cancel:1"))
 
     def test_resolve_application_preflight_request_requires_confirmed_status(self) -> None:
         from job_hunter_agent.domain import JobApplication
@@ -174,6 +176,26 @@ class ReviewActionTests(TestCase):
         self.assertEqual(
             resolve_application_preflight_request(draft),
             (False, "Candidatura ainda nao foi confirmada para preflight: id=2"),
+        )
+
+    def test_resolve_application_submit_request_requires_authorized_status(self) -> None:
+        from job_hunter_agent.domain import JobApplication
+
+        authorized = JobApplication(id=1, job_id=1, status="authorized_submit")
+        confirmed = JobApplication(id=2, job_id=2, status="confirmed")
+        submitted = JobApplication(id=3, job_id=3, status="submitted")
+
+        self.assertEqual(
+            resolve_application_submit_request(authorized),
+            (True, "Executando submissao real da candidatura: id=1"),
+        )
+        self.assertEqual(
+            resolve_application_submit_request(confirmed),
+            (False, "Candidatura ainda nao foi autorizada para envio: id=2"),
+        )
+        self.assertEqual(
+            resolve_application_submit_request(submitted),
+            (False, "Candidatura ja foi enviada: id=3"),
         )
 
     def test_parse_structured_review_rationale_accepts_valid_json(self) -> None:

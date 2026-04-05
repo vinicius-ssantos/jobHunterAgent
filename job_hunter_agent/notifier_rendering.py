@@ -128,6 +128,7 @@ def build_application_action_rows(application: JobApplication, button_factory) -
     if application.status == "authorized_submit":
         return [
             [
+                button_factory("Enviar candidatura", callback_data=f"app_submit:{application.id}"),
                 button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
             ]
         ]

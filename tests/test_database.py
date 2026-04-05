@@ -4,6 +4,7 @@ import unittest
 from job_hunter_agent.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
+    ApplicationSubmissionService,
     ApplicationSupportAssessment,
     classify_job_application_support,
     parse_application_support_response,
@@ -570,6 +571,51 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.outcome, "ready")
         self.assertEqual(stored.status, "confirmed")
         self.assertIn("preflight real ok", stored.notes)
+
+    def test_application_submission_requires_authorized_status(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationSubmissionService(self.repository).run_for_application(application.id)
+
+        self.assertEqual(result.outcome, "ignored")
+        self.assertEqual(result.application_status, "confirmed")
+        self.assertIn("apenas para candidaturas autorizadas", result.detail)
+
+    def test_application_submission_marks_submitted_when_applicant_succeeds(self) -> None:
+        class _Applicant:
+            def submit(self, application, job):
+                from job_hunter_agent.applicant import ApplicationSubmissionResult
+
+                return ApplicationSubmissionResult(
+                    status="submitted",
+                    detail="submissao real concluida",
+                    submitted_at="2026-04-05T10:00:00",
+                )
+
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="authorized_submit")
+
+        result = ApplicationSubmissionService(self.repository, applicant=_Applicant()).run_for_application(
+            application.id
+        )
+        stored = self.repository.get_application(application.id)
+
+        self.assertEqual(result.outcome, "submitted")
+        self.assertEqual(result.application_status, "submitted")
+        self.assertEqual(stored.status, "submitted")
+        self.assertEqual(stored.submitted_at, "2026-04-05T10:00:00")
+        self.assertIn("submissao real concluida", stored.notes)
 
     def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]

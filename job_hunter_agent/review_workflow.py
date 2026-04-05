@@ -33,6 +33,18 @@ def resolve_application_preflight_request(application: JobApplication) -> tuple[
     return False, f"Candidatura ainda nao foi confirmada para preflight: id={application.id}"
 
 
+def resolve_application_submit_request(application: JobApplication) -> tuple[bool, str]:
+    if application.status == "authorized_submit":
+        return True, f"Executando submissao real da candidatura: id={application.id}"
+    if application.status == "submitted":
+        return False, f"Candidatura ja foi enviada: id={application.id}"
+    if application.status == "cancelled":
+        return False, f"Candidatura ja estava cancelada: id={application.id}"
+    if application.status == "error_submit":
+        return False, f"Candidatura esta em erro de submissao: id={application.id}"
+    return False, f"Candidatura ainda nao foi autorizada para envio: id={application.id}"
+
+
 def resolve_application_action(application: JobApplication, action: str) -> tuple[str | None, str]:
     if action == "app_prepare":
         if application.status == "draft":

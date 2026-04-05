@@ -111,6 +111,18 @@ Definicao de pronto:
 - o resumo e os cards refletem esse novo estado
 - nenhum clique de envio real e executado
 
+### Fase 11 - Submit real controlado
+
+Objetivo:
+- permitir o primeiro envio real apenas a partir de candidaturas explicitamente autorizadas
+
+Definicao de pronto:
+- o Telegram expõe `Enviar candidatura` apenas para `authorized_submit`
+- o submit real usa o fluxo interno do LinkedIn, sem reabrir esse passo para outros estados
+- sucesso persiste `submitted`
+- falha persiste `error_submit`
+- essa fase continua fora do loop automatico principal
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -130,6 +142,7 @@ Definicao de pronto:
 - [x] Fase 8 concluida
 - [x] Fase 9 concluida
 - [x] Fase 10 concluida
+- [ ] Fase 11 concluida
 - [x] README atualizado se a operacao mudar
 - [x] AGENTS atualizado para refletir o novo estado de autorizacao final
 
@@ -144,3 +157,4 @@ Definicao de pronto:
 - inspecao real em outra vaga interna do LinkedIn com `curriculo_carregado=sim`
 - inspecao real em vaga interna do LinkedIn com `revisao_final_alcancada=sim` e `pronto_para_envio=sim`
 - resumo e acoes de `/candidaturas` atualizados para refletir `authorized_submit`
+- testes e wiring do submit real implementados, aguardando validacao manual controlada

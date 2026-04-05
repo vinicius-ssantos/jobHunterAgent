@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Protocol
 
 from job_hunter_agent.browser_support import extract_json_object
@@ -35,6 +36,13 @@ class ApplicationSupportAssessment:
 
 @dataclass(frozen=True)
 class ApplicationPreflightResult:
+    outcome: str
+    detail: str
+    application_status: str
+
+
+@dataclass(frozen=True)
+class ApplicationSubmitResult:
     outcome: str
     detail: str
     application_status: str
@@ -268,6 +276,89 @@ class ApplicationPreflightService:
         )
         return ApplicationPreflightResult(
             outcome="blocked",
+            detail=detail,
+            application_status="error_submit",
+        )
+
+
+class ApplicationSubmissionService:
+    def __init__(self, repository: JobRepository, applicant: JobApplicant | None = None) -> None:
+        self.repository = repository
+        self.applicant = applicant
+
+    def run_for_application(self, application_id: int) -> ApplicationSubmitResult:
+        application = self.repository.get_application(application_id)
+        if not application:
+            raise ValueError(f"Application not found: {application_id}")
+        job = self.repository.get_job(application.job_id)
+        if not job:
+            raise ValueError(f"Job not found for application: {application_id}")
+
+        if application.status != "authorized_submit":
+            detail = "submissao real disponivel apenas para candidaturas autorizadas"
+            return ApplicationSubmitResult(
+                outcome="ignored",
+                detail=detail,
+                application_status=application.status,
+            )
+
+        if self.applicant is None:
+            detail = "submissao real indisponivel nesta execucao"
+            self.repository.mark_application_status(
+                application.id,
+                status="authorized_submit",
+                notes=_append_note(application.notes, detail),
+                last_error="",
+            )
+            return ApplicationSubmitResult(
+                outcome="ignored",
+                detail=detail,
+                application_status="authorized_submit",
+            )
+
+        try:
+            result = self.applicant.submit(application, job)
+        except Exception as exc:
+            detail = f"submissao real falhou ao executar o applicant: {exc}"
+            self.repository.mark_application_status(
+                application.id,
+                status="error_submit",
+                notes=_append_note(application.notes, detail),
+                last_error=detail,
+            )
+            return ApplicationSubmitResult(
+                outcome="error",
+                detail=detail,
+                application_status="error_submit",
+            )
+
+        detail = result.detail.strip() or "submissao real executada sem detalhe"
+        if result.external_reference:
+            detail = f"{detail} | referencia={result.external_reference}"
+
+        if result.status == "submitted":
+            submitted_at = result.submitted_at or datetime.now().isoformat(timespec="seconds")
+            self.repository.mark_application_status(
+                application.id,
+                status="submitted",
+                notes=_append_note(application.notes, detail),
+                last_error="",
+                submitted_at=submitted_at,
+            )
+            return ApplicationSubmitResult(
+                outcome="submitted",
+                detail=detail,
+                application_status="submitted",
+            )
+
+        self.repository.mark_application_status(
+            application.id,
+            status="error_submit",
+            notes=_append_note(application.notes, detail),
+            last_error=detail,
+        )
+        return ApplicationSubmitResult(
+            outcome="error",
             detail=detail,
             application_status="error_submit",
         )

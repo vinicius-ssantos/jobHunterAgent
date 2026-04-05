@@ -185,6 +185,31 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(app.application_preflight.called_with, [42])
         self.assertEqual(reply, "Preflight: preflight ok (status=confirmed)")
 
+    async def test_handle_application_submit_returns_service_message(self) -> None:
+        class _SubmissionService:
+            def __init__(self) -> None:
+                self.called_with: list[int] = []
+
+            def run_for_application(self, application_id: int):
+                self.called_with.append(application_id)
+                return type(
+                    "Result",
+                    (),
+                    {
+                        "outcome": "submitted",
+                        "detail": "submissao real concluida",
+                        "application_status": "submitted",
+                    },
+                )
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.application_submission = _SubmissionService()
+
+        reply = await app.handle_application_submit(42)
+
+        self.assertEqual(app.application_submission.called_with, [42])
+        self.assertEqual(reply, "Submissao: submissao real concluida (status=submitted)")
+
     async def test_run_fixed_cycles_executes_requested_amount(self) -> None:
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.enable_telegram = True
@@ -274,6 +299,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
             enable_telegram=False,
             on_approved=None,
             on_application_preflight=None,
+            on_application_submit=None,
         )
 
         self.assertIsInstance(notifier, NullNotifier)

@@ -299,6 +299,7 @@ python main.py
   - `Confirmar` move `ready_for_review -> confirmed`
   - `Validar fluxo` executa um preflight manual em candidaturas `confirmed`
   - `Autorizar envio` move `confirmed -> authorized_submit`
+  - `Enviar candidatura` executa o submit real apenas para candidaturas `authorized_submit`
   - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
@@ -344,6 +345,16 @@ Quando o preflight indicar que o fluxo esta pronto para envio, ainda existe uma 
 - `Autorizar envio` move `confirmed -> authorized_submit`
 - esse estado existe para separar "fluxo pronto" de "usuario permitiu submit real"
 - qualquer tentativa futura de submit real deve partir apenas de `authorized_submit`
+
+Se a candidatura estiver em `authorized_submit`, o Telegram tambem pode expor:
+
+- `Enviar candidatura`
+
+Esse passo e o primeiro submit real controlado do projeto:
+
+- nao faz parte do loop automatico principal
+- depende de clique humano explicito no Telegram
+- usa o fluxo interno do LinkedIn e os dados locais configurados
 
 ## Como adicionar um novo adapter
 

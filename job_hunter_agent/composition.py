@@ -5,6 +5,7 @@ from typing import Callable
 from job_hunter_agent.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
+    ApplicationSubmissionService,
     OllamaApplicationSupportAssessor,
 )
 from job_hunter_agent.application_priority import OllamaApplicationPriorityAssessor
@@ -93,6 +94,20 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
     )
 
 
+def create_application_submission_service(repository: JobRepository, settings: Settings) -> ApplicationSubmissionService:
+    return ApplicationSubmissionService(
+        repository,
+        applicant=LinkedInApplicationFlowInspector(
+            storage_state_path=settings.linkedin_storage_state_path,
+            headless=settings.browser_headless,
+            resume_path=settings.resume_path,
+            contact_email=settings.application_contact_email,
+            phone=settings.application_phone,
+            phone_country_code=settings.application_phone_country_code,
+        ),
+    )
+
+
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
     known_job_lookup = build_known_job_lookup(repository)
     return JobCollectionService(
@@ -139,6 +154,7 @@ def create_notifier(
     enable_telegram: bool,
     on_approved,
     on_application_preflight,
+    on_application_submit,
 ):
     if not enable_telegram:
         return NullNotifier()
@@ -147,6 +163,7 @@ def create_notifier(
         repository=repository,
         on_approved=on_approved,
         on_application_preflight=on_application_preflight,
+        on_application_submit=on_application_submit,
         review_rationale_formatter=create_review_rationale_formatter(settings),
     )
 
