@@ -187,6 +187,7 @@ O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e 
 - quando os dados de contato estiverem configurados, ele tenta preencher esses campos em dry-run, sem enviar candidatura
 - se houver `Next/Continuar`, o inspetor tambem tenta avancar uma etapa e registrar se houve progresso real no fluxo
 - quando o modal exigir curriculo, o inspetor tambem pode carregar o arquivo configurado em `resume_path` em dry-run
+- se a etapa `Review/Revisar` aparecer, o inspetor tambem tenta alcanca-la e registrar quando o fluxo fica pronto para um submit humano
 - nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:

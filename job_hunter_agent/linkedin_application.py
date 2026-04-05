@@ -37,6 +37,8 @@ class LinkedInApplicationPageState:
     filled_fields: tuple[str, ...] = ()
     progressed_to_next_step: bool = False
     uploaded_resume: bool = False
+    reached_review_step: bool = False
+    ready_to_submit: bool = False
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
@@ -50,13 +52,19 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail_parts.append("avancou_proxima_etapa=sim")
         if state.uploaded_resume:
             detail_parts.append("curriculo_carregado=sim")
-        if state.modal_submit_visible and not (
-            state.modal_next_visible
-            or state.modal_review_visible
-            or state.modal_file_upload
-            or state.modal_questions_visible
+        if state.reached_review_step:
+            detail_parts.append("revisao_final_alcancada=sim")
+        if state.ready_to_submit:
+            detail_parts.append("pronto_para_envio=sim")
+        if state.ready_to_submit or (
+            state.modal_submit_visible and not (
+                state.modal_next_visible
+                or state.modal_review_visible
+                or state.modal_file_upload
+                or state.modal_questions_visible
+            )
         ):
-            detail_parts.append("ok: fluxo simplificado aberto no LinkedIn")
+            detail_parts.append("ok: fluxo pronto para submissao assistida no LinkedIn")
             if state.cta_text:
                 detail_parts.append(f"cta={state.cta_text}")
             if state.modal_sample:
@@ -65,6 +73,14 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
                 outcome="ready",
                 detail=" | ".join(detail_parts),
             )
+
+        if state.modal_submit_visible and not (
+            state.modal_next_visible
+            or state.modal_review_visible
+            or state.modal_file_upload
+            or state.modal_questions_visible
+        ):
+            detail_parts.append("ok: fluxo simplificado aberto no LinkedIn")
 
         detail_parts.append("inconclusivo: fluxo do LinkedIn exige revisao manual")
         if state.modal_next_visible:
@@ -233,6 +249,8 @@ class LinkedInApplicationFlowInspector:
                 filled_fields: [],
                 progressed_to_next_step: false,
                 uploaded_resume: false,
+                reached_review_step: false,
+                ready_to_submit: false,
               };
             }
             """
@@ -279,6 +297,16 @@ class LinkedInApplicationFlowInspector:
                 await page.wait_for_timeout(1500)
                 state = await self._read_page_state(page)
 
+        reached_review_step = False
+        ready_to_submit = False
+        if state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+            reached_review_step = await self._try_open_review_step(page)
+            if reached_review_step:
+                await page.wait_for_timeout(1800)
+                state = await self._read_page_state(page)
+        if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+            ready_to_submit = True
+
         if progressed:
             state = LinkedInApplicationPageState(
                 **{
@@ -292,6 +320,20 @@ class LinkedInApplicationFlowInspector:
                 **{
                     **state.__dict__,
                     "uploaded_resume": True,
+                }
+            )
+        if reached_review_step:
+            state = LinkedInApplicationPageState(
+                **{
+                    **state.__dict__,
+                    "reached_review_step": True,
+                }
+            )
+        if ready_to_submit:
+            state = LinkedInApplicationPageState(
+                **{
+                    **state.__dict__,
+                    "ready_to_submit": True,
                 }
             )
         await self._try_close_modal(page)
@@ -454,6 +496,28 @@ class LinkedInApplicationFlowInspector:
                 if await candidate.count() == 0:
                     continue
                 await candidate.set_input_files(str(self.resume_path))
+                return True
+            except Exception:
+                continue
+        return False
+
+    async def _try_open_review_step(self, page) -> bool:
+        candidates = [
+            page.get_by_role(
+                "button",
+                name=re.compile(r"(review|revisar)", re.IGNORECASE),
+            ).first,
+            page.locator('[role="dialog"] button').filter(
+                has_text=re.compile(r"(review|revisar)", re.IGNORECASE)
+            ).first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.scroll_into_view_if_needed()
+                await candidate.click(timeout=3000, force=True)
+                await page.wait_for_timeout(1200)
                 return True
             except Exception:
                 continue

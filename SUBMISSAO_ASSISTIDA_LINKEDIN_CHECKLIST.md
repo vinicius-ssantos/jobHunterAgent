@@ -89,6 +89,17 @@ Definicao de pronto:
 - o detalhe do preflight registra `curriculo_carregado=sim` quando o upload ocorrer
 - nenhum clique de envio real e executado
 
+### Fase 9 - Alcance da revisao final
+
+Objetivo:
+- detectar quando o fluxo chega ao estado final de revisao, pronto para um submit humano
+
+Definicao de pronto:
+- o inspetor tenta abrir a etapa `Review/Revisar` quando ela aparecer
+- o detalhe do preflight registra `revisao_final_alcancada=sim`
+- se o fluxo chegar ao estado final com botao de submit visivel, registra `pronto_para_envio=sim`
+- nenhum clique de envio real e executado
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -106,6 +117,7 @@ Definicao de pronto:
 - [x] Fase 6 concluida
 - [x] Fase 7 concluida
 - [x] Fase 8 concluida
+- [x] Fase 9 concluida
 - [x] README atualizado se a operacao mudar
 - [x] AGENTS reavaliado; sem mudancas necessarias nesta fase
 
@@ -118,3 +130,4 @@ Definicao de pronto:
 - preflight real reexecutado com abertura do modal e classificacao `manual_review` para fluxo multi-etapas
 - preflight real reexecutado com `avancou_proxima_etapa=sim` e deteccao de `upload_cv=sim`
 - inspecao real em outra vaga interna do LinkedIn com `curriculo_carregado=sim`
+- inspecao real em vaga interna do LinkedIn com `revisao_final_alcancada=sim` e `pronto_para_envio=sim`
