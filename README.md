@@ -298,6 +298,7 @@ python main.py
   - `Preparar` move `draft -> ready_for_review`
   - `Confirmar` move `ready_for_review -> confirmed`
   - `Validar fluxo` executa um preflight manual em candidaturas `confirmed`
+  - `Autorizar envio` move `confirmed -> authorized_submit`
   - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
@@ -315,6 +316,7 @@ Estados de candidatura ficam separados dos estados de vaga:
 - `draft`
 - `ready_for_review`
 - `confirmed`
+- `authorized_submit`
 - `submitted`
 - `error_submit`
 - `cancelled`
@@ -336,6 +338,12 @@ Esse preflight:
 - valida se o fluxo esta num portal minimamente suportado
 - registra sucesso mantendo `confirmed`
 - ou registra bloqueio em `error_submit` quando o fluxo nao e suportado
+
+Quando o preflight indicar que o fluxo esta pronto para envio, ainda existe uma etapa humana final:
+
+- `Autorizar envio` move `confirmed -> authorized_submit`
+- esse estado existe para separar "fluxo pronto" de "usuario permitiu submit real"
+- qualquer tentativa futura de submit real deve partir apenas de `authorized_submit`
 
 ## Como adicionar um novo adapter
 

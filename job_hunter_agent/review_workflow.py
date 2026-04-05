@@ -24,6 +24,8 @@ def resolve_review_action(job: JobPosting, action: str) -> tuple[str | None, str
 def resolve_application_preflight_request(application: JobApplication) -> tuple[bool, str]:
     if application.status == "confirmed":
         return True, f"Executando preflight da candidatura: id={application.id}"
+    if application.status == "authorized_submit":
+        return False, f"Candidatura ja foi autorizada para envio: id={application.id}"
     if application.status == "cancelled":
         return False, f"Candidatura ja estava cancelada: id={application.id}"
     if application.status == "error_submit":
@@ -53,7 +55,18 @@ def resolve_application_action(application: JobApplication, action: str) -> tupl
     if action == "app_cancel":
         if application.status == "cancelled":
             return None, f"Candidatura ja estava cancelada: id={application.id}"
-        if application.status in {"draft", "ready_for_review", "confirmed"}:
+        if application.status in {"draft", "ready_for_review", "confirmed", "authorized_submit"}:
             return "cancelled", f"Candidatura cancelada: id={application.id}"
+    if action == "app_authorize":
+        if application.status == "confirmed":
+            return "authorized_submit", f"Candidatura autorizada para envio: id={application.id}"
+        if application.status == "authorized_submit":
+            return None, f"Candidatura ja estava autorizada para envio: id={application.id}"
+        if application.status == "ready_for_review":
+            return None, f"Candidatura ainda nao foi confirmada: id={application.id}"
+        if application.status == "draft":
+            return None, f"Candidatura ainda nao foi preparada para envio: id={application.id}"
+        if application.status == "cancelled":
+            return None, f"Candidatura ja estava cancelada: id={application.id}"
     return None, "Acao de candidatura invalida."
 

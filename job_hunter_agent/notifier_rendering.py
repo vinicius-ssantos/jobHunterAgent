@@ -36,7 +36,7 @@ def build_missing_application_reply(application_id: int) -> str:
 
 def build_application_queue_message(repository: JobRepository) -> str:
     summary = repository.application_summary()
-    tracked_statuses = ("draft", "ready_for_review", "confirmed")
+    tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit")
     preview_lines: list[str] = []
     for status in tracked_statuses:
         applications = _sort_applications_by_priority(repository.list_applications_by_status(status))
@@ -48,6 +48,7 @@ def build_application_queue_message(repository: JobRepository) -> str:
         f"Rascunhos: {summary['draft']}",
         f"Prontas para revisao: {summary['ready_for_review']}",
         f"Confirmadas: {summary['confirmed']}",
+        f"Autorizadas para envio: {summary['authorized_submit']}",
         f"Enviadas: {summary['submitted']}",
         f"Com erro: {summary['error_submit']}",
         f"Canceladas: {summary['cancelled']}",
@@ -120,6 +121,13 @@ def build_application_action_rows(application: JobApplication, button_factory) -
         return [
             [
                 button_factory("Validar fluxo", callback_data=f"app_preflight:{application.id}"),
+                button_factory("Autorizar envio", callback_data=f"app_authorize:{application.id}"),
+                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
+            ]
+        ]
+    if application.status == "authorized_submit":
+        return [
+            [
                 button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
             ]
         ]

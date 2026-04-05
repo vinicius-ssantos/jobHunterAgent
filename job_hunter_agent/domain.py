@@ -9,6 +9,7 @@ VALID_APPLICATION_STATUSES = {
     "draft",
     "ready_for_review",
     "confirmed",
+    "authorized_submit",
     "submitted",
     "error_submit",
     "cancelled",

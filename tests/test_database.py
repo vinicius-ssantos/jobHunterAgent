@@ -271,6 +271,11 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         )
         self.repository.mark_application_status(
             application.id,
+            status="authorized_submit",
+            notes="autorizado manualmente para envio",
+        )
+        self.repository.mark_application_status(
+            application.id,
             status="submitted",
             submitted_at="2026-04-04T10:00:00",
         )
@@ -279,9 +284,10 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         summary = self.repository.application_summary()
 
         self.assertEqual(stored.status, "submitted")
-        self.assertEqual(stored.notes, "confirmado manualmente")
+        self.assertEqual(stored.notes, "autorizado manualmente para envio")
         self.assertEqual(stored.submitted_at, "2026-04-04T10:00:00")
         self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["authorized_submit"], 0)
         self.assertEqual(summary["submitted"], 1)
 
     def test_mark_application_status_rejects_invalid_value(self) -> None:

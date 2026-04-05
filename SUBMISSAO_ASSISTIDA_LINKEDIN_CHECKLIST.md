@@ -100,6 +100,17 @@ Definicao de pronto:
 - se o fluxo chegar ao estado final com botao de submit visivel, registra `pronto_para_envio=sim`
 - nenhum clique de envio real e executado
 
+### Fase 10 - Autorizacao humana final
+
+Objetivo:
+- separar explicitamente o estado "fluxo pronto para envio" do estado "usuario autorizou submit real"
+
+Definicao de pronto:
+- o Telegram permite `Autorizar envio` apenas a partir de candidaturas `confirmed`
+- a candidatura transita para `authorized_submit`
+- o resumo e os cards refletem esse novo estado
+- nenhum clique de envio real e executado
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -118,8 +129,9 @@ Definicao de pronto:
 - [x] Fase 7 concluida
 - [x] Fase 8 concluida
 - [x] Fase 9 concluida
+- [x] Fase 10 concluida
 - [x] README atualizado se a operacao mudar
-- [x] AGENTS reavaliado; sem mudancas necessarias nesta fase
+- [x] AGENTS atualizado para refletir o novo estado de autorizacao final
 
 ## Validacao final
 
@@ -131,3 +143,4 @@ Definicao de pronto:
 - preflight real reexecutado com `avancou_proxima_etapa=sim` e deteccao de `upload_cv=sim`
 - inspecao real em outra vaga interna do LinkedIn com `curriculo_carregado=sim`
 - inspecao real em vaga interna do LinkedIn com `revisao_final_alcancada=sim` e `pronto_para_envio=sim`
+- resumo e acoes de `/candidaturas` atualizados para refletir `authorized_submit`

@@ -130,6 +130,24 @@ Rules:
 - do not add transient or UI-only statuses without clear operational value
 - every state transition must be explicit and traceable
 
+Application drafts and submissions must also use explicit, stable states only.
+
+Current valid application statuses:
+
+- `draft`
+- `ready_for_review`
+- `confirmed`
+- `authorized_submit`
+- `submitted`
+- `error_submit`
+- `cancelled`
+
+Rules:
+
+- `authorized_submit` is the final human authorization gate before any real submit attempt
+- preflight and dry-run steps must not silently skip this authorization gate
+- submit automation must only run from an explicitly authorized application state
+
 ## Collection and Scoring Rules
 
 - Treat external portals as unstable systems.
