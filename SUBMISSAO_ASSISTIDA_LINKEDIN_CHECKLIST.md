@@ -39,6 +39,16 @@ Definicao de pronto:
 - testes afetados verdes
 - um run real de preflight do LinkedIn sem submissao
 
+### Fase 4 - Mapeamento seguro do modal
+
+Objetivo:
+- quando houver `Easy Apply`, abrir o modal real e mapear sinais do fluxo sem enviar candidatura
+
+Definicao de pronto:
+- o inspetor distingue fluxo simples de fluxo multi-etapas
+- o preflight registra sinais como passos adicionais, upload de CV e perguntas
+- nenhum clique de envio real e executado
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -51,6 +61,7 @@ Definicao de pronto:
 - [x] Fase 1 concluida
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
+- [x] Fase 4 concluida
 - [x] README atualizado se a operacao mudar
 - [x] AGENTS reavaliado; sem mudancas necessarias nesta fase
 
@@ -58,4 +69,6 @@ Definicao de pronto:
 
 - `pytest tests/test_app.py -q`
 - `pytest tests/test_database.py -k "application_preflight" -q`
+- `pytest tests/test_linkedin_application.py -q`
 - preflight real executado sobre candidatura confirmada no banco com retorno `ready`
+- preflight real reexecutado com abertura do modal e classificacao `manual_review` para fluxo multi-etapas

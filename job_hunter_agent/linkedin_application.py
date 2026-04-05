@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from job_hunter_agent.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.domain import JobPosting
@@ -11,6 +12,80 @@ from job_hunter_agent.domain import JobPosting
 class LinkedInApplicationInspection:
     outcome: str
     detail: str
+
+
+@dataclass(frozen=True)
+class LinkedInApplicationPageState:
+    easy_apply: bool = False
+    external_apply: bool = False
+    submit_visible: bool = False
+    modal_open: bool = False
+    modal_submit_visible: bool = False
+    modal_next_visible: bool = False
+    modal_review_visible: bool = False
+    modal_file_upload: bool = False
+    modal_questions_visible: bool = False
+    cta_text: str = ""
+    sample: str = ""
+    modal_sample: str = ""
+
+
+def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
+    if state.modal_open:
+        detail_parts: list[str] = ["preflight real"]
+        if state.modal_submit_visible and not (
+            state.modal_next_visible
+            or state.modal_review_visible
+            or state.modal_file_upload
+            or state.modal_questions_visible
+        ):
+            detail_parts.append("ok: fluxo simplificado aberto no LinkedIn")
+            if state.cta_text:
+                detail_parts.append(f"cta={state.cta_text}")
+            if state.modal_sample:
+                detail_parts.append(f"modal={state.modal_sample}")
+            return LinkedInApplicationInspection(
+                outcome="ready",
+                detail=" | ".join(detail_parts),
+            )
+
+        detail_parts.append("inconclusivo: fluxo do LinkedIn exige revisao manual")
+        if state.modal_next_visible:
+            detail_parts.append("passos_adicionais=sim")
+        if state.modal_review_visible:
+            detail_parts.append("revisao_final=sim")
+        if state.modal_file_upload:
+            detail_parts.append("upload_cv=sim")
+        if state.modal_questions_visible:
+            detail_parts.append("perguntas=sim")
+        if state.cta_text:
+            detail_parts.append(f"cta={state.cta_text}")
+        if state.modal_sample:
+            detail_parts.append(f"modal={state.modal_sample}")
+        return LinkedInApplicationInspection(
+            outcome="manual_review",
+            detail=" | ".join(detail_parts),
+        )
+
+    if state.easy_apply:
+        return LinkedInApplicationInspection(
+            outcome="manual_review",
+            detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+        )
+    if state.external_apply:
+        return LinkedInApplicationInspection(
+            outcome="blocked",
+            detail="preflight real bloqueado: vaga redireciona para candidatura externa",
+        )
+    if state.submit_visible:
+        return LinkedInApplicationInspection(
+            outcome="manual_review",
+            detail="preflight real inconclusivo: pagina interna com CTA de envio sem fluxo simples claro",
+        )
+    return LinkedInApplicationInspection(
+        outcome="blocked",
+        detail="preflight real bloqueado: CTA de candidatura nao encontrado na pagina do LinkedIn",
+    )
 
 
 class LinkedInApplicationFlowInspector:
@@ -56,46 +131,105 @@ class LinkedInApplicationFlowInspector:
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
                 await page.wait_for_timeout(2500)
-                state = await page.evaluate(
-                    """
-                    () => {
-                      const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-                      const texts = Array.from(document.querySelectorAll("button, a"))
-                        .map((node) => normalize(node.textContent))
-                        .filter(Boolean);
-                      const joined = texts.join(" | ");
-                      const easyApply = texts.some((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
-                      const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
-                      const submitVisible = texts.some((text) => text.includes("enviar candidatura") || text.includes("submit application"));
-                      return {
-                        easyApply,
-                        externalApply,
-                        submitVisible,
-                        sample: joined.slice(0, 400),
-                      };
-                    }
-                    """
-                )
+                state = await self._read_page_state(page)
+                if state.easy_apply:
+                    await self._try_open_easy_apply_modal(page)
+                    await page.wait_for_timeout(2500)
+                    state = await self._read_page_state(page)
+                    await self._try_close_modal(page)
             finally:
                 await context.close()
                 await browser.close()
 
-        if state.get("easyApply"):
-            return LinkedInApplicationInspection(
-                outcome="ready",
-                detail="preflight real ok: CTA de candidatura simplificada encontrado na pagina do LinkedIn",
-            )
-        if state.get("externalApply"):
-            return LinkedInApplicationInspection(
-                outcome="blocked",
-                detail="preflight real bloqueado: vaga redireciona para candidatura externa",
-            )
-        if state.get("submitVisible"):
-            return LinkedInApplicationInspection(
-                outcome="manual_review",
-                detail="preflight real inconclusivo: pagina interna com CTA de envio sem fluxo simples claro",
-            )
-        return LinkedInApplicationInspection(
-            outcome="blocked",
-            detail="preflight real bloqueado: CTA de candidatura nao encontrado na pagina do LinkedIn",
+        return classify_linkedin_application_page_state(state)
+
+    async def _read_page_state(self, page) -> LinkedInApplicationPageState:
+        raw_state = await page.evaluate(
+            """
+            () => {
+              const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+              const texts = Array.from(document.querySelectorAll("button, a"))
+                .map((node) => normalize(node.textContent))
+                .filter(Boolean);
+              const joined = texts.join(" | ");
+              const easyApplyTexts = texts.filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
+              const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
+              const submitVisible = texts.some((text) => text.includes("enviar candidatura") || text.includes("submit application"));
+
+              const modal = document.querySelector('[role="dialog"]');
+              const modalButtonTexts = modal
+                ? Array.from(modal.querySelectorAll("button"))
+                    .map((node) => normalize(node.textContent))
+                    .filter(Boolean)
+                : [];
+              const modalTexts = modal
+                ? Array.from(modal.querySelectorAll("button, label, span, div, h2, h3, p, legend"))
+                    .map((node) => normalize(node.textContent))
+                    .filter(Boolean)
+                : [];
+              return {
+                easy_apply: easyApplyTexts.length > 0,
+                external_apply: externalApply,
+                submit_visible: submitVisible,
+                modal_open: !!modal,
+                modal_submit_visible: modalButtonTexts.some((text) => text.includes("submit application") || text.includes("enviar candidatura")),
+                modal_next_visible: modalButtonTexts.some((text) => text.includes("next") || text.includes("continuar") || text.includes("avancar") || text.includes("avançar")),
+                modal_review_visible: modalButtonTexts.some((text) => text.includes("review") || text.includes("revisar")),
+                modal_file_upload: modal ? modal.querySelectorAll('input[type="file"]').length > 0 : false,
+                modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
+                cta_text: easyApplyTexts[0] || "",
+                sample: joined.slice(0, 400),
+                modal_sample: modalTexts.join(" | ").slice(0, 400),
+              };
+            }
+            """
         )
+        return LinkedInApplicationPageState(**raw_state)
+
+    async def _try_open_easy_apply_modal(self, page) -> None:
+        candidates = [
+            page.get_by_role(
+                "button",
+                name=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE),
+            ).first,
+            page.locator("button, a").filter(has_text=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE)).first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.scroll_into_view_if_needed()
+                await candidate.click(timeout=3000, force=True)
+                if await self._wait_for_modal(page):
+                    return
+                handle = await candidate.element_handle()
+                if handle is not None:
+                    await page.evaluate("(element) => element.click()", handle)
+                    if await self._wait_for_modal(page):
+                        return
+            except Exception:
+                continue
+
+    async def _wait_for_modal(self, page) -> bool:
+        try:
+            await page.locator('[role="dialog"]').first.wait_for(state="visible", timeout=3000)
+            await page.wait_for_timeout(800)
+            return True
+        except Exception:
+            return False
+
+    async def _try_close_modal(self, page) -> None:
+        if await page.locator('[role="dialog"]').count() == 0:
+            return
+        candidates = [
+            page.get_by_role("button", name=re.compile(r"(dismiss|close|fechar|cancel|cancelar|descartar)", re.IGNORECASE)).first,
+            page.locator('[role="dialog"] button[aria-label*="Dismiss"], [role="dialog"] button[aria-label*="Close"]').first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() > 0:
+                    await candidate.click()
+                    await page.wait_for_timeout(500)
+                    return
+            except Exception:
+                continue
