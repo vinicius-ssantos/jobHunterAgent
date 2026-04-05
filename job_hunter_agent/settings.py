@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     relaxed_testing_remove_exclude_keywords: tuple[str, ...] = ("junior",)
     relaxed_testing_minimum_relevance: int = 4
     linkedin_field_repair_enabled: bool = True
+    linkedin_modal_llm_enabled: bool = False
     application_support_llm_enabled: bool = True
     job_requirements_llm_enabled: bool = True
     review_rationale_llm_enabled: bool = True
