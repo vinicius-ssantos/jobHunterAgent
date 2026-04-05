@@ -537,6 +537,61 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertIn("preflight ok", stored.notes)
         self.assertEqual(stored.last_error, "")
 
+    def test_application_preflight_uses_real_flow_inspector_when_available(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        class _Inspector:
+            def __init__(self) -> None:
+                self.called_with = []
+
+            def inspect(self, job):
+                self.called_with.append(job.url)
+                return type("Inspection", (), {"outcome": "ready", "detail": "preflight real ok: CTA encontrado"})()
+
+        inspector = _Inspector()
+        result = ApplicationPreflightService(self.repository, flow_inspector=inspector).run_for_application(
+            application.id
+        )
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(inspector.called_with, ["https://www.linkedin.com/jobs/view/123"])
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(stored.status, "confirmed")
+        self.assertIn("preflight real ok", stored.notes)
+
+    def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        class _Inspector:
+            def inspect(self, job):
+                return type(
+                    "Inspection",
+                    (),
+                    {"outcome": "blocked", "detail": "preflight real bloqueado: CTA nao encontrado"},
+                )()
+
+        result = ApplicationPreflightService(self.repository, flow_inspector=_Inspector()).run_for_application(
+            application.id
+        )
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.application_status, "error_submit")
+        self.assertEqual(stored.status, "error_submit")
+        self.assertIn("CTA nao encontrado", stored.last_error)
+
     def test_application_preflight_moves_unsupported_to_error_submit(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://empresa.gupy.io/job/123", "key-1")])[0]
         application = self.repository.create_application_draft(

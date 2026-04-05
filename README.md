@@ -175,6 +175,12 @@ Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fi
 
 Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extraidos da vaga, exibindo um resumo curto com senioridade, stack, ingles e sinais de lideranca quando houver dados uteis.
 
+O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e nao apenas a URL:
+
+- para candidaturas `confirmed`, o botao `Validar fluxo` pode abrir a vaga no navegador automatizado
+- o inspetor procura sinais como `Easy Apply`, candidatura externa ou ausencia de CTA
+- nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
+
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`

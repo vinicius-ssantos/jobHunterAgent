@@ -50,6 +50,11 @@ class JobApplicant(Protocol):
         raise NotImplementedError
 
 
+class ApplicationFlowInspector(Protocol):
+    def inspect(self, job: JobPosting):
+        raise NotImplementedError
+
+
 class ApplicationPreparationService:
     def __init__(
         self,
@@ -149,8 +154,9 @@ class ApplicationPreparationService:
 
 
 class ApplicationPreflightService:
-    def __init__(self, repository: JobRepository) -> None:
+    def __init__(self, repository: JobRepository, flow_inspector: ApplicationFlowInspector | None = None) -> None:
         self.repository = repository
+        self.flow_inspector = flow_inspector
 
     def run_for_application(self, application_id: int) -> ApplicationPreflightResult:
         application = self.repository.get_application(application_id)
@@ -183,6 +189,60 @@ class ApplicationPreflightService:
             )
 
         if job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
+            if self.flow_inspector is not None:
+                try:
+                    inspection = self.flow_inspector.inspect(job)
+                except Exception as exc:
+                    inspection = None
+                    detail = f"preflight real falhou ao inspecionar a pagina: {exc}"
+                    self.repository.mark_application_status(
+                        application.id,
+                        status="confirmed",
+                        notes=_append_note(application.notes, detail),
+                        last_error="",
+                    )
+                    return ApplicationPreflightResult(
+                        outcome="error",
+                        detail=detail,
+                        application_status="confirmed",
+                    )
+                if inspection is not None:
+                    if inspection.outcome == "ready":
+                        self.repository.mark_application_status(
+                            application.id,
+                            status="confirmed",
+                            notes=_append_note(application.notes, inspection.detail),
+                            last_error="",
+                        )
+                        return ApplicationPreflightResult(
+                            outcome="ready",
+                            detail=inspection.detail,
+                            application_status="confirmed",
+                        )
+                    if inspection.outcome == "manual_review":
+                        self.repository.mark_application_status(
+                            application.id,
+                            status="confirmed",
+                            notes=_append_note(application.notes, inspection.detail),
+                            last_error="",
+                        )
+                        return ApplicationPreflightResult(
+                            outcome="manual_review",
+                            detail=inspection.detail,
+                            application_status="confirmed",
+                        )
+                    detail = inspection.detail
+                    self.repository.mark_application_status(
+                        application.id,
+                        status="error_submit",
+                        notes=_append_note(application.notes, detail),
+                        last_error=detail,
+                    )
+                    return ApplicationPreflightResult(
+                        outcome="blocked",
+                        detail=detail,
+                        application_status="error_submit",
+                    )
             if application.support_level == "auto_supported":
                 detail = "preflight ok: fluxo do LinkedIn com indicio de candidatura simplificada"
             else:

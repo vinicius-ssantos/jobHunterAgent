@@ -11,6 +11,7 @@ from job_hunter_agent.application_priority import OllamaApplicationPriorityAsses
 from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.job_requirements import OllamaJobRequirementsExtractor
+from job_hunter_agent.linkedin_application import LinkedInApplicationFlowInspector
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
@@ -78,8 +79,14 @@ def create_application_preparation_service(
     )
 
 
-def create_application_preflight_service(repository: JobRepository) -> ApplicationPreflightService:
-    return ApplicationPreflightService(repository)
+def create_application_preflight_service(repository: JobRepository, settings: Settings) -> ApplicationPreflightService:
+    return ApplicationPreflightService(
+        repository,
+        flow_inspector=LinkedInApplicationFlowInspector(
+            storage_state_path=settings.linkedin_storage_state_path,
+            headless=settings.browser_headless,
+        ),
+    )
 
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
