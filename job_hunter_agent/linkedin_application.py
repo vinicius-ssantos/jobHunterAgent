@@ -254,6 +254,12 @@ class LinkedInApplicationFlowInspector:
                         detail="submissao real bloqueada: CTA de candidatura simplificada nao encontrado",
                     )
                 state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
+                if not state.modal_open:
+                    await self._try_open_easy_apply_modal(page)
+                    await page.wait_for_timeout(1800)
+                    state = await self._read_page_state(page)
+                    if state.modal_open:
+                        state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
                 if not state.modal_open or not state.modal_submit_visible:
                     return ApplicationSubmissionResult(
                         status="error_submit",
