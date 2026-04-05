@@ -5,6 +5,7 @@ from job_hunter_agent.linkedin_application import (
     LinkedInApplicationPageState,
     classify_linkedin_application_page_state,
     describe_linkedin_modal_blocker,
+    LinkedInApplicationFlowInspector,
 )
 
 
@@ -114,3 +115,20 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertIn("titulos=informacoes de contato, curriculo", snapshot)
         self.assertIn("botoes=next, review, submit application", snapshot)
         self.assertIn("campos_detectados=email, phone, country code", snapshot)
+
+    def test_format_modal_interpretation_for_error_includes_structured_hint(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        detail = inspector._format_modal_interpretation_for_error(
+            LinkedInApplicationPageState(
+                modal_open=True,
+                modal_submit_visible=True,
+                ready_to_submit=True,
+            )
+        )
+
+        self.assertIn("interpretacao_modal=", detail)
+        self.assertIn("acao=submit_if_authorized", detail)

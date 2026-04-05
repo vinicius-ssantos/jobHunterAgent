@@ -178,6 +178,12 @@ Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fi
 
 Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extraidos da vaga, exibindo um resumo curto com senioridade, stack, ingles e sinais de lideranca quando houver dados uteis.
 
+Tambem existe um interpretador opcional do modal do LinkedIn com LLM local:
+
+- `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`
+
+Quando ativado, ele nao controla cliques livremente. Ele apenas interpreta o snapshot estruturado do modal, sugere a proxima acao provavel e passa por guardrails antes de influenciar o preflight ou o submit real. Se falhar, o fluxo volta para o comportamento deterministico conservador.
+
 O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e nao apenas a URL:
 
 - para candidaturas `confirmed`, o botao `Validar fluxo` pode abrir a vaga no navegador automatizado
@@ -188,6 +194,7 @@ O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e 
 - se houver `Next/Continuar`, o inspetor tambem tenta avancar uma etapa e registrar se houve progresso real no fluxo
 - quando o modal exigir curriculo, o inspetor tambem pode carregar o arquivo configurado em `resume_path` em dry-run
 - se a etapa `Review/Revisar` aparecer, o inspetor tambem tenta alcanca-la e registrar quando o fluxo fica pronto para um submit humano
+- se `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o detalhe do preflight tambem inclui a interpretacao assistida da etapa atual do modal
 - nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
@@ -355,6 +362,7 @@ Esse passo e o primeiro submit real controlado do projeto:
 - nao faz parte do loop automatico principal
 - depende de clique humano explicito no Telegram
 - usa o fluxo interno do LinkedIn e os dados locais configurados
+- quando `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o submit continua deterministico, mas pode consultar a interpretacao assistida do modal antes de desistir
 
 ## Como adicionar um novo adapter
 

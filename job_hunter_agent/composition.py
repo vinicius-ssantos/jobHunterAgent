@@ -111,26 +111,38 @@ def create_application_submission_service(repository: JobRepository, settings: S
             contact_email=settings.application_contact_email,
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
+            modal_interpreter=create_linkedin_modal_interpreter(settings),
         ),
     )
 
 
 def create_linkedin_modal_interpretation_formatter(settings: Settings):
+    interpreter = create_linkedin_modal_interpreter(settings)
+    if interpreter is None:
+        return None
+
+    def _format(state) -> str:
+        chosen = interpreter(state)
+        return format_linkedin_modal_interpretation(chosen)
+
+    return _format
+
+
+def create_linkedin_modal_interpreter(settings: Settings):
     if not settings.linkedin_modal_llm_enabled:
         return None
-    interpreter = OllamaLinkedInModalInterpreter(
+    llm_interpreter = OllamaLinkedInModalInterpreter(
         model_name=settings.ollama_model,
         base_url=settings.ollama_url,
     )
 
-    def _format(state) -> str:
-        interpreted = interpreter.interpret(state)
+    def _interpret(state):
+        interpreted = llm_interpreter.interpret(state)
         guarded = validate_linkedin_modal_interpretation(state, interpreted)
         fallback = deterministic_interpret_linkedin_modal(state)
-        chosen = guarded if guarded.confidence >= fallback.confidence else fallback
-        return format_linkedin_modal_interpretation(chosen)
+        return guarded if guarded.confidence >= fallback.confidence else fallback
 
-    return _format
+    return _interpret
 
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:

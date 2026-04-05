@@ -4,11 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import re
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from job_hunter_agent.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.applicant import ApplicationSubmissionResult
 from job_hunter_agent.domain import JobPosting
+
+if TYPE_CHECKING:
+    from job_hunter_agent.linkedin_modal_llm import LinkedInModalInterpretation
 
 
 @dataclass(frozen=True)
@@ -174,6 +177,7 @@ class LinkedInApplicationFlowInspector:
         phone: str = "",
         phone_country_code: str = "",
         modal_interpretation_formatter: Callable[[LinkedInApplicationPageState], str] | None = None,
+        modal_interpreter: Callable[[LinkedInApplicationPageState], "LinkedInModalInterpretation"] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
@@ -182,6 +186,7 @@ class LinkedInApplicationFlowInspector:
         self.phone = phone.strip()
         self.phone_country_code = phone_country_code.strip()
         self.modal_interpretation_formatter = modal_interpretation_formatter
+        self.modal_interpreter = modal_interpreter
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
         if "linkedin.com/jobs/" not in job.url.lower():
@@ -293,12 +298,14 @@ class LinkedInApplicationFlowInspector:
                     if state.modal_open:
                         state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
                 if not state.modal_open or not state.modal_submit_visible:
+                    interpretation_detail = self._format_modal_interpretation_for_error(state)
                     return ApplicationSubmissionResult(
                         status="error_submit",
                         detail=(
                             "submissao real bloqueada: fluxo nao chegou ao botao de envio"
                             f" | bloqueio={describe_linkedin_modal_blocker(state)}"
                             f" | modal={state.modal_sample or 'nao_informado'}"
+                            f"{interpretation_detail}"
                         ),
                     )
                 submitted = await self._try_submit_application(page)
@@ -444,20 +451,45 @@ class LinkedInApplicationFlowInspector:
                 break
 
             moved = False
-            if state.modal_open and state.modal_file_upload and not uploaded_resume:
+            interpretation = self._interpret_modal_state(state)
+            action = interpretation.recommended_action
+            if action == "submit_if_authorized" and state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+                ready_to_submit = True
+                break
+            if action == "upload_resume" and state.modal_open and state.modal_file_upload and not uploaded_resume:
                 uploaded_resume = await self._try_upload_resume(page)
                 if uploaded_resume:
                     moved = True
                     await page.wait_for_timeout(1800)
                     state = await self._read_page_state(page)
-            if state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+            elif action == "open_review" and state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
                 review_opened = await self._try_open_review_step(page)
                 if review_opened:
                     reached_review_step = True
                     moved = True
                     await page.wait_for_timeout(1800)
                     state = await self._read_page_state(page)
-            if state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
+            elif action == "click_next" and state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
+                next_progressed = await self._try_advance_single_step(page)
+                if next_progressed:
+                    progressed = True
+                    moved = True
+                    await page.wait_for_timeout(2200)
+                    state = await self._read_page_state(page)
+            elif state.modal_open and state.modal_file_upload and not uploaded_resume:
+                uploaded_resume = await self._try_upload_resume(page)
+                if uploaded_resume:
+                    moved = True
+                    await page.wait_for_timeout(1800)
+                    state = await self._read_page_state(page)
+            elif state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+                review_opened = await self._try_open_review_step(page)
+                if review_opened:
+                    reached_review_step = True
+                    moved = True
+                    await page.wait_for_timeout(1800)
+                    state = await self._read_page_state(page)
+            elif state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
                 next_progressed = await self._try_advance_single_step(page)
                 if next_progressed:
                     progressed = True
@@ -510,6 +542,29 @@ class LinkedInApplicationFlowInspector:
         if close_modal:
             await self._try_close_modal(page)
         return state
+
+    def _interpret_modal_state(self, state: LinkedInApplicationPageState):
+        if self.modal_interpreter is None:
+            from job_hunter_agent.linkedin_modal_llm import deterministic_interpret_linkedin_modal
+
+            return deterministic_interpret_linkedin_modal(state)
+        try:
+            return self.modal_interpreter(state)
+        except Exception:
+            from job_hunter_agent.linkedin_modal_llm import deterministic_interpret_linkedin_modal
+
+            return deterministic_interpret_linkedin_modal(state)
+
+    def _format_modal_interpretation_for_error(self, state: LinkedInApplicationPageState) -> str:
+        if not state.modal_open:
+            return ""
+        try:
+            from job_hunter_agent.linkedin_modal_llm import format_linkedin_modal_interpretation
+
+            interpretation = self._interpret_modal_state(state)
+            return f" | {format_linkedin_modal_interpretation(interpretation)}"
+        except Exception:
+            return ""
 
     async def _try_open_easy_apply_modal(self, page) -> None:
         candidates = [
