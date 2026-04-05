@@ -49,4 +49,4 @@ Definicao de pronto:
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
 - [x] README atualizado se a operacao mudar
-- [ ] AGENTS atualizado se as regras mudarem
+- [x] AGENTS reavaliado; sem mudancas necessarias
