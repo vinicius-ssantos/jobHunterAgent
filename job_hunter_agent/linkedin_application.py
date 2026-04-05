@@ -28,11 +28,19 @@ class LinkedInApplicationPageState:
     cta_text: str = ""
     sample: str = ""
     modal_sample: str = ""
+    contact_email_visible: bool = False
+    contact_phone_visible: bool = False
+    country_code_visible: bool = False
+    work_authorization_visible: bool = False
+    years_of_experience_visible: bool = False
+    resumable_fields: tuple[str, ...] = ()
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
     if state.modal_open:
         detail_parts: list[str] = ["preflight real"]
+        if state.resumable_fields:
+            detail_parts.append(f"campos={', '.join(state.resumable_fields)}")
         if state.modal_submit_visible and not (
             state.modal_next_visible
             or state.modal_review_visible
@@ -167,6 +175,23 @@ class LinkedInApplicationFlowInspector:
                     .map((node) => normalize(node.textContent))
                     .filter(Boolean)
                 : [];
+              const modalInputNames = modal
+                ? Array.from(modal.querySelectorAll("input, textarea, select"))
+                    .map((node) => normalize(node.getAttribute("name") || node.getAttribute("aria-label") || node.id || ""))
+                    .filter(Boolean)
+                : [];
+              const hasText = (items, parts) => parts.some((part) => items.some((value) => value.includes(part)));
+              const resumableFields = [];
+              const contactEmailVisible = hasText(modalTexts, ["email"]) || hasText(modalInputNames, ["email"]);
+              const contactPhoneVisible = hasText(modalTexts, ["phone", "telefone", "celular"]) || hasText(modalInputNames, ["phone", "telefone", "celular"]);
+              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais", "código do país"]) || hasText(modalInputNames, ["country code", "codigo", "código"]);
+              const workAuthorizationVisible = hasText(modalTexts, ["work authorization", "work permit", "autoriz", "visa"]) || hasText(modalInputNames, ["authorization", "permit", "visa"]);
+              const yearsOfExperienceVisible = hasText(modalTexts, ["years of work experience", "anos de experiencia", "anos de experiência"]) || hasText(modalInputNames, ["years", "experience", "experiência"]);
+              if (contactEmailVisible) resumableFields.push("email");
+              if (contactPhoneVisible) resumableFields.push("telefone");
+              if (countryCodeVisible) resumableFields.push("codigo_pais");
+              if (workAuthorizationVisible) resumableFields.push("autorizacao_trabalho");
+              if (yearsOfExperienceVisible) resumableFields.push("anos_experiencia");
               return {
                 easy_apply: easyApplyTexts.length > 0,
                 external_apply: externalApply,
@@ -180,10 +205,17 @@ class LinkedInApplicationFlowInspector:
                 cta_text: easyApplyTexts[0] || "",
                 sample: joined.slice(0, 400),
                 modal_sample: modalTexts.join(" | ").slice(0, 400),
+                contact_email_visible: contactEmailVisible,
+                contact_phone_visible: contactPhoneVisible,
+                country_code_visible: countryCodeVisible,
+                work_authorization_visible: workAuthorizationVisible,
+                years_of_experience_visible: yearsOfExperienceVisible,
+                resumable_fields: resumableFields,
               };
             }
             """
         )
+        raw_state["resumable_fields"] = tuple(raw_state.get("resumable_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
 
     async def _try_open_easy_apply_modal(self, page) -> None:

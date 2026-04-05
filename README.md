@@ -180,6 +180,7 @@ O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e 
 - para candidaturas `confirmed`, o botao `Validar fluxo` pode abrir a vaga no navegador automatizado
 - o inspetor procura sinais como `Easy Apply`, candidatura externa ou ausencia de CTA
 - quando encontra `Easy Apply`, ele tenta abrir o modal e mapear se o fluxo parece simples ou multi-etapas
+- o preflight tambem registra campos basicos detectados no modal, como email, telefone e codigo do pais
 - nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:

@@ -49,6 +49,16 @@ Definicao de pronto:
 - o preflight registra sinais como passos adicionais, upload de CV e perguntas
 - nenhum clique de envio real e executado
 
+### Fase 5 - Dry-run de campos seguros
+
+Objetivo:
+- mapear quais campos do modal seriam preenchiveis com seguranca antes de qualquer submissao real
+
+Definicao de pronto:
+- o preflight registra campos basicos detectados no modal
+- o detalhe do resultado diferencia contato, autorizacao e experiencia quando visiveis
+- ainda sem clicar em enviar candidatura
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -62,6 +72,7 @@ Definicao de pronto:
 - [x] Fase 2 concluida
 - [x] Fase 3 concluida
 - [x] Fase 4 concluida
+- [x] Fase 5 concluida
 - [x] README atualizado se a operacao mudar
 - [x] AGENTS reavaliado; sem mudancas necessarias nesta fase
 
