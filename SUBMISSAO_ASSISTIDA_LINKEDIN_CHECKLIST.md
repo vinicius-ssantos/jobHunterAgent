@@ -69,6 +69,16 @@ Definicao de pronto:
 - o detalhe do preflight registra quais campos foram preenchidos com sucesso
 - nenhum clique de envio real e executado
 
+### Fase 7 - Avanco controlado de uma etapa
+
+Objetivo:
+- tentar passar pela primeira etapa do modal quando houver botao `Next/Continuar`, sem submeter candidatura
+
+Definicao de pronto:
+- o inspetor tenta avancar uma etapa apos o dry-run dos campos basicos
+- o detalhe do preflight registra quando houve progresso real no fluxo
+- nenhum clique de envio real e executado
+
 ## Regras
 
 - nao submeter candidatura real nesta fase
@@ -84,6 +94,7 @@ Definicao de pronto:
 - [x] Fase 4 concluida
 - [x] Fase 5 concluida
 - [x] Fase 6 concluida
+- [x] Fase 7 concluida
 - [x] README atualizado se a operacao mudar
 - [x] AGENTS reavaliado; sem mudancas necessarias nesta fase
 
@@ -94,3 +105,4 @@ Definicao de pronto:
 - `pytest tests/test_linkedin_application.py -q`
 - preflight real executado sobre candidatura confirmada no banco com retorno `ready`
 - preflight real reexecutado com abertura do modal e classificacao `manual_review` para fluxo multi-etapas
+- preflight real reexecutado com `avancou_proxima_etapa=sim` e deteccao de `upload_cv=sim`

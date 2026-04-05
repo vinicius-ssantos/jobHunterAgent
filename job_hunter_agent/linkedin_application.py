@@ -35,6 +35,7 @@ class LinkedInApplicationPageState:
     years_of_experience_visible: bool = False
     resumable_fields: tuple[str, ...] = ()
     filled_fields: tuple[str, ...] = ()
+    progressed_to_next_step: bool = False
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
@@ -44,6 +45,8 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail_parts.append(f"campos={', '.join(state.resumable_fields)}")
         if state.filled_fields:
             detail_parts.append(f"preenchidos={', '.join(state.filled_fields)}")
+        if state.progressed_to_next_step:
+            detail_parts.append("avancou_proxima_etapa=sim")
         if state.modal_submit_visible and not (
             state.modal_next_visible
             or state.modal_review_visible
@@ -160,11 +163,25 @@ class LinkedInApplicationFlowInspector:
                     filled_fields = await self._try_fill_safe_fields(page)
                     await page.wait_for_timeout(1200)
                     state = await self._read_page_state(page)
+                    progressed = False
                     if filled_fields:
                         state = LinkedInApplicationPageState(
                             **{
                                 **state.__dict__,
                                 "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
+                            }
+                        )
+                    if state.modal_open and state.modal_next_visible:
+                        progressed = await self._try_advance_single_step(page)
+                        if progressed:
+                            await page.wait_for_timeout(2000)
+                            state = await self._read_page_state(page)
+                    if progressed:
+                        state = LinkedInApplicationPageState(
+                            **{
+                                **state.__dict__,
+                                "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
+                                "progressed_to_next_step": True,
                             }
                         )
                     await self._try_close_modal(page)
@@ -235,6 +252,7 @@ class LinkedInApplicationFlowInspector:
                 years_of_experience_visible: yearsOfExperienceVisible,
                 resumable_fields: resumableFields,
                 filled_fields: [],
+                progressed_to_next_step: false,
               };
             }
             """
@@ -365,6 +383,28 @@ class LinkedInApplicationFlowInspector:
             },
         )
         return tuple(filled)
+
+    async def _try_advance_single_step(self, page) -> bool:
+        candidates = [
+            page.get_by_role(
+                "button",
+                name=re.compile(r"(next|continuar|avancar|avançar)", re.IGNORECASE),
+            ).first,
+            page.locator('[role="dialog"] button').filter(
+                has_text=re.compile(r"(next|continuar|avancar|avançar)", re.IGNORECASE)
+            ).first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.scroll_into_view_if_needed()
+                await candidate.click(timeout=3000, force=True)
+                await page.wait_for_timeout(1200)
+                return True
+            except Exception:
+                continue
+        return False
 
     async def _try_close_modal(self, page) -> None:
         if await page.locator('[role="dialog"]').count() == 0:
