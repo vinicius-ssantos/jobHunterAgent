@@ -256,6 +256,7 @@ def strip_linkedin_chrome_prefix(value: str) -> str:
     cleaned = _normalize_whitespace(value)
     chrome_markers = (
         "Reative Premium:",
+        "Premium:",
         "Para negócios",
         "Notificações",
         "Mensagens",
@@ -267,6 +268,8 @@ def strip_linkedin_chrome_prefix(value: str) -> str:
         if marker_index != -1:
             cleaned = _normalize_whitespace(cleaned[marker_index + len(marker) :])
             break
+    cleaned = re.sub(r"^[A-Za-zÀ-ÿ]+:\s*\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^.*?\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^\d+%\s+de\s+desconto\s+", "", cleaned, flags=re.IGNORECASE)
     return cleaned
 
@@ -298,7 +301,7 @@ def clean_linkedin_title(value: str) -> str:
 
 
 def clean_linkedin_company(value: str) -> str:
-    cleaned = _normalize_whitespace(value)
+    cleaned = strip_linkedin_chrome_prefix(_normalize_whitespace(value))
     repeated_prefix = re.match(r"^(.{10,80}?)\s+\1\s+(.+)$", cleaned, flags=re.IGNORECASE)
     if repeated_prefix:
         cleaned = repeated_prefix.group(2).strip()
@@ -313,11 +316,13 @@ def clean_linkedin_company(value: str) -> str:
         flags=re.IGNORECASE,
     )
     cleaned = re.sub(
-        r"\s+(?:Pessoa\s+Desenvolvedora|Desenvolvedor(?:\(a\)|a)?|Engenheir[oa](?:\(a\))?|Software Engineer|Analista|Backend|Fullstack)\b.*$",
+        r"\s+(?:Pessoa\s+Desenvolvedora|Desenvolvedor(?:\(a\)|a)?|Engenheir[oa](?:\(a\))?|Software Engineer|Full Stack Engineer|Analista|Backend|Fullstack)\b.*$",
         "",
         cleaned,
         flags=re.IGNORECASE,
     )
+    cleaned = re.sub(r"\s+Full Stack Engineer\s+Brasil$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+(?:Engineer|Developer)\s+Brasil$", "", cleaned, flags=re.IGNORECASE)
     cleaned = _normalize_whitespace(cleaned)
     noise_phrases = (
         "Promovida",
@@ -386,10 +391,13 @@ def clean_linkedin_company(value: str) -> str:
 
 
 def clean_linkedin_location(value: str) -> str:
-    cleaned = _normalize_whitespace(value)
+    cleaned = strip_linkedin_chrome_prefix(_normalize_whitespace(value))
     preserved = preserve_explicit_linkedin_location(cleaned)
     if preserved:
         return preserved
+    regional_match = re.search(r"([A-Za-zÀ-ÿÃ£ ]{2,40}\s+e\s+Regi(?:ã|a|Ã£)o)", cleaned, flags=re.IGNORECASE)
+    if regional_match:
+        return _normalize_whitespace(regional_match.group(1))
     snippet = _extract_linkedin_location_snippet(cleaned)
     if snippet:
         return snippet
@@ -477,6 +485,8 @@ def looks_like_linkedin_location(value: str) -> bool:
     if not normalized:
         return False
     lower = normalized.lower()
+    if re.search(r"\be\s+regi(?:ã|a|ã£)o\b", lower):
+        return True
     if lower in {"remoto", "remote", "híbrido", "hibrido", "hybrid", "presencial", "onsite"}:
         return True
     if any(
@@ -794,13 +804,26 @@ class LinkedInDeterministicCollector:
     async def _stabilize_results_page(self, page: object) -> None:
         stable_rounds = 0
         previous_count = -1
+        initial_count = 0
         final_count = 0
         final_target = "desconhecido"
+        footer_reached = False
         executed_passes = 0
-        for _ in range(self.scroll_stabilization_passes):
+        max_iterations = max(6, self.scroll_stabilization_passes * 6)
+        required_stable_rounds = 2
+        for _ in range(max_iterations):
             state = await page.evaluate(
                 """
-                () => {
+                async () => {
+                  const countCards = () => {
+                    const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
+                    const unique = new Set();
+                    for (const anchor of anchors) {
+                      const href = anchor.getAttribute("href") || anchor.href || "";
+                      if (href) unique.add(href);
+                    }
+                    return unique.size;
+                  };
                   const findScrollableAncestor = (node) => {
                     let current = node;
                     while (current && current !== document.body) {
@@ -811,56 +834,78 @@ class LinkedInDeterministicCollector:
                     }
                     return null;
                   };
+                  const beforeCount = countCards();
                   const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
-                  const unique = new Set();
-                  for (const anchor of anchors) {
-                    const href = anchor.getAttribute("href") || anchor.href || "";
-                    if (href) unique.add(href);
-                  }
+                  const pageElement = document.scrollingElement || document.documentElement;
+                  const pagePreviousTop = pageElement ? pageElement.scrollTop : window.scrollY;
+                  const pageMaxTop = Math.max(0, (pageElement?.scrollHeight || document.body.scrollHeight) - (window.innerHeight || 0));
+                  const pageStep = Math.max(Math.floor((window.innerHeight || 0) * 0.85), 700);
+                  const nextPageTop = Math.min(pagePreviousTop + pageStep, pageMaxTop);
+                  window.scrollTo(0, nextPageTop);
+
                   const container = document.querySelector(".jobs-search-results-list")
                     || document.querySelector(".jobs-search-results__list")
                     || document.querySelector(".scaffold-layout__list-container")
                     || findScrollableAncestor(anchors[0] || null);
+                  let target = "pagina";
+                  let moved = nextPageTop > pagePreviousTop;
+                  let listAtEnd = true;
                   if (container) {
                     const previousTop = container.scrollTop;
-                    const step = Math.max(container.clientHeight || 0, 400);
-                    container.scrollTop = Math.min(container.scrollTop + step, container.scrollHeight);
-                    return {
-                      count: unique.size,
-                      target: "lista",
-                      moved: container.scrollTop > previousTop,
-                    };
+                    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+                    const listStep = Math.max(Math.floor((container.clientHeight || 0) * 0.85), 500);
+                    container.scrollTop = Math.min(previousTop + listStep, maxTop);
+                    target = "lista+pagina";
+                    moved = moved || container.scrollTop > previousTop;
+                    listAtEnd = container.scrollTop >= Math.max(0, maxTop - 16);
                   }
-                  const scrollingElement = document.scrollingElement || document.documentElement;
-                  const previousTop = scrollingElement ? scrollingElement.scrollTop : window.scrollY;
-                  const step = Math.max(window.innerHeight || 0, 400);
-                  window.scrollTo(0, previousTop + step);
-                  const nextTop = scrollingElement ? scrollingElement.scrollTop : window.scrollY;
+                  await new Promise((resolve) => setTimeout(resolve, 1500));
+                  const afterCount = countCards();
+                  const refreshedPageElement = document.scrollingElement || document.documentElement;
+                  const refreshedPageTop = refreshedPageElement ? refreshedPageElement.scrollTop : window.scrollY;
+                  const refreshedPageMaxTop = Math.max(
+                    0,
+                    (refreshedPageElement?.scrollHeight || document.body.scrollHeight) - (window.innerHeight || 0),
+                  );
+                  const pageAtEnd = refreshedPageTop >= Math.max(0, refreshedPageMaxTop - 16);
+                  let refreshedListAtEnd = true;
+                  if (container) {
+                    const refreshedMaxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+                    refreshedListAtEnd = container.scrollTop >= Math.max(0, refreshedMaxTop - 16);
+                  }
                   return {
-                    count: unique.size,
-                    target: "pagina",
-                    moved: nextTop > previousTop,
+                    beforeCount,
+                    count: afterCount,
+                    target,
+                    moved,
+                    pageAtEnd,
+                    listAtEnd: refreshedListAtEnd,
                   };
                 }
                 """
             )
             current_count = int(state.get("count", 0))
+            if executed_passes == 0:
+                initial_count = int(state.get("beforeCount", current_count))
             final_count = current_count
             final_target = str(state.get("target", "desconhecido"))
+            footer_reached = bool(state.get("pageAtEnd")) and bool(state.get("listAtEnd", True))
             executed_passes += 1
-            await page.wait_for_timeout(600)
-            if current_count == previous_count or not bool(state.get("moved")):
+            cards_grew = current_count > previous_count
+            if footer_reached and not cards_grew and not bool(state.get("moved")):
                 stable_rounds += 1
-                if stable_rounds >= 1:
+                if stable_rounds >= required_stable_rounds:
                     break
             else:
                 stable_rounds = 0
             previous_count = current_count
         logger.info(
-            "LinkedIn estabilizacao da pagina alvo=%s cards=%s passagens=%s",
+            "LinkedIn estabilizacao da pagina alvo=%s cards_antes=%s cards_depois=%s passagens=%s rodape=%s",
             final_target,
+            initial_count,
             final_count,
             executed_passes,
+            "sim" if footer_reached else "nao",
         )
 
     async def _go_to_next_results_page(self, page: object, next_page_number: int) -> bool:

@@ -752,6 +752,56 @@ class ExternalKeyTests(TestCase):
         self.assertEqual(normalized["company"], "BRQ Digital Solutions")
         self.assertEqual(normalized["location"], "Brasil (Remoto)")
 
+    def test_normalize_linkedin_card_keeps_regional_location_and_cleans_company(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor full stack",
+                "company": "Instituto de Pesquisas ELDORADO Desenvolvedor full stack",
+                "location": "Campinas e RegiÃ£o",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "Instituto de Pesquisas ELDORADO Desenvolvedor full stack Campinas e RegiÃ£o",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "Instituto de Pesquisas ELDORADO")
+        self.assertEqual(normalized["location"], "Campinas e RegiÃ£o")
+
+    def test_normalize_linkedin_card_cleans_truncated_premium_prefix_and_role_suffix(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Desenvolvedor FullStack Pleno",
+                "company": "mium: 50% de desconto btime Desenvolvedor FullStack Pleno",
+                "location": "mium: 50% de desconto btime Desenvolvedor FullStack Pleno SÃ£o Paulo, SÃ£o Paulo, Brasil",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "mium: 50% de desconto btime Desenvolvedor FullStack Pleno SÃ£o Paulo, SÃ£o Paulo, Brasil",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "btime")
+        self.assertEqual(normalized["location"], "SÃ£o Paulo, SÃ£o Paulo, Brasil")
+
+    def test_normalize_linkedin_card_cleans_ai_stealth_company_from_title_pollution(self) -> None:
+        normalized = normalize_linkedin_card(
+            {
+                "title": "Full Stack Engineer",
+                "company": "AI Stealth Full Stack Engineer Brasil",
+                "location": "",
+                "work_mode": "",
+                "salary_text": "",
+                "url": "https://www.linkedin.com/jobs/view/123",
+                "summary": "AI Stealth Full Stack Engineer Brasil",
+                "description": "",
+            }
+        )
+
+        self.assertEqual(normalized["company"], "AI Stealth")
+
     def test_normalize_linkedin_card_strips_title_pollution_from_company_before_location(self) -> None:
         normalized = normalize_linkedin_card(
             {
@@ -993,19 +1043,44 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         class FakePage:
             def __init__(self) -> None:
                 self.states = [
-                    {"count": 4, "target": "lista", "moved": True},
-                    {"count": 7, "target": "lista", "moved": True},
-                    {"count": 7, "target": "lista", "moved": False},
+                    {
+                        "beforeCount": 4,
+                        "count": 7,
+                        "target": "lista+pagina",
+                        "moved": True,
+                        "pageAtEnd": False,
+                        "listAtEnd": False,
+                    },
+                    {
+                        "beforeCount": 7,
+                        "count": 9,
+                        "target": "lista+pagina",
+                        "moved": True,
+                        "pageAtEnd": True,
+                        "listAtEnd": True,
+                    },
+                    {
+                        "beforeCount": 9,
+                        "count": 9,
+                        "target": "lista+pagina",
+                        "moved": False,
+                        "pageAtEnd": True,
+                        "listAtEnd": True,
+                    },
+                    {
+                        "beforeCount": 9,
+                        "count": 9,
+                        "target": "lista+pagina",
+                        "moved": False,
+                        "pageAtEnd": True,
+                        "listAtEnd": True,
+                    },
                 ]
-                self.waited_timeouts: list[int] = []
                 self.evaluate_calls = 0
 
             async def evaluate(self, script: str) -> dict[str, object]:
                 self.evaluate_calls += 1
                 return self.states.pop(0)
-
-            async def wait_for_timeout(self, timeout: int) -> None:
-                self.waited_timeouts.append(timeout)
 
         collector = LinkedInDeterministicCollector(
             storage_state_path=Path("dummy.json"),
@@ -1016,8 +1091,7 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
 
         asyncio.run(collector._stabilize_results_page(page))
 
-        self.assertEqual(page.evaluate_calls, 3)
-        self.assertEqual(page.waited_timeouts, [600, 600, 600])
+        self.assertEqual(page.evaluate_calls, 4)
 
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()
