@@ -43,6 +43,27 @@ class LinkedInApplicationPageState:
     ready_to_submit: bool = False
 
 
+def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
+    blockers: list[str] = []
+    if not state.modal_open:
+        blockers.append("modal_fechado")
+    if state.modal_questions_visible:
+        blockers.append("perguntas_obrigatorias")
+    if state.modal_file_upload and not state.uploaded_resume:
+        blockers.append("upload_cv_pendente")
+    if state.modal_next_visible and not state.progressed_to_next_step:
+        blockers.append("etapa_intermediaria")
+    if state.modal_review_visible and not state.reached_review_step:
+        blockers.append("revisao_nao_alcancada")
+    if not state.modal_submit_visible:
+        blockers.append("botao_submit_ausente")
+    if state.resumable_fields and not state.filled_fields:
+        blockers.append("campos_nao_preenchidos")
+    if not blockers:
+        blockers.append("estado_modal_inconclusivo")
+    return ", ".join(blockers)
+
+
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
     if state.modal_open:
         detail_parts: list[str] = ["preflight real"]
@@ -236,7 +257,11 @@ class LinkedInApplicationFlowInspector:
                 if not state.modal_open or not state.modal_submit_visible:
                     return ApplicationSubmissionResult(
                         status="error_submit",
-                        detail="submissao real bloqueada: fluxo nao chegou ao botao de envio",
+                        detail=(
+                            "submissao real bloqueada: fluxo nao chegou ao botao de envio"
+                            f" | bloqueio={describe_linkedin_modal_blocker(state)}"
+                            f" | modal={state.modal_sample or 'nao_informado'}"
+                        ),
                     )
                 submitted = await self._try_submit_application(page)
                 if not submitted:
@@ -345,47 +370,71 @@ class LinkedInApplicationFlowInspector:
         if not opened:
             return state
 
-        filled_fields = await self._try_fill_safe_fields(page)
-        await page.wait_for_timeout(1200)
-        state = await self._read_page_state(page)
-        if filled_fields:
-            state = LinkedInApplicationPageState(
-                **{
-                    **state.__dict__,
-                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
-                }
-            )
-
+        all_filled_fields: tuple[str, ...] = ()
         progressed = False
-        if state.modal_open and state.modal_next_visible:
-            progressed = await self._try_advance_single_step(page)
-            if progressed:
-                await page.wait_for_timeout(2000)
-                state = await self._read_page_state(page)
-
         uploaded_resume = False
-        if state.modal_open and state.modal_file_upload:
-            uploaded_resume = await self._try_upload_resume(page)
-            if uploaded_resume:
-                await page.wait_for_timeout(1500)
-                state = await self._read_page_state(page)
-
         reached_review_step = False
         ready_to_submit = False
-        if state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
-            reached_review_step = await self._try_open_review_step(page)
-            if reached_review_step:
-                await page.wait_for_timeout(1800)
-                state = await self._read_page_state(page)
-        if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
-            ready_to_submit = True
+
+        for _ in range(5):
+            filled_fields = await self._try_fill_safe_fields(page)
+            if filled_fields:
+                all_filled_fields = tuple(dict.fromkeys((*all_filled_fields, *filled_fields)))
+                await page.wait_for_timeout(1200)
+            state = await self._read_page_state(page)
+            if all_filled_fields:
+                state = LinkedInApplicationPageState(
+                    **{
+                        **state.__dict__,
+                        "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
+                    }
+                )
+
+            if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+                ready_to_submit = True
+                break
+
+            moved = False
+            if state.modal_open and state.modal_file_upload and not uploaded_resume:
+                uploaded_resume = await self._try_upload_resume(page)
+                if uploaded_resume:
+                    moved = True
+                    await page.wait_for_timeout(1800)
+                    state = await self._read_page_state(page)
+            if state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+                review_opened = await self._try_open_review_step(page)
+                if review_opened:
+                    reached_review_step = True
+                    moved = True
+                    await page.wait_for_timeout(1800)
+                    state = await self._read_page_state(page)
+            if state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
+                next_progressed = await self._try_advance_single_step(page)
+                if next_progressed:
+                    progressed = True
+                    moved = True
+                    await page.wait_for_timeout(2200)
+                    state = await self._read_page_state(page)
+
+            if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+                ready_to_submit = True
+                break
+            if not moved:
+                break
 
         if progressed:
             state = LinkedInApplicationPageState(
                 **{
                     **state.__dict__,
-                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
+                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
                     "progressed_to_next_step": True,
+                }
+            )
+        elif all_filled_fields:
+            state = LinkedInApplicationPageState(
+                **{
+                    **state.__dict__,
+                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
                 }
             )
         if uploaded_resume:

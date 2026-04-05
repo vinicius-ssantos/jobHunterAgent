@@ -3,6 +3,7 @@ import unittest
 from job_hunter_agent.linkedin_application import (
     LinkedInApplicationPageState,
     classify_linkedin_application_page_state,
+    describe_linkedin_modal_blocker,
 )
 
 
@@ -81,3 +82,20 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
         self.assertEqual(inspection.outcome, "manual_review")
         self.assertIn("modal nao abriu", inspection.detail)
+
+    def test_describe_linkedin_modal_blocker_lists_pending_signals(self) -> None:
+        blocker = describe_linkedin_modal_blocker(
+            LinkedInApplicationPageState(
+                modal_open=True,
+                modal_next_visible=True,
+                modal_file_upload=True,
+                modal_questions_visible=True,
+                resumable_fields=("telefone",),
+            )
+        )
+
+        self.assertIn("perguntas_obrigatorias", blocker)
+        self.assertIn("upload_cv_pendente", blocker)
+        self.assertIn("etapa_intermediaria", blocker)
+        self.assertIn("botao_submit_ausente", blocker)
+        self.assertIn("campos_nao_preenchidos", blocker)
