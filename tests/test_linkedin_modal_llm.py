@@ -6,6 +6,7 @@ from job_hunter_agent.linkedin_modal_llm import (
     deterministic_interpret_linkedin_modal,
     format_linkedin_modal_interpretation,
     parse_linkedin_modal_interpretation_response,
+    validate_linkedin_modal_interpretation,
 )
 
 
@@ -80,3 +81,33 @@ class LinkedInModalInterpreterTests(unittest.TestCase):
         self.assertIn("etapa=contact", formatted)
         self.assertIn("acao=fill_contact", formatted)
 
+    def test_validate_linkedin_modal_interpretation_accepts_coherent_submit(self) -> None:
+        state = LinkedInApplicationPageState(
+            modal_open=True,
+            modal_submit_visible=True,
+            ready_to_submit=True,
+        )
+        interpretation = parse_linkedin_modal_interpretation_response(
+            '{"step_type":"review_final","recommended_action":"submit_if_authorized","confidence":0.91,"rationale":"botao final visivel"}'
+        )
+
+        validated = validate_linkedin_modal_interpretation(state, interpretation)
+
+        self.assertEqual(validated.recommended_action, "submit_if_authorized")
+        self.assertEqual(validated.step_type, "review_final")
+
+    def test_validate_linkedin_modal_interpretation_falls_back_when_llm_suggests_invalid_action(self) -> None:
+        state = LinkedInApplicationPageState(
+            modal_open=True,
+            modal_next_visible=True,
+            modal_submit_visible=False,
+        )
+        interpretation = parse_linkedin_modal_interpretation_response(
+            '{"step_type":"review_final","recommended_action":"submit_if_authorized","confidence":0.91,"rationale":"chute errado"}'
+        )
+
+        validated = validate_linkedin_modal_interpretation(state, interpretation)
+
+        self.assertEqual(validated.recommended_action, "click_next")
+        self.assertEqual(validated.step_type, "multi_step_form")
+        self.assertIn("guardrail:", validated.rationale)

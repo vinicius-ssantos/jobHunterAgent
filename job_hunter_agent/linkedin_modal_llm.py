@@ -14,6 +14,48 @@ class LinkedInModalInterpretation:
     rationale: str
 
 
+def validate_linkedin_modal_interpretation(
+    state: LinkedInApplicationPageState,
+    interpretation: LinkedInModalInterpretation,
+) -> LinkedInModalInterpretation:
+    action = interpretation.recommended_action
+    if action == "reopen_modal":
+        if not state.modal_open:
+            return interpretation
+        return _fallback_guardrail("modal ja esta aberto", state)
+    if action == "fill_contact":
+        if state.modal_open and bool(state.resumable_fields):
+            return interpretation
+        return _fallback_guardrail("nao ha campos de contato suficientes no modal", state)
+    if action == "upload_resume":
+        if state.modal_open and state.modal_file_upload and not state.uploaded_resume:
+            return interpretation
+        return _fallback_guardrail("upload de curriculo nao esta pendente", state)
+    if action == "click_next":
+        if state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
+            return interpretation
+        return _fallback_guardrail("botao next nao esta disponivel", state)
+    if action == "open_review":
+        if state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+            return interpretation
+        return _fallback_guardrail("etapa de review nao esta disponivel", state)
+    if action == "submit_if_authorized":
+        if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+            return interpretation
+        return _fallback_guardrail("botao final de submit nao esta visivel", state)
+    return interpretation
+
+
+def _fallback_guardrail(reason: str, state: LinkedInApplicationPageState) -> LinkedInModalInterpretation:
+    fallback = deterministic_interpret_linkedin_modal(state)
+    return LinkedInModalInterpretation(
+        step_type=fallback.step_type,
+        recommended_action=fallback.recommended_action,
+        confidence=fallback.confidence,
+        rationale=f"guardrail: {reason}; fallback={fallback.rationale}",
+    )
+
+
 def build_linkedin_modal_snapshot_payload(state: LinkedInApplicationPageState) -> dict:
     return {
         "modal_open": state.modal_open,

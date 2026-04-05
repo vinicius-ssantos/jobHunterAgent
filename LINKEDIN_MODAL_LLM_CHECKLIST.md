@@ -89,7 +89,7 @@ Definicao de pronto:
 
 - [x] Fase 1 concluida
 - [x] Fase 2 concluida
-- [ ] Fase 3 concluida
+- [x] Fase 3 concluida
 - [ ] Fase 4 concluida
 - [ ] Fase 5 concluida
 - [ ] README atualizado se o fluxo operacional mudar
