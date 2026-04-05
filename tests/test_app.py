@@ -5,7 +5,12 @@ from unittest.mock import patch
 from unittest import IsolatedAsyncioTestCase
 
 from job_hunter_agent.app import JobHunterApplication, parse_args
-from job_hunter_agent.composition import build_known_job_lookup, create_notifier
+from job_hunter_agent.composition import (
+    build_known_job_lookup,
+    create_linkedin_modal_interpretation_formatter,
+    create_notifier,
+)
+from job_hunter_agent.linkedin_application import LinkedInApplicationPageState
 from job_hunter_agent.domain import JobPosting
 from job_hunter_agent.notifier import NullNotifier
 
@@ -303,3 +308,54 @@ class CompositionTests(IsolatedAsyncioTestCase):
         )
 
         self.assertIsInstance(notifier, NullNotifier)
+
+    async def test_create_linkedin_modal_interpretation_formatter_returns_none_when_disabled(self) -> None:
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_modal_llm_enabled": False,
+            },
+        )()
+
+        formatter = create_linkedin_modal_interpretation_formatter(settings)
+
+        self.assertIsNone(formatter)
+
+    async def test_create_linkedin_modal_interpretation_formatter_formats_guarded_output(self) -> None:
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_modal_llm_enabled": True,
+                "ollama_model": "dummy",
+                "ollama_url": "http://localhost:11434",
+            },
+        )()
+
+        class _Interpreter:
+            def interpret(self, state):
+                from job_hunter_agent.linkedin_modal_llm import LinkedInModalInterpretation
+
+                return LinkedInModalInterpretation(
+                    step_type="review_final",
+                    recommended_action="submit_if_authorized",
+                    confidence=0.91,
+                    rationale="botao final visivel",
+                )
+
+        from unittest.mock import patch
+
+        with patch("job_hunter_agent.composition.OllamaLinkedInModalInterpreter", return_value=_Interpreter()):
+            formatter = create_linkedin_modal_interpretation_formatter(settings)
+
+        rendered = formatter(
+            LinkedInApplicationPageState(
+                modal_open=True,
+                modal_submit_visible=True,
+                ready_to_submit=True,
+            )
+        )
+
+        self.assertIn("interpretacao_modal=", rendered)
+        self.assertIn("acao=submit_if_authorized", rendered)

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import re
+from typing import Callable
 
 from job_hunter_agent.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.applicant import ApplicationSubmissionResult
@@ -172,6 +173,7 @@ class LinkedInApplicationFlowInspector:
         contact_email: str = "",
         phone: str = "",
         phone_country_code: str = "",
+        modal_interpretation_formatter: Callable[[LinkedInApplicationPageState], str] | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
@@ -179,6 +181,7 @@ class LinkedInApplicationFlowInspector:
         self.contact_email = contact_email.strip()
         self.phone = phone.strip()
         self.phone_country_code = phone_country_code.strip()
+        self.modal_interpretation_formatter = modal_interpretation_formatter
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
         if "linkedin.com/jobs/" not in job.url.lower():
@@ -243,7 +246,18 @@ class LinkedInApplicationFlowInspector:
                 await context.close()
                 await browser.close()
 
-        return classify_linkedin_application_page_state(state)
+        inspection = classify_linkedin_application_page_state(state)
+        if self.modal_interpretation_formatter is not None and state.modal_open:
+            try:
+                extra = self.modal_interpretation_formatter(state).strip()
+            except Exception:
+                extra = ""
+            if extra:
+                inspection = LinkedInApplicationInspection(
+                    outcome=inspection.outcome,
+                    detail=f"{inspection.detail} | {extra}",
+                )
+        return inspection
 
     async def _submit_async(self, job: JobPosting) -> ApplicationSubmissionResult:
         try:

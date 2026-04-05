@@ -13,6 +13,12 @@ from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.job_requirements import OllamaJobRequirementsExtractor
 from job_hunter_agent.linkedin_application import LinkedInApplicationFlowInspector
+from job_hunter_agent.linkedin_modal_llm import (
+    OllamaLinkedInModalInterpreter,
+    deterministic_interpret_linkedin_modal,
+    format_linkedin_modal_interpretation,
+    validate_linkedin_modal_interpretation,
+)
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
@@ -90,6 +96,7 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
             contact_email=settings.application_contact_email,
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
+            modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
         ),
     )
 
@@ -106,6 +113,24 @@ def create_application_submission_service(repository: JobRepository, settings: S
             phone_country_code=settings.application_phone_country_code,
         ),
     )
+
+
+def create_linkedin_modal_interpretation_formatter(settings: Settings):
+    if not settings.linkedin_modal_llm_enabled:
+        return None
+    interpreter = OllamaLinkedInModalInterpreter(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_url,
+    )
+
+    def _format(state) -> str:
+        interpreted = interpreter.interpret(state)
+        guarded = validate_linkedin_modal_interpretation(state, interpreted)
+        fallback = deterministic_interpret_linkedin_modal(state)
+        chosen = guarded if guarded.confidence >= fallback.confidence else fallback
+        return format_linkedin_modal_interpretation(chosen)
+
+    return _format
 
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
