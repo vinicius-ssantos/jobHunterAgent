@@ -85,6 +85,7 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
         flow_inspector=LinkedInApplicationFlowInspector(
             storage_state_path=settings.linkedin_storage_state_path,
             headless=settings.browser_headless,
+            resume_path=settings.resume_path,
             contact_email=settings.application_contact_email,
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,

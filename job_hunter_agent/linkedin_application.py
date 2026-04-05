@@ -36,6 +36,7 @@ class LinkedInApplicationPageState:
     resumable_fields: tuple[str, ...] = ()
     filled_fields: tuple[str, ...] = ()
     progressed_to_next_step: bool = False
+    uploaded_resume: bool = False
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
@@ -47,6 +48,8 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail_parts.append(f"preenchidos={', '.join(state.filled_fields)}")
         if state.progressed_to_next_step:
             detail_parts.append("avancou_proxima_etapa=sim")
+        if state.uploaded_resume:
+            detail_parts.append("curriculo_carregado=sim")
         if state.modal_submit_visible and not (
             state.modal_next_visible
             or state.modal_review_visible
@@ -108,12 +111,14 @@ class LinkedInApplicationFlowInspector:
         *,
         storage_state_path: str | Path,
         headless: bool,
+        resume_path: str | Path | None = None,
         contact_email: str = "",
         phone: str = "",
         phone_country_code: str = "",
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
+        self.resume_path = Path(resume_path).resolve() if resume_path else None
         self.contact_email = contact_email.strip()
         self.phone = phone.strip()
         self.phone_country_code = phone_country_code.strip()
@@ -158,33 +163,7 @@ class LinkedInApplicationFlowInspector:
                 await page.wait_for_timeout(2500)
                 state = await self._read_page_state(page)
                 if state.easy_apply:
-                    await self._try_open_easy_apply_modal(page)
-                    await page.wait_for_timeout(2500)
-                    filled_fields = await self._try_fill_safe_fields(page)
-                    await page.wait_for_timeout(1200)
-                    state = await self._read_page_state(page)
-                    progressed = False
-                    if filled_fields:
-                        state = LinkedInApplicationPageState(
-                            **{
-                                **state.__dict__,
-                                "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
-                            }
-                        )
-                    if state.modal_open and state.modal_next_visible:
-                        progressed = await self._try_advance_single_step(page)
-                        if progressed:
-                            await page.wait_for_timeout(2000)
-                            state = await self._read_page_state(page)
-                    if progressed:
-                        state = LinkedInApplicationPageState(
-                            **{
-                                **state.__dict__,
-                                "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
-                                "progressed_to_next_step": True,
-                            }
-                        )
-                    await self._try_close_modal(page)
+                    state = await self._inspect_easy_apply_modal(page, state)
             finally:
                 await context.close()
                 await browser.close()
@@ -253,6 +232,7 @@ class LinkedInApplicationFlowInspector:
                 resumable_fields: resumableFields,
                 filled_fields: [],
                 progressed_to_next_step: false,
+                uploaded_resume: false,
               };
             }
             """
@@ -260,6 +240,62 @@ class LinkedInApplicationFlowInspector:
         raw_state["resumable_fields"] = tuple(raw_state.get("resumable_fields", ()))
         raw_state["filled_fields"] = tuple(raw_state.get("filled_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
+
+    async def _inspect_easy_apply_modal(self, page, initial_state: LinkedInApplicationPageState) -> LinkedInApplicationPageState:
+        state = initial_state
+        opened = False
+        for _ in range(2):
+            await self._try_open_easy_apply_modal(page)
+            await page.wait_for_timeout(2500)
+            state = await self._read_page_state(page)
+            if state.modal_open:
+                opened = True
+                break
+        if not opened:
+            return state
+
+        filled_fields = await self._try_fill_safe_fields(page)
+        await page.wait_for_timeout(1200)
+        state = await self._read_page_state(page)
+        if filled_fields:
+            state = LinkedInApplicationPageState(
+                **{
+                    **state.__dict__,
+                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
+                }
+            )
+
+        progressed = False
+        if state.modal_open and state.modal_next_visible:
+            progressed = await self._try_advance_single_step(page)
+            if progressed:
+                await page.wait_for_timeout(2000)
+                state = await self._read_page_state(page)
+
+        uploaded_resume = False
+        if state.modal_open and state.modal_file_upload:
+            uploaded_resume = await self._try_upload_resume(page)
+            if uploaded_resume:
+                await page.wait_for_timeout(1500)
+                state = await self._read_page_state(page)
+
+        if progressed:
+            state = LinkedInApplicationPageState(
+                **{
+                    **state.__dict__,
+                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *filled_fields))),
+                    "progressed_to_next_step": True,
+                }
+            )
+        if uploaded_resume:
+            state = LinkedInApplicationPageState(
+                **{
+                    **state.__dict__,
+                    "uploaded_resume": True,
+                }
+            )
+        await self._try_close_modal(page)
+        return state
 
     async def _try_open_easy_apply_modal(self, page) -> None:
         candidates = [
@@ -401,6 +437,23 @@ class LinkedInApplicationFlowInspector:
                 await candidate.scroll_into_view_if_needed()
                 await candidate.click(timeout=3000, force=True)
                 await page.wait_for_timeout(1200)
+                return True
+            except Exception:
+                continue
+        return False
+
+    async def _try_upload_resume(self, page) -> bool:
+        if self.resume_path is None or not self.resume_path.exists():
+            return False
+        candidates = [
+            page.locator('[role="dialog"] input[type="file"]').first,
+            page.locator('input[type="file"]').first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.set_input_files(str(self.resume_path))
                 return True
             except Exception:
                 continue

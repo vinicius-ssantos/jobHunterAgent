@@ -34,6 +34,7 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
                 resumable_fields=("email", "telefone", "codigo_pais"),
                 filled_fields=("telefone",),
                 progressed_to_next_step=True,
+                uploaded_resume=True,
                 cta_text="candidatura simplificada",
                 modal_sample="next | upload resume",
             )
@@ -42,6 +43,7 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertEqual(inspection.outcome, "manual_review")
         self.assertIn("preenchidos=telefone", inspection.detail)
         self.assertIn("avancou_proxima_etapa=sim", inspection.detail)
+        self.assertIn("curriculo_carregado=sim", inspection.detail)
         self.assertIn("passos_adicionais=sim", inspection.detail)
         self.assertIn("upload_cv=sim", inspection.detail)
         self.assertIn("campos=email, telefone, codigo_pais", inspection.detail)
