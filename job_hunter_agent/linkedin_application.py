@@ -84,6 +84,17 @@ def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
     return ", ".join(blockers)
 
 
+def describe_linkedin_easy_apply_entrypoint(state: LinkedInApplicationPageState) -> str:
+    parts: list[str] = []
+    if state.cta_text:
+        parts.append(f"cta={state.cta_text}")
+    if state.sample:
+        parts.append(f"pagina={state.sample[:180]}")
+    if not parts:
+        return "entrada_easy_apply=indisponivel"
+    return " | ".join(parts)
+
+
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
     if state.modal_open:
         detail_parts: list[str] = ["preflight real"]
@@ -148,7 +159,10 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
     if state.easy_apply:
         return LinkedInApplicationInspection(
             outcome="manual_review",
-            detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+            detail=(
+                "preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu"
+                f" | {describe_linkedin_easy_apply_entrypoint(state)}"
+            ),
         )
     if state.external_apply:
         return LinkedInApplicationInspection(
@@ -305,6 +319,7 @@ class LinkedInApplicationFlowInspector:
                             "submissao real bloqueada: fluxo nao chegou ao botao de envio"
                             f" | bloqueio={describe_linkedin_modal_blocker(state)}"
                             f" | modal={state.modal_sample or 'nao_informado'}"
+                            f" | {describe_linkedin_easy_apply_entrypoint(state)}"
                             f"{interpretation_detail}"
                         ),
                     )
@@ -566,8 +581,14 @@ class LinkedInApplicationFlowInspector:
         except Exception:
             return ""
 
-    async def _try_open_easy_apply_modal(self, page) -> None:
+    async def _try_open_easy_apply_modal(self, page) -> bool:
         candidates = [
+            page.locator('[data-control-name="jobdetails_topcard_inapply"]').first,
+            page.locator('[data-control-name="topcard_inapply"]').first,
+            page.locator('[data-control-name="jobs-details-top-card-apply-button"]').first,
+            page.locator('button.jobs-apply-button').first,
+            page.locator('button[aria-label*="Easy Apply" i]').first,
+            page.locator('button[aria-label*="Candidatura simplificada" i]').first,
             page.get_by_role(
                 "button",
                 name=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE),
@@ -579,21 +600,53 @@ class LinkedInApplicationFlowInspector:
                 if await candidate.count() == 0:
                     continue
                 await candidate.scroll_into_view_if_needed()
-                await candidate.click(timeout=3000, force=True)
+                await page.wait_for_timeout(400)
+                try:
+                    await candidate.hover(timeout=1500)
+                except Exception:
+                    pass
+                await candidate.click(timeout=3500)
                 if await self._wait_for_modal(page):
-                    return
+                    return True
+                await candidate.click(timeout=3500, force=True)
+                if await self._wait_for_modal(page):
+                    return True
                 handle = await candidate.element_handle()
                 if handle is not None:
                     await page.evaluate("(element) => element.click()", handle)
                     if await self._wait_for_modal(page):
-                        return
+                        return True
             except Exception:
                 continue
+        fallback_opened = await page.evaluate(
+            """
+            () => {
+              const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+              const candidates = Array.from(document.querySelectorAll('button, a'));
+              for (const element of candidates) {
+                const text = normalize(element.textContent);
+                const aria = normalize(element.getAttribute('aria-label') || '');
+                const control = normalize(element.getAttribute('data-control-name') || '');
+                const matchesText = text.includes('easy apply') || text.includes('candidatura simplificada');
+                const matchesAria = aria.includes('easy apply') || aria.includes('candidatura simplificada');
+                const matchesControl = control.includes('inapply') || control.includes('apply-button');
+                if (!(matchesText || matchesAria || matchesControl)) continue;
+                element.click();
+                return true;
+              }
+              return false;
+            }
+            """
+        )
+        if fallback_opened and await self._wait_for_modal(page):
+            return True
+        return False
 
     async def _wait_for_modal(self, page) -> bool:
         try:
-            await page.locator('[role="dialog"]').first.wait_for(state="visible", timeout=3000)
-            await page.wait_for_timeout(800)
+            await page.locator('[role="dialog"]').first.wait_for(state="visible", timeout=4500)
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_timeout(1400)
             return True
         except Exception:
             return False

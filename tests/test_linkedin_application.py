@@ -2,6 +2,7 @@ import unittest
 
 from job_hunter_agent.linkedin_application import (
     build_linkedin_modal_snapshot,
+    describe_linkedin_easy_apply_entrypoint,
     LinkedInApplicationPageState,
     classify_linkedin_application_page_state,
     describe_linkedin_modal_blocker,
@@ -79,11 +80,12 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
     def test_classify_page_state_marks_unopened_easy_apply_as_manual_review(self) -> None:
         inspection = classify_linkedin_application_page_state(
-            LinkedInApplicationPageState(easy_apply=True, cta_text="easy apply")
+            LinkedInApplicationPageState(easy_apply=True, cta_text="easy apply", sample="easy apply | company | vaga")
         )
 
         self.assertEqual(inspection.outcome, "manual_review")
         self.assertIn("modal nao abriu", inspection.detail)
+        self.assertIn("cta=easy apply", inspection.detail)
 
     def test_describe_linkedin_modal_blocker_lists_pending_signals(self) -> None:
         blocker = describe_linkedin_modal_blocker(
@@ -115,6 +117,18 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertIn("titulos=informacoes de contato, curriculo", snapshot)
         self.assertIn("botoes=next, review, submit application", snapshot)
         self.assertIn("campos_detectados=email, phone, country code", snapshot)
+
+    def test_describe_linkedin_easy_apply_entrypoint_uses_cta_and_page_sample(self) -> None:
+        detail = describe_linkedin_easy_apply_entrypoint(
+            LinkedInApplicationPageState(
+                easy_apply=True,
+                cta_text="easy apply",
+                sample="easy apply | empresa teste | vaga teste",
+            )
+        )
+
+        self.assertIn("cta=easy apply", detail)
+        self.assertIn("pagina=easy apply | empresa teste | vaga teste", detail)
 
     def test_format_modal_interpretation_for_error_includes_structured_hint(self) -> None:
         inspector = LinkedInApplicationFlowInspector(
