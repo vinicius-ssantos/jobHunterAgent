@@ -57,7 +57,7 @@ class JobHunterApplication:
             logger.info("Pre-fase de candidatura criou %s rascunho(s) para vagas aprovadas.", len(drafts))
 
     async def handle_application_preflight(self, application_id: int) -> str:
-        result = self.application_preflight.run_for_application(application_id)
+        result = await asyncio.to_thread(self.application_preflight.run_for_application, application_id)
         logger.info(
             "Preflight de candidatura concluido. application_id=%s outcome=%s status=%s",
             application_id,
@@ -67,7 +67,7 @@ class JobHunterApplication:
         return f"Preflight: {result.detail} (status={result.application_status})"
 
     async def handle_application_submit(self, application_id: int) -> str:
-        result = self.application_submission.run_for_application(application_id)
+        result = await asyncio.to_thread(self.application_submission.run_for_application, application_id)
         logger.info(
             "Submissao de candidatura concluida. application_id=%s outcome=%s status=%s",
             application_id,
