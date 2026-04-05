@@ -16,6 +16,7 @@ from job_hunter_agent.notifier import (
     resolve_review_action,
     resolve_application_submit_request,
 )
+from job_hunter_agent.notifier_rendering import summarize_application_notes
 from job_hunter_agent.repository import SqliteJobRepository
 from job_hunter_agent.review_rationale import (
     StructuredReviewRationale,
@@ -325,3 +326,19 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Prioridade: media", message)
         self.assertIn("Sinais: senioridade=senior | stack=java, spring | ingles=avancado | lideranca=sim", message)
         self.assertIn("Observacoes: rascunho criado apos aprovacao humana", message)
+
+    def test_summarize_application_notes_prefers_recent_operational_lines(self) -> None:
+        notes = (
+            "rascunho criado apos aprovacao humana\n"
+            "linha irrelevante antiga\n"
+            "sinais estruturados: senioridade=senior; stack_principal=java, spring\n"
+            "prioridade sugerida: alta | motivo: revisar primeiro\n"
+            "preflight real | campos=telefone | avancou_proxima_etapa=sim | perguntas=sim\n"
+        )
+
+        summary = summarize_application_notes(notes, max_chars=220)
+
+        self.assertIn("rascunho criado apos aprovacao humana", summary)
+        self.assertIn("prioridade sugerida: alta", summary)
+        self.assertIn("preflight real", summary)
+        self.assertNotIn("linha irrelevante antiga", summary)
