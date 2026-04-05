@@ -993,19 +993,36 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         class FakePage:
             def __init__(self) -> None:
                 self.states = [
-                    {"count": 4, "target": "lista+pagina", "moved": True, "pageAtEnd": False, "listAtEnd": False},
-                    {"count": 7, "target": "lista+pagina", "moved": True, "pageAtEnd": True, "listAtEnd": True},
-                    {"count": 7, "target": "lista+pagina", "moved": False, "pageAtEnd": True, "listAtEnd": True},
+                    {
+                        "beforeCount": 4,
+                        "count": 7,
+                        "target": "lista+pagina",
+                        "moved": True,
+                        "pageAtEnd": False,
+                        "listAtEnd": False,
+                    },
+                    {
+                        "beforeCount": 7,
+                        "count": 9,
+                        "target": "lista+pagina",
+                        "moved": True,
+                        "pageAtEnd": True,
+                        "listAtEnd": True,
+                    },
+                    {
+                        "beforeCount": 9,
+                        "count": 9,
+                        "target": "lista+pagina",
+                        "moved": False,
+                        "pageAtEnd": True,
+                        "listAtEnd": True,
+                    },
                 ]
-                self.waited_timeouts: list[int] = []
                 self.evaluate_calls = 0
 
             async def evaluate(self, script: str) -> dict[str, object]:
                 self.evaluate_calls += 1
                 return self.states.pop(0)
-
-            async def wait_for_timeout(self, timeout: int) -> None:
-                self.waited_timeouts.append(timeout)
 
         collector = LinkedInDeterministicCollector(
             storage_state_path=Path("dummy.json"),
@@ -1017,7 +1034,6 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         asyncio.run(collector._stabilize_results_page(page))
 
         self.assertEqual(page.evaluate_calls, 3)
-        self.assertEqual(page.waited_timeouts, [800, 800, 800])
 
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()

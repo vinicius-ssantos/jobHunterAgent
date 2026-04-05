@@ -802,7 +802,16 @@ class LinkedInDeterministicCollector:
         for _ in range(self.scroll_stabilization_passes):
             state = await page.evaluate(
                 """
-                () => {
+                async () => {
+                  const countCards = () => {
+                    const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
+                    const unique = new Set();
+                    for (const anchor of anchors) {
+                      const href = anchor.getAttribute("href") || anchor.href || "";
+                      if (href) unique.add(href);
+                    }
+                    return unique.size;
+                  };
                   const findScrollableAncestor = (node) => {
                     let current = node;
                     while (current && current !== document.body) {
@@ -813,12 +822,8 @@ class LinkedInDeterministicCollector:
                     }
                     return null;
                   };
+                  const beforeCount = countCards();
                   const anchors = Array.from(document.querySelectorAll("a[href*='/jobs/view/']"));
-                  const unique = new Set();
-                  for (const anchor of anchors) {
-                    const href = anchor.getAttribute("href") || anchor.href || "";
-                    if (href) unique.add(href);
-                  }
                   const pageElement = document.scrollingElement || document.documentElement;
                   const pagePreviousTop = pageElement ? pageElement.scrollTop : window.scrollY;
                   const pageMaxTop = Math.max(0, (pageElement?.scrollHeight || document.body.scrollHeight) - (window.innerHeight || 0));
@@ -840,25 +845,39 @@ class LinkedInDeterministicCollector:
                     moved = moved || container.scrollTop > previousTop;
                     listAtEnd = container.scrollTop >= Math.max(0, maxTop - 16);
                   }
+                  await new Promise((resolve) => setTimeout(resolve, 1200));
+                  const afterCount = countCards();
+                  const refreshedPageElement = document.scrollingElement || document.documentElement;
+                  const refreshedPageTop = refreshedPageElement ? refreshedPageElement.scrollTop : window.scrollY;
+                  const refreshedPageMaxTop = Math.max(
+                    0,
+                    (refreshedPageElement?.scrollHeight || document.body.scrollHeight) - (window.innerHeight || 0),
+                  );
+                  const pageAtEnd = refreshedPageTop >= Math.max(0, refreshedPageMaxTop - 16);
+                  let refreshedListAtEnd = true;
+                  if (container) {
+                    const refreshedMaxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+                    refreshedListAtEnd = container.scrollTop >= Math.max(0, refreshedMaxTop - 16);
+                  }
                   return {
-                    count: unique.size,
+                    beforeCount,
+                    count: afterCount,
                     target,
                     moved,
-                    pageAtEnd: nextPageTop >= Math.max(0, pageMaxTop - 16),
-                    listAtEnd,
+                    pageAtEnd,
+                    listAtEnd: refreshedListAtEnd,
                   };
                 }
                 """
             )
             current_count = int(state.get("count", 0))
             if executed_passes == 0:
-                initial_count = current_count
+                initial_count = int(state.get("beforeCount", current_count))
             final_count = current_count
             final_target = str(state.get("target", "desconhecido"))
             footer_reached = bool(state.get("pageAtEnd")) and bool(state.get("listAtEnd", True))
             executed_passes += 1
-            await page.wait_for_timeout(800)
-            if footer_reached and (current_count == previous_count or not bool(state.get("moved"))):
+            if footer_reached and current_count == previous_count:
                 stable_rounds += 1
                 if stable_rounds >= 1:
                     break
