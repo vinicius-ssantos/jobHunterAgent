@@ -1067,6 +1067,14 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
                         "pageAtEnd": True,
                         "listAtEnd": True,
                     },
+                    {
+                        "beforeCount": 9,
+                        "count": 9,
+                        "target": "lista+pagina",
+                        "moved": False,
+                        "pageAtEnd": True,
+                        "listAtEnd": True,
+                    },
                 ]
                 self.evaluate_calls = 0
 
@@ -1083,7 +1091,7 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
 
         asyncio.run(collector._stabilize_results_page(page))
 
-        self.assertEqual(page.evaluate_calls, 3)
+        self.assertEqual(page.evaluate_calls, 4)
 
     def test_linkedin_task_forbids_navigation_to_labels_or_jsonpath(self) -> None:
         adapter = LinkedInCollectorAdapter()

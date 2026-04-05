@@ -809,7 +809,9 @@ class LinkedInDeterministicCollector:
         final_target = "desconhecido"
         footer_reached = False
         executed_passes = 0
-        for _ in range(self.scroll_stabilization_passes):
+        max_iterations = max(6, self.scroll_stabilization_passes * 6)
+        required_stable_rounds = 2
+        for _ in range(max_iterations):
             state = await page.evaluate(
                 """
                 async () => {
@@ -837,7 +839,8 @@ class LinkedInDeterministicCollector:
                   const pageElement = document.scrollingElement || document.documentElement;
                   const pagePreviousTop = pageElement ? pageElement.scrollTop : window.scrollY;
                   const pageMaxTop = Math.max(0, (pageElement?.scrollHeight || document.body.scrollHeight) - (window.innerHeight || 0));
-                  const nextPageTop = pageMaxTop;
+                  const pageStep = Math.max(Math.floor((window.innerHeight || 0) * 0.85), 700);
+                  const nextPageTop = Math.min(pagePreviousTop + pageStep, pageMaxTop);
                   window.scrollTo(0, nextPageTop);
 
                   const container = document.querySelector(".jobs-search-results-list")
@@ -850,12 +853,13 @@ class LinkedInDeterministicCollector:
                   if (container) {
                     const previousTop = container.scrollTop;
                     const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
-                    container.scrollTop = maxTop;
+                    const listStep = Math.max(Math.floor((container.clientHeight || 0) * 0.85), 500);
+                    container.scrollTop = Math.min(previousTop + listStep, maxTop);
                     target = "lista+pagina";
                     moved = moved || container.scrollTop > previousTop;
                     listAtEnd = container.scrollTop >= Math.max(0, maxTop - 16);
                   }
-                  await new Promise((resolve) => setTimeout(resolve, 1200));
+                  await new Promise((resolve) => setTimeout(resolve, 1500));
                   const afterCount = countCards();
                   const refreshedPageElement = document.scrollingElement || document.documentElement;
                   const refreshedPageTop = refreshedPageElement ? refreshedPageElement.scrollTop : window.scrollY;
@@ -887,9 +891,10 @@ class LinkedInDeterministicCollector:
             final_target = str(state.get("target", "desconhecido"))
             footer_reached = bool(state.get("pageAtEnd")) and bool(state.get("listAtEnd", True))
             executed_passes += 1
-            if footer_reached and current_count == previous_count:
+            cards_grew = current_count > previous_count
+            if footer_reached and not cards_grew and not bool(state.get("moved")):
                 stable_rounds += 1
-                if stable_rounds >= 1:
+                if stable_rounds >= required_stable_rounds:
                     break
             else:
                 stable_rounds = 0
