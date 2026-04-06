@@ -274,3 +274,79 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertEqual(payload["files"]["html"], "")
         self.assertEqual(payload["files"]["screenshot"], "")
         self.assertIn("artefatos=", detail)
+
+    def test_build_submit_exception_result_reports_unexpected_error_and_saves_artifacts(self) -> None:
+        class _Page:
+            def is_closed(self):
+                return False
+
+            async def content(self):
+                return "<html><body>falha</body></html>"
+
+            async def screenshot(self, path, full_page):
+                Path(path).write_bytes(b"fake-png")
+
+        class _Job:
+            id = 321
+            title = "Backend Engineer"
+            url = "https://www.linkedin.com/jobs/view/321/"
+
+        tmp = prepare_workspace_tmp_dir("linkedin-submit-exception")
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+            save_failure_artifacts=True,
+            failure_artifacts_dir=tmp,
+        )
+        import asyncio
+
+        result = asyncio.run(
+            inspector._build_submit_exception_result(
+                RuntimeError("boom"),
+                page=_Page(),
+                state=LinkedInApplicationPageState(modal_open=True),
+                job=_Job(),
+            )
+        )
+
+        self.assertEqual(result.status, "error_submit")
+        self.assertIn("erro inesperado: boom", result.detail)
+        self.assertIn("artefatos=", result.detail)
+
+    def test_build_submit_exception_result_reports_closed_page_with_artifact_metadata(self) -> None:
+        class _ClosedPage:
+            def is_closed(self):
+                return True
+
+            async def content(self):
+                raise RuntimeError("Target page, context or browser has been closed")
+
+            async def screenshot(self, path, full_page):
+                raise RuntimeError("Target page, context or browser has been closed")
+
+        class _Job:
+            id = 654
+            title = "Backend Engineer"
+            url = "https://www.linkedin.com/jobs/view/654/"
+
+        tmp = prepare_workspace_tmp_dir("linkedin-submit-closed")
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+            save_failure_artifacts=True,
+            failure_artifacts_dir=tmp,
+        )
+        import asyncio
+
+        result = asyncio.run(
+            inspector._build_submit_exception_result(
+                RuntimeError("Page.evaluate: Target page, context or browser has been closed"),
+                page=_ClosedPage(),
+                state=LinkedInApplicationPageState(modal_open=True),
+                job=_Job(),
+            )
+        )
+
+        self.assertEqual(result.status, "error_submit")
+        self.assertIn("pagina do LinkedIn foi fechada", result.detail)
+        self.assertIn("artefatos=", result.detail)

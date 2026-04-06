@@ -304,6 +304,7 @@ class LinkedInApplicationFlowInspector:
             )
             context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
             page = await context.new_page()
+            state = LinkedInApplicationPageState()
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
                 await page.wait_for_timeout(2500)
@@ -366,12 +367,7 @@ class LinkedInApplicationFlowInspector:
                     submitted_at=datetime.now().isoformat(timespec="seconds"),
                 )
             except Exception as exc:
-                if self._is_closed_target_error(exc):
-                    return ApplicationSubmissionResult(
-                        status="error_submit",
-                        detail="submissao real interrompida: pagina do LinkedIn foi fechada durante a automacao",
-                    )
-                raise
+                return await self._build_submit_exception_result(exc, page=page, state=state, job=job)
             finally:
                 await context.close()
                 await browser.close()
@@ -713,6 +709,30 @@ class LinkedInApplicationFlowInspector:
             return f" | artefatos={meta_path.name}"
         except Exception:
             return ""
+
+    async def _build_submit_exception_result(
+        self,
+        exc: Exception,
+        *,
+        page,
+        state: LinkedInApplicationPageState,
+        job: JobPosting,
+    ) -> ApplicationSubmissionResult:
+        if self._is_closed_target_error(exc):
+            detail = "submissao real interrompida: pagina do LinkedIn foi fechada durante a automacao"
+        else:
+            detail = f"submissao real falhou com erro inesperado: {exc}"
+        artifact_detail = await self._capture_failure_artifacts(
+            page,
+            state=state,
+            job=job,
+            phase="submit",
+            detail=detail,
+        )
+        return ApplicationSubmissionResult(
+            status="error_submit",
+            detail=f"{detail}{artifact_detail}",
+        )
 
     async def _try_open_easy_apply_modal(self, page) -> bool:
         await self._dismiss_interfering_dialogs(page)
