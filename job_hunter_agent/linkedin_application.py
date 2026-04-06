@@ -365,6 +365,13 @@ class LinkedInApplicationFlowInspector:
                     detail="submissao real concluida no LinkedIn",
                     submitted_at=datetime.now().isoformat(timespec="seconds"),
                 )
+            except Exception as exc:
+                if self._is_closed_target_error(exc):
+                    return ApplicationSubmissionResult(
+                        status="error_submit",
+                        detail="submissao real interrompida: pagina do LinkedIn foi fechada durante a automacao",
+                    )
+                raise
             finally:
                 await context.close()
                 await browser.close()
@@ -651,13 +658,25 @@ class LinkedInApplicationFlowInspector:
             html_path = self.failure_artifacts_dir / f"{stem}_page.html"
             screenshot_path = self.failure_artifacts_dir / f"{stem}_shot.png"
             meta_path = self.failure_artifacts_dir / f"{stem}_meta.json"
+            page_closed = self._is_page_closed(page)
+            html_saved = False
+            screenshot_saved = False
 
-            html = await page.content()
-            html_path.write_text(html, encoding="utf-8")
+            if not page_closed:
+                try:
+                    html = await page.content()
+                    html_path.write_text(html, encoding="utf-8")
+                    html_saved = True
+                except Exception as exc:
+                    if self._is_closed_target_error(exc):
+                        page_closed = True
             try:
-                await page.screenshot(path=str(screenshot_path), full_page=True)
-            except Exception:
-                screenshot_path = None
+                if not page_closed:
+                    await page.screenshot(path=str(screenshot_path), full_page=True)
+                    screenshot_saved = True
+            except Exception as exc:
+                if self._is_closed_target_error(exc):
+                    page_closed = True
 
             payload = {
                 "job_id": job.id,
@@ -684,9 +703,10 @@ class LinkedInApplicationFlowInspector:
                     "resumable_fields": list(state.resumable_fields),
                     "filled_fields": list(state.filled_fields),
                 },
+                "page_closed": page_closed,
                 "files": {
-                    "html": str(html_path),
-                    "screenshot": str(screenshot_path) if screenshot_path else "",
+                    "html": str(html_path) if html_saved else "",
+                    "screenshot": str(screenshot_path) if screenshot_saved else "",
                 },
             }
             meta_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
@@ -777,6 +797,8 @@ class LinkedInApplicationFlowInspector:
             await page.wait_for_timeout(1400)
             return True
         except Exception:
+            if self._is_page_closed(page):
+                return False
             await self._handle_save_application_dialog(page)
             return False
 
@@ -821,6 +843,8 @@ class LinkedInApplicationFlowInspector:
                 continue
 
     async def _handle_save_application_dialog(self, page) -> bool:
+        if self._is_page_closed(page):
+            return False
         candidates = [
             page.locator('[role="alertdialog"] [data-control-name="discard_application_confirm_btn"]').first,
             page.locator('[role="alertdialog"] button').filter(has_text=re.compile(r"(discard|descartar)", re.IGNORECASE)).first,
@@ -836,6 +860,18 @@ class LinkedInApplicationFlowInspector:
             except Exception:
                 continue
         return False
+
+    @staticmethod
+    def _is_page_closed(page) -> bool:
+        try:
+            return bool(page.is_closed())
+        except Exception:
+            return True
+
+    @staticmethod
+    def _is_closed_target_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        return "target page, context or browser has been closed" in text
 
     async def _try_fill_safe_fields(self, page) -> tuple[str, ...]:
         if await page.locator('[role="dialog"]').count() == 0:

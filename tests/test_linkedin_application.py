@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+import json
 
 from job_hunter_agent.linkedin_application import (
     build_linkedin_modal_snapshot,
@@ -161,6 +162,9 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
     def test_capture_failure_artifacts_writes_html_and_metadata(self) -> None:
         class _Page:
+            def is_closed(self):
+                return False
+
             async def content(self):
                 return "<html><body>teste</body></html>"
 
@@ -203,3 +207,70 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
             self.assertIn("artefatos=", detail)
         finally:
             pass
+
+    def test_is_closed_target_error_detects_playwright_message(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        self.assertTrue(
+            inspector._is_closed_target_error(
+                RuntimeError("Page.evaluate: Target page, context or browser has been closed")
+            )
+        )
+
+    def test_is_closed_target_error_ignores_unrelated_message(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        self.assertFalse(inspector._is_closed_target_error(RuntimeError("network timeout")))
+
+    def test_capture_failure_artifacts_writes_metadata_when_page_is_already_closed(self) -> None:
+        class _ClosedPage:
+            def is_closed(self):
+                return True
+
+            async def content(self):
+                raise RuntimeError("Target page, context or browser has been closed")
+
+            async def screenshot(self, path, full_page):
+                raise RuntimeError("Target page, context or browser has been closed")
+
+        class _Job:
+            id = 123
+            title = "Backend Engineer"
+            url = "https://www.linkedin.com/jobs/view/123/"
+
+        tmp = prepare_workspace_tmp_dir("linkedin-artifacts-closed")
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+            save_failure_artifacts=True,
+            failure_artifacts_dir=tmp,
+        )
+        import asyncio
+
+        detail = asyncio.run(
+            inspector._capture_failure_artifacts(
+                _ClosedPage(),
+                state=LinkedInApplicationPageState(
+                    easy_apply=True,
+                    modal_open=True,
+                    modal_submit_visible=True,
+                ),
+                job=_Job(),
+                phase="submit",
+                detail="pagina fechada",
+            )
+        )
+
+        meta_files = list(Path(tmp).glob("*_meta.json"))
+        self.assertEqual(len(meta_files), 1)
+        payload = json.loads(meta_files[0].read_text(encoding="utf-8"))
+        self.assertTrue(payload["page_closed"])
+        self.assertEqual(payload["files"]["html"], "")
+        self.assertEqual(payload["files"]["screenshot"], "")
+        self.assertIn("artefatos=", detail)
