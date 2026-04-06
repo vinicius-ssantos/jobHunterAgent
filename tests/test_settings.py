@@ -24,12 +24,14 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.linkedin_max_pages_per_cycle, 2)
         self.assertEqual(settings.linkedin_max_page_depth, 6)
         self.assertEqual(settings.linkedin_scroll_stabilization_passes, 3)
+        self.assertFalse(settings.save_failure_artifacts)
         self.assertEqual(settings.application_contact_email, "")
         self.assertEqual(settings.application_phone, "")
         self.assertEqual(settings.application_phone_country_code, "")
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)
+        self.assertEqual(str(settings.failure_artifacts_dir), ".artifacts\\linkedin_failures")
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")

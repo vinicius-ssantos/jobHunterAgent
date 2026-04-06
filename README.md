@@ -202,6 +202,8 @@ A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH=6`
 - `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES=3`
+- `JOB_HUNTER_SAVE_FAILURE_ARTIFACTS=false`
+- `JOB_HUNTER_FAILURE_ARTIFACTS_DIR=./.artifacts/linkedin_failures`
 
 O recomendado para a fase atual e manter essa janela pequena por ciclo.
 Cada ciclo sempre comeca pela pagina `1`, desce a pagina ate o rodape enquanto tenta esgotar a lista interna de resultados e so depois avanca pela paginacao da propria interface do LinkedIn para a pagina seguinte.
@@ -216,6 +218,17 @@ Na pratica, com `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`, o comportamento esp
 - extrair os cards visiveis da pagina `2`
 
 `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH` continua como limite de seguranca para nao aprofundar demais a navegacao dentro de um unico ciclo.
+
+Para diagnostico de falhas do LinkedIn, tambem existe uma captura opcional de artefatos locais:
+
+- `JOB_HUNTER_SAVE_FAILURE_ARTIFACTS=true`
+- `JOB_HUNTER_FAILURE_ARTIFACTS_DIR=./.artifacts/linkedin_failures`
+
+Quando habilitada, falhas de submit real do LinkedIn salvam:
+
+- HTML da pagina no momento do erro
+- screenshot em PNG
+- metadata JSON com estado do modal e contexto da vaga
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

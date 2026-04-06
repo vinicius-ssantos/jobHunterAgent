@@ -97,6 +97,8 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
             modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
+            save_failure_artifacts=settings.save_failure_artifacts,
+            failure_artifacts_dir=settings.failure_artifacts_dir,
         ),
     )
 
@@ -112,6 +114,8 @@ def create_application_submission_service(repository: JobRepository, settings: S
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
             modal_interpreter=create_linkedin_modal_interpreter(settings),
+            save_failure_artifacts=settings.save_failure_artifacts,
+            failure_artifacts_dir=settings.failure_artifacts_dir,
         ),
     )
 

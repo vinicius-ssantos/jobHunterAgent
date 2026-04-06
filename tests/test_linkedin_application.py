@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from job_hunter_agent.linkedin_application import (
     build_linkedin_modal_snapshot,
@@ -8,6 +9,7 @@ from job_hunter_agent.linkedin_application import (
     describe_linkedin_modal_blocker,
     LinkedInApplicationFlowInspector,
 )
+from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
 class LinkedInApplicationInspectorTests(unittest.TestCase):
@@ -156,3 +158,48 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
         self.assertIn("interpretacao_modal=", detail)
         self.assertIn("acao=submit_if_authorized", detail)
+
+    def test_capture_failure_artifacts_writes_html_and_metadata(self) -> None:
+        class _Page:
+            async def content(self):
+                return "<html><body>teste</body></html>"
+
+            async def screenshot(self, path, full_page):
+                Path(path).write_bytes(b"fake-png")
+
+        class _Job:
+            id = 999
+            title = "Backend Engineer"
+            url = "https://www.linkedin.com/jobs/view/999/"
+
+        tmp = prepare_workspace_tmp_dir("linkedin-artifacts")
+        try:
+            inspector = LinkedInApplicationFlowInspector(
+                storage_state_path="linkedin_state.json",
+                headless=True,
+                save_failure_artifacts=True,
+                failure_artifacts_dir=tmp,
+            )
+            import asyncio
+
+            detail = asyncio.run(
+                inspector._capture_failure_artifacts(
+                    _Page(),
+                    state=LinkedInApplicationPageState(
+                        easy_apply=True,
+                        modal_open=False,
+                        cta_text="candidatura simplificada",
+                    ),
+                    job=_Job(),
+                    phase="submit",
+                    detail="falha de teste",
+                )
+            )
+
+            files = list(Path(tmp).iterdir())
+            self.assertTrue(any(path.suffix == ".html" for path in files))
+            self.assertTrue(any(path.suffix == ".json" for path in files))
+            self.assertTrue(any(path.suffix == ".png" for path in files))
+            self.assertIn("artefatos=", detail)
+        finally:
+            pass

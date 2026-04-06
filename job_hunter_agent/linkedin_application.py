@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import json
 from pathlib import Path
 import re
 from typing import Callable, TYPE_CHECKING
@@ -195,6 +196,8 @@ class LinkedInApplicationFlowInspector:
         phone_country_code: str = "",
         modal_interpretation_formatter: Callable[[LinkedInApplicationPageState], str] | None = None,
         modal_interpreter: Callable[[LinkedInApplicationPageState], "LinkedInModalInterpretation"] | None = None,
+        save_failure_artifacts: bool = False,
+        failure_artifacts_dir: str | Path | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
@@ -204,6 +207,8 @@ class LinkedInApplicationFlowInspector:
         self.phone_country_code = phone_country_code.strip()
         self.modal_interpretation_formatter = modal_interpretation_formatter
         self.modal_interpreter = modal_interpreter
+        self.save_failure_artifacts = save_failure_artifacts
+        self.failure_artifacts_dir = Path(failure_artifacts_dir).resolve() if failure_artifacts_dir else None
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
         if "linkedin.com/jobs/" not in job.url.lower():
@@ -318,6 +323,16 @@ class LinkedInApplicationFlowInspector:
                         state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
                 if not state.modal_open or not state.modal_submit_visible:
                     interpretation_detail = self._format_modal_interpretation_for_error(state)
+                    artifact_detail = await self._capture_failure_artifacts(
+                        page,
+                        state=state,
+                        job=job,
+                        phase="submit",
+                        detail=(
+                            "submissao real bloqueada: fluxo nao chegou ao botao de envio"
+                            f" | bloqueio={describe_linkedin_modal_blocker(state)}"
+                        ),
+                    )
                     return ApplicationSubmissionResult(
                         status="error_submit",
                         detail=(
@@ -326,13 +341,24 @@ class LinkedInApplicationFlowInspector:
                             f" | modal={state.modal_sample or 'nao_informado'}"
                             f" | {describe_linkedin_easy_apply_entrypoint(state)}"
                             f"{interpretation_detail}"
+                            f"{artifact_detail}"
                         ),
                     )
                 submitted = await self._try_submit_application(page)
                 if not submitted:
+                    artifact_detail = await self._capture_failure_artifacts(
+                        page,
+                        state=state,
+                        job=job,
+                        phase="submit",
+                        detail="submissao real falhou: clique final de envio nao confirmou sucesso",
+                    )
                     return ApplicationSubmissionResult(
                         status="error_submit",
-                        detail="submissao real falhou: clique final de envio nao confirmou sucesso",
+                        detail=(
+                            "submissao real falhou: clique final de envio nao confirmou sucesso"
+                            f"{artifact_detail}"
+                        ),
                     )
                 return ApplicationSubmissionResult(
                     status="submitted",
@@ -612,6 +638,59 @@ class LinkedInApplicationFlowInspector:
 
             interpretation = self._interpret_modal_state(state)
             return f" | {format_linkedin_modal_interpretation(interpretation)}"
+        except Exception:
+            return ""
+
+    async def _capture_failure_artifacts(self, page, *, state: LinkedInApplicationPageState, job: JobPosting, phase: str, detail: str) -> str:
+        if not self.save_failure_artifacts or self.failure_artifacts_dir is None:
+            return ""
+        try:
+            self.failure_artifacts_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            stem = f"{timestamp}_{phase}_job-{job.id}"
+            html_path = self.failure_artifacts_dir / f"{stem}_page.html"
+            screenshot_path = self.failure_artifacts_dir / f"{stem}_shot.png"
+            meta_path = self.failure_artifacts_dir / f"{stem}_meta.json"
+
+            html = await page.content()
+            html_path.write_text(html, encoding="utf-8")
+            try:
+                await page.screenshot(path=str(screenshot_path), full_page=True)
+            except Exception:
+                screenshot_path = None
+
+            payload = {
+                "job_id": job.id,
+                "job_title": job.title,
+                "job_url": job.url,
+                "phase": phase,
+                "detail": detail,
+                "captured_at": datetime.now().isoformat(timespec="seconds"),
+                "state": {
+                    "easy_apply": state.easy_apply,
+                    "modal_open": state.modal_open,
+                    "modal_submit_visible": state.modal_submit_visible,
+                    "modal_next_visible": state.modal_next_visible,
+                    "modal_review_visible": state.modal_review_visible,
+                    "modal_file_upload": state.modal_file_upload,
+                    "modal_questions_visible": state.modal_questions_visible,
+                    "save_application_dialog_visible": state.save_application_dialog_visible,
+                    "cta_text": state.cta_text,
+                    "sample": state.sample,
+                    "modal_sample": state.modal_sample,
+                    "modal_headings": list(state.modal_headings),
+                    "modal_buttons": list(state.modal_buttons),
+                    "modal_fields": list(state.modal_fields),
+                    "resumable_fields": list(state.resumable_fields),
+                    "filled_fields": list(state.filled_fields),
+                },
+                "files": {
+                    "html": str(html_path),
+                    "screenshot": str(screenshot_path) if screenshot_path else "",
+                },
+            }
+            meta_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+            return f" | artefatos={meta_path.name}"
         except Exception:
             return ""
 

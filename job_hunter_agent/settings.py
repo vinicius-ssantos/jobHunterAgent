@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     linkedin_max_pages_per_cycle: int = 2
     linkedin_max_page_depth: int = 6
     linkedin_scroll_stabilization_passes: int = 3
+    save_failure_artifacts: bool = False
+    failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
 
     include_keywords: tuple[str, ...] = (
         "java",
