@@ -104,6 +104,16 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertIn("botao_submit_ausente", blocker)
         self.assertIn("campos_nao_preenchidos", blocker)
 
+    def test_describe_linkedin_modal_blocker_marks_save_application_confirmation(self) -> None:
+        blocker = describe_linkedin_modal_blocker(
+            LinkedInApplicationPageState(
+                modal_open=False,
+                save_application_dialog_visible=True,
+            )
+        )
+
+        self.assertIn("confirmacao_salvar_candidatura", blocker)
+
     def test_build_linkedin_modal_snapshot_uses_headings_buttons_and_fields(self) -> None:
         snapshot = build_linkedin_modal_snapshot(
             LinkedInApplicationPageState(

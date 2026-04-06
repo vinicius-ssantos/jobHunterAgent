@@ -31,6 +31,7 @@ class LinkedInApplicationPageState:
     modal_review_visible: bool = False
     modal_file_upload: bool = False
     modal_questions_visible: bool = False
+    save_application_dialog_visible: bool = False
     cta_text: str = ""
     sample: str = ""
     modal_sample: str = ""
@@ -67,6 +68,8 @@ def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
     blockers: list[str] = []
     if not state.modal_open:
         blockers.append("modal_fechado")
+    if state.save_application_dialog_visible:
+        blockers.append("confirmacao_salvar_candidatura")
     if state.modal_questions_visible:
         blockers.append("perguntas_obrigatorias")
     if state.modal_file_upload and not state.uploaded_resume:
@@ -371,6 +374,16 @@ class LinkedInApplicationFlowInspector:
               const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
               const submitVisible = texts.some((text) => text.includes("enviar candidatura") || text.includes("submit application"));
 
+              const confirmationDialog = document.querySelector('[role="alertdialog"]');
+              const confirmationTexts = confirmationDialog
+                ? Array.from(confirmationDialog.querySelectorAll("button, span, div, h1, h2, h3, p"))
+                    .map((node) => normalize(node.textContent))
+                    .filter(Boolean)
+                : [];
+              const confirmationJoined = confirmationTexts.join(" | ");
+              const saveApplicationDialogVisible = confirmationJoined.includes("salvar esta candidatura")
+                || confirmationJoined.includes("save this application");
+
               const modal = document.querySelector('[role="dialog"]');
               const modalButtonTexts = modal
                 ? Array.from(modal.querySelectorAll("button"))
@@ -414,9 +427,10 @@ class LinkedInApplicationFlowInspector:
                 modal_review_visible: modalButtonTexts.some((text) => text.includes("review") || text.includes("revisar")),
                 modal_file_upload: modal ? modal.querySelectorAll('input[type="file"]').length > 0 : false,
                 modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
+                save_application_dialog_visible: saveApplicationDialogVisible,
                 cta_text: easyApplyTexts[0] || "",
                 sample: joined,
-                modal_sample: modalTexts.join(" | ").slice(0, 400),
+                modal_sample: (modalTexts.join(" | ") || confirmationJoined).slice(0, 400),
                 contact_email_visible: contactEmailVisible,
                 contact_phone_visible: contactPhoneVisible,
                 country_code_visible: countryCodeVisible,
@@ -632,14 +646,23 @@ class LinkedInApplicationFlowInspector:
                 await candidate.click(timeout=3500)
                 if await self._wait_for_modal(page):
                     return True
+                if await self._handle_save_application_dialog(page):
+                    await page.wait_for_timeout(800)
+                    continue
                 await candidate.click(timeout=3500, force=True)
                 if await self._wait_for_modal(page):
                     return True
+                if await self._handle_save_application_dialog(page):
+                    await page.wait_for_timeout(800)
+                    continue
                 handle = await candidate.element_handle()
                 if handle is not None:
                     await page.evaluate("(element) => element.click()", handle)
                     if await self._wait_for_modal(page):
                         return True
+                    if await self._handle_save_application_dialog(page):
+                        await page.wait_for_timeout(800)
+                        continue
             except Exception:
                 continue
         fallback_opened = await page.evaluate(
@@ -664,6 +687,7 @@ class LinkedInApplicationFlowInspector:
         )
         if fallback_opened and await self._wait_for_modal(page):
             return True
+        await self._handle_save_application_dialog(page)
         await self._dismiss_interfering_dialogs(page)
         return False
 
@@ -674,6 +698,7 @@ class LinkedInApplicationFlowInspector:
             await page.wait_for_timeout(1400)
             return True
         except Exception:
+            await self._handle_save_application_dialog(page)
             return False
 
     async def _prepare_job_page_for_apply(self, page) -> None:
@@ -700,6 +725,8 @@ class LinkedInApplicationFlowInspector:
         await page.wait_for_timeout(600)
 
     async def _dismiss_interfering_dialogs(self, page) -> None:
+        if await self._handle_save_application_dialog(page):
+            return
         candidates = [
             page.get_by_role("button", name=re.compile(r"(dismiss|close|fechar|cancel|cancelar|not now|agora nao|agora não|skip)", re.IGNORECASE)).first,
             page.locator('[role="dialog"] button[aria-label*="Dismiss"], [role="dialog"] button[aria-label*="Close"], [role="dialog"] button[aria-label*="Fechar"]').first,
@@ -713,6 +740,23 @@ class LinkedInApplicationFlowInspector:
                 await page.wait_for_timeout(500)
             except Exception:
                 continue
+
+    async def _handle_save_application_dialog(self, page) -> bool:
+        candidates = [
+            page.locator('[role="alertdialog"] [data-control-name="discard_application_confirm_btn"]').first,
+            page.locator('[role="alertdialog"] button').filter(has_text=re.compile(r"(discard|descartar)", re.IGNORECASE)).first,
+            page.get_by_role("button", name=re.compile(r"^(discard|descartar)$", re.IGNORECASE)).first,
+        ]
+        for candidate in candidates:
+            try:
+                if await candidate.count() == 0:
+                    continue
+                await candidate.click(timeout=2000, force=True)
+                await page.wait_for_timeout(900)
+                return True
+            except Exception:
+                continue
+        return False
 
     async def _try_fill_safe_fields(self, page) -> tuple[str, ...]:
         if await page.locator('[role="dialog"]').count() == 0:
