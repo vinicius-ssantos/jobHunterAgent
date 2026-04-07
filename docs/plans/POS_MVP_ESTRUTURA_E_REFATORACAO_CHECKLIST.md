@@ -369,6 +369,25 @@ Impactos arquiteturais a validar:
 - [ ] manter composicao na borda sem espalhar factories de criterio pelo codigo
 - [ ] preservar testabilidade com perfis alternativos sem duplicar fixtures ou mocks demais
 
+Problema explicitado a partir do uso real:
+
+- [ ] Corrigir a lacuna entre perfil do candidato e perfil da busca atual
+- [ ] Evitar que `relaxed_matching_for_testing` seja usado como substituto de configuracao real de senioridade alvo
+- [ ] Permitir cenarios como "sou senior, mas quero buscar somente junior e pleno" sem precisar alterar codigo
+
+Solucao arquitetural a avaliar e implementar depois:
+
+- [ ] Separar explicitamente `candidate_profile` de `search_profile`
+- [ ] Tornar senioridade alvo um criterio configuravel de primeira classe
+- [ ] Adicionar algo equivalente a `allowed_seniority_levels`
+- [ ] Adicionar uma politica explicita para `allow_unknown_seniority`
+- [ ] Aplicar o criterio de senioridade de forma consistente em:
+  - [ ] busca inicial por portal
+  - [ ] prefiltro deterministico
+  - [ ] scorer
+  - [ ] rationale operacional
+- [ ] Garantir que mudar entre junior, pleno, senior ou combinacoes seja apenas alteracao de configuracao, e nao de codigo
+
 ### OpenClaw como operador futuro ainda em analise
 
 Descricao:
