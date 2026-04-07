@@ -1,0 +1,160 @@
+# Checklist Da Submissao Assistida No LinkedIn
+
+## Objetivo
+
+Esta branch existe para iniciar a automacao real de candidatura no LinkedIn de forma assistida e conservadora.
+
+A primeira meta nao e enviar candidatura automaticamente, e sim:
+
+- abrir a vaga real no LinkedIn
+- detectar o CTA de candidatura na pagina
+- classificar o fluxo encontrado
+- registrar um preflight baseado na pagina real, nao apenas na URL
+
+## Fases
+
+### Fase 1 - Inspetor real do LinkedIn
+
+Objetivo:
+- abrir a vaga confirmada e inspecionar o fluxo de candidatura no navegador
+
+Definicao de pronto:
+- o preflight usa a pagina real do LinkedIn
+- o detalhe retornado informa se encontrou `Easy Apply`, candidatura externa ou ausencia de CTA
+
+### Fase 2 - Integracao com o preflight atual
+
+Objetivo:
+- encaixar o inspetor real no fluxo ja validado de `/candidaturas`
+
+Definicao de pronto:
+- candidaturas confirmadas do LinkedIn passam pelo inspetor real antes de receber o resultado do preflight
+
+### Fase 3 - Validacao
+
+Objetivo:
+- garantir que a fase real nao quebre o fluxo assistido existente
+
+Definicao de pronto:
+- testes afetados verdes
+- um run real de preflight do LinkedIn sem submissao
+
+### Fase 4 - Mapeamento seguro do modal
+
+Objetivo:
+- quando houver `Easy Apply`, abrir o modal real e mapear sinais do fluxo sem enviar candidatura
+
+Definicao de pronto:
+- o inspetor distingue fluxo simples de fluxo multi-etapas
+- o preflight registra sinais como passos adicionais, upload de CV e perguntas
+- nenhum clique de envio real e executado
+
+### Fase 5 - Dry-run de campos seguros
+
+Objetivo:
+- mapear quais campos do modal seriam preenchiveis com seguranca antes de qualquer submissao real
+
+Definicao de pronto:
+- o preflight registra campos basicos detectados no modal
+- o detalhe do resultado diferencia contato, autorizacao e experiencia quando visiveis
+- ainda sem clicar em enviar candidatura
+
+### Fase 6 - Dry-run de preenchimento seguro
+
+Objetivo:
+- tentar preencher somente campos basicos e reversiveis quando houver dados locais explicitos
+
+Definicao de pronto:
+- o inspetor tenta preencher email, telefone e codigo do pais quando configurados
+- o detalhe do preflight registra quais campos foram preenchidos com sucesso
+- nenhum clique de envio real e executado
+
+### Fase 7 - Avanco controlado de uma etapa
+
+Objetivo:
+- tentar passar pela primeira etapa do modal quando houver botao `Next/Continuar`, sem submeter candidatura
+
+Definicao de pronto:
+- o inspetor tenta avancar uma etapa apos o dry-run dos campos basicos
+- o detalhe do preflight registra quando houve progresso real no fluxo
+- nenhum clique de envio real e executado
+
+### Fase 8 - Upload controlado do curriculo
+
+Objetivo:
+- carregar o curriculo local no modal quando o fluxo exigir upload, sem enviar candidatura
+
+Definicao de pronto:
+- o inspetor tenta enviar o arquivo configurado em `resume_path`
+- o detalhe do preflight registra `curriculo_carregado=sim` quando o upload ocorrer
+- nenhum clique de envio real e executado
+
+### Fase 9 - Alcance da revisao final
+
+Objetivo:
+- detectar quando o fluxo chega ao estado final de revisao, pronto para um submit humano
+
+Definicao de pronto:
+- o inspetor tenta abrir a etapa `Review/Revisar` quando ela aparecer
+- o detalhe do preflight registra `revisao_final_alcancada=sim`
+- se o fluxo chegar ao estado final com botao de submit visivel, registra `pronto_para_envio=sim`
+- nenhum clique de envio real e executado
+
+### Fase 10 - Autorizacao humana final
+
+Objetivo:
+- separar explicitamente o estado "fluxo pronto para envio" do estado "usuario autorizou submit real"
+
+Definicao de pronto:
+- o Telegram permite `Autorizar envio` apenas a partir de candidaturas `confirmed`
+- a candidatura transita para `authorized_submit`
+- o resumo e os cards refletem esse novo estado
+- nenhum clique de envio real e executado
+
+### Fase 11 - Submit real controlado
+
+Objetivo:
+- permitir o primeiro envio real apenas a partir de candidaturas explicitamente autorizadas
+
+Definicao de pronto:
+- o Telegram expõe `Enviar candidatura` apenas para `authorized_submit`
+- o submit real usa o fluxo interno do LinkedIn, sem reabrir esse passo para outros estados
+- sucesso persiste `submitted`
+- falha persiste `error_submit`
+- essa fase continua fora do loop automatico principal
+
+## Regras
+
+- nao submeter candidatura real nesta fase
+- nao clicar em enviar
+- manter confirmacao humana forte
+- degradar com seguranca quando o Playwright ou o LinkedIn falharem
+
+## Checklist
+
+- [x] Fase 1 concluida
+- [x] Fase 2 concluida
+- [x] Fase 3 concluida
+- [x] Fase 4 concluida
+- [x] Fase 5 concluida
+- [x] Fase 6 concluida
+- [x] Fase 7 concluida
+- [x] Fase 8 concluida
+- [x] Fase 9 concluida
+- [x] Fase 10 concluida
+- [ ] Fase 11 concluida
+- [x] README atualizado se a operacao mudar
+- [x] AGENTS atualizado para refletir o novo estado de autorizacao final
+
+## Validacao final
+
+- `pytest tests/test_app.py -q`
+- `pytest tests/test_database.py -k "application_preflight" -q`
+- `pytest tests/test_linkedin_application.py -q`
+- preflight real executado sobre candidatura confirmada no banco com retorno `ready`
+- preflight real reexecutado com abertura do modal e classificacao `manual_review` para fluxo multi-etapas
+- preflight real reexecutado com `avancou_proxima_etapa=sim` e deteccao de `upload_cv=sim`
+- inspecao real em outra vaga interna do LinkedIn com `curriculo_carregado=sim`
+- inspecao real em vaga interna do LinkedIn com `revisao_final_alcancada=sim` e `pronto_para_envio=sim`
+- resumo e acoes de `/candidaturas` atualizados para refletir `authorized_submit`
+- testes e wiring do submit real implementados, aguardando validacao manual controlada

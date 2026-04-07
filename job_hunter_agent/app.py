@@ -9,6 +9,7 @@ from job_hunter_agent.collector import JobCollectionService
 from job_hunter_agent.composition import (
     create_application_preflight_service,
     create_application_preparation_service,
+    create_application_submission_service,
     create_collection_service,
     create_notifier,
     create_repository,
@@ -32,7 +33,8 @@ class JobHunterApplication:
         self.repository = create_repository(self.settings)
         self.runtime_guard = create_runtime_guard(self.settings)
         self.application_preparation = create_application_preparation_service(self.repository, self.settings)
-        self.application_preflight = create_application_preflight_service(self.repository)
+        self.application_preflight = create_application_preflight_service(self.repository, self.settings)
+        self.application_submission = create_application_submission_service(self.repository, self.settings)
         self.collector = create_collection_service(
             settings=self.settings,
             repository=self.repository,
@@ -43,6 +45,7 @@ class JobHunterApplication:
             enable_telegram=enable_telegram,
             on_approved=self.handle_approved_jobs,
             on_application_preflight=self.handle_application_preflight,
+            on_application_submit=self.handle_application_submit,
         )
 
     async def handle_approved_jobs(self, job_ids: list[int]) -> None:
@@ -54,7 +57,7 @@ class JobHunterApplication:
             logger.info("Pre-fase de candidatura criou %s rascunho(s) para vagas aprovadas.", len(drafts))
 
     async def handle_application_preflight(self, application_id: int) -> str:
-        result = self.application_preflight.run_for_application(application_id)
+        result = await asyncio.to_thread(self.application_preflight.run_for_application, application_id)
         logger.info(
             "Preflight de candidatura concluido. application_id=%s outcome=%s status=%s",
             application_id,
@@ -62,6 +65,16 @@ class JobHunterApplication:
             result.application_status,
         )
         return f"Preflight: {result.detail} (status={result.application_status})"
+
+    async def handle_application_submit(self, application_id: int) -> str:
+        result = await asyncio.to_thread(self.application_submission.run_for_application, application_id)
+        logger.info(
+            "Submissao de candidatura concluida. application_id=%s outcome=%s status=%s",
+            application_id,
+            result.outcome,
+            result.application_status,
+        )
+        return f"Submissao: {result.detail} (status={result.application_status})"
 
     async def run_collection_cycle(self) -> bool:
         run = self.repository.start_collection_run()

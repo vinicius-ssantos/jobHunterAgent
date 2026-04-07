@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         "Engenheiro de Software Senior com experiencia em Java, Kotlin, Spring Boot, "
         "PostgreSQL, Docker e cloud."
     )
+    application_contact_email: str = ""
+    application_phone: str = ""
+    application_phone_country_code: str = ""
     resume_path: Path = Path("./curriculo.pdf")
     database_path: Path = Path("./jobs.db")
     browser_use_config_dir: Path = Path("./.browseruse")
@@ -30,6 +33,8 @@ class Settings(BaseSettings):
     linkedin_max_pages_per_cycle: int = 2
     linkedin_max_page_depth: int = 6
     linkedin_scroll_stabilization_passes: int = 3
+    save_failure_artifacts: bool = False
+    failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
 
     include_keywords: tuple[str, ...] = (
         "java",
@@ -59,6 +64,7 @@ class Settings(BaseSettings):
     relaxed_testing_remove_exclude_keywords: tuple[str, ...] = ("junior",)
     relaxed_testing_minimum_relevance: int = 4
     linkedin_field_repair_enabled: bool = True
+    linkedin_modal_llm_enabled: bool = False
     application_support_llm_enabled: bool = True
     job_requirements_llm_enabled: bool = True
     review_rationale_llm_enabled: bool = True

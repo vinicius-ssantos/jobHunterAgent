@@ -4,6 +4,7 @@ import unittest
 from job_hunter_agent.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
+    ApplicationSubmissionService,
     ApplicationSupportAssessment,
     classify_job_application_support,
     parse_application_support_response,
@@ -271,6 +272,11 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         )
         self.repository.mark_application_status(
             application.id,
+            status="authorized_submit",
+            notes="autorizado manualmente para envio",
+        )
+        self.repository.mark_application_status(
+            application.id,
             status="submitted",
             submitted_at="2026-04-04T10:00:00",
         )
@@ -279,9 +285,10 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         summary = self.repository.application_summary()
 
         self.assertEqual(stored.status, "submitted")
-        self.assertEqual(stored.notes, "confirmado manualmente")
+        self.assertEqual(stored.notes, "autorizado manualmente para envio")
         self.assertEqual(stored.submitted_at, "2026-04-04T10:00:00")
         self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["authorized_submit"], 0)
         self.assertEqual(summary["submitted"], 1)
 
     def test_mark_application_status_rejects_invalid_value(self) -> None:
@@ -536,6 +543,106 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(stored.status, "confirmed")
         self.assertIn("preflight ok", stored.notes)
         self.assertEqual(stored.last_error, "")
+
+    def test_application_preflight_uses_real_flow_inspector_when_available(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        class _Inspector:
+            def __init__(self) -> None:
+                self.called_with = []
+
+            def inspect(self, job):
+                self.called_with.append(job.url)
+                return type("Inspection", (), {"outcome": "ready", "detail": "preflight real ok: CTA encontrado"})()
+
+        inspector = _Inspector()
+        result = ApplicationPreflightService(self.repository, flow_inspector=inspector).run_for_application(
+            application.id
+        )
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(inspector.called_with, ["https://www.linkedin.com/jobs/view/123"])
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(stored.status, "confirmed")
+        self.assertIn("preflight real ok", stored.notes)
+
+    def test_application_submission_requires_authorized_status(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationSubmissionService(self.repository).run_for_application(application.id)
+
+        self.assertEqual(result.outcome, "ignored")
+        self.assertEqual(result.application_status, "confirmed")
+        self.assertIn("apenas para candidaturas autorizadas", result.detail)
+
+    def test_application_submission_marks_submitted_when_applicant_succeeds(self) -> None:
+        class _Applicant:
+            def submit(self, application, job):
+                from job_hunter_agent.applicant import ApplicationSubmissionResult
+
+                return ApplicationSubmissionResult(
+                    status="submitted",
+                    detail="submissao real concluida",
+                    submitted_at="2026-04-05T10:00:00",
+                )
+
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="authorized_submit")
+
+        result = ApplicationSubmissionService(self.repository, applicant=_Applicant()).run_for_application(
+            application.id
+        )
+        stored = self.repository.get_application(application.id)
+
+        self.assertEqual(result.outcome, "submitted")
+        self.assertEqual(result.application_status, "submitted")
+        self.assertEqual(stored.status, "submitted")
+        self.assertEqual(stored.submitted_at, "2026-04-05T10:00:00")
+        self.assertIn("submissao real concluida", stored.notes)
+
+    def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        class _Inspector:
+            def inspect(self, job):
+                return type(
+                    "Inspection",
+                    (),
+                    {"outcome": "blocked", "detail": "preflight real bloqueado: CTA nao encontrado"},
+                )()
+
+        result = ApplicationPreflightService(self.repository, flow_inspector=_Inspector()).run_for_application(
+            application.id
+        )
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.application_status, "error_submit")
+        self.assertEqual(stored.status, "error_submit")
+        self.assertIn("CTA nao encontrado", stored.last_error)
 
     def test_application_preflight_moves_unsupported_to_error_submit(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://empresa.gupy.io/job/123", "key-1")])[0]

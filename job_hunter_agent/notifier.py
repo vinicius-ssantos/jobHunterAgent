@@ -18,6 +18,7 @@ from job_hunter_agent.review_rationale import ReviewRationaleFormatter
 from job_hunter_agent.review_workflow import (
     resolve_application_action as workflow_resolve_application_action,
     resolve_application_preflight_request as workflow_resolve_application_preflight_request,
+    resolve_application_submit_request as workflow_resolve_application_submit_request,
     resolve_review_action as workflow_resolve_review_action,
 )
 from job_hunter_agent.settings import Settings
@@ -26,6 +27,7 @@ from job_hunter_agent.settings import Settings
 logger = logging.getLogger(__name__)
 ApprovalCallback = Callable[[list[int]], Awaitable[None]]
 ApplicationPreflightCallback = Callable[[int], Awaitable[str]]
+ApplicationSubmitCallback = Callable[[int], Awaitable[str]]
 
 build_job_card_message = rendering_build_job_card_message
 build_missing_job_reply = rendering_build_missing_job_reply
@@ -36,6 +38,7 @@ build_application_card_message = rendering_build_application_card_message
 build_application_action_rows = rendering_build_application_action_rows
 resolve_review_action = workflow_resolve_review_action
 resolve_application_preflight_request = workflow_resolve_application_preflight_request
+resolve_application_submit_request = workflow_resolve_application_submit_request
 resolve_application_action = workflow_resolve_application_action
 
 
@@ -77,6 +80,7 @@ class TelegramNotifier:
         repository: JobRepository,
         on_approved: Optional[ApprovalCallback] = None,
         on_application_preflight: Optional[ApplicationPreflightCallback] = None,
+        on_application_submit: Optional[ApplicationSubmitCallback] = None,
         review_rationale_formatter: ReviewRationaleFormatter | None = None,
     ) -> None:
         try:
@@ -91,6 +95,7 @@ class TelegramNotifier:
         self.repository = repository
         self.on_approved = on_approved
         self.on_application_preflight = on_application_preflight
+        self.on_application_submit = on_application_submit
         self.review_rationale_formatter = review_rationale_formatter
         self._inline_keyboard_button = InlineKeyboardButton
         self._inline_keyboard_markup = InlineKeyboardMarkup
@@ -201,6 +206,18 @@ class TelegramNotifier:
             await query.message.reply_text(await self.on_application_preflight(target_id))
             return
 
+        if action == "app_submit":
+            allowed, reply_text = resolve_application_submit_request(application)
+            await query.edit_message_reply_markup(reply_markup=None)
+            if not allowed:
+                await query.message.reply_text(reply_text)
+                return
+            if not self.on_application_submit:
+                await query.message.reply_text("Submissao real indisponivel nesta execucao.")
+                return
+            await query.message.reply_text(await self.on_application_submit(target_id))
+            return
+
         next_status, reply_text = resolve_application_action(application, action)
         if next_status is None:
             await query.edit_message_reply_markup(reply_markup=None)
@@ -250,7 +267,7 @@ class TelegramNotifier:
     async def _command_applications(self, update, context) -> None:
         await update.message.reply_text(build_application_queue_message(self.repository))
         applications: list[JobApplication] = []
-        for status in ("draft", "ready_for_review", "confirmed"):
+        for status in ("draft", "ready_for_review", "confirmed", "authorized_submit"):
             applications.extend(self.repository.list_applications_by_status(status)[:5])
         if not applications:
             return

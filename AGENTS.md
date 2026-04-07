@@ -11,6 +11,7 @@ The active product scope is:
 - persist relevant postings locally
 - send postings to Telegram for human review
 - record approval or rejection decisions
+- support explicitly authorized assisted application steps after human confirmation
 
 Out of scope by default:
 
@@ -130,6 +131,24 @@ Rules:
 - do not add transient or UI-only statuses without clear operational value
 - every state transition must be explicit and traceable
 
+Application drafts and submissions must also use explicit, stable states only.
+
+Current valid application statuses:
+
+- `draft`
+- `ready_for_review`
+- `confirmed`
+- `authorized_submit`
+- `submitted`
+- `error_submit`
+- `cancelled`
+
+Rules:
+
+- `authorized_submit` is the final human authorization gate before any real submit attempt
+- preflight and dry-run steps must not silently skip this authorization gate
+- submit automation must only run from an explicitly authorized application state
+
 ## Collection and Scoring Rules
 
 - Treat external portals as unstable systems.
@@ -169,6 +188,8 @@ Rules:
 - Callback handlers must map to a single state transition.
 - Handlers should be idempotent where practical.
 - Review actions must not trigger unrelated side effects.
+- Real application submit actions must remain explicitly separated from review approval and preflight actions.
+- Any submit-capable action must require a dedicated human authorization state before execution.
 
 ## Configuration Rules
 

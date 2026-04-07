@@ -101,6 +101,9 @@ Variaveis principais:
 - `JOB_HUNTER_TELEGRAM_TOKEN`
 - `JOB_HUNTER_TELEGRAM_CHAT_ID`
 - `JOB_HUNTER_PROFILE_TEXT`
+- `JOB_HUNTER_APPLICATION_CONTACT_EMAIL`
+- `JOB_HUNTER_APPLICATION_PHONE`
+- `JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE`
 - `JOB_HUNTER_COLLECTION_TIME`
 - `JOB_HUNTER_DATABASE_PATH`
 - `JOB_HUNTER_BROWSER_USE_CONFIG_DIR`
@@ -175,11 +178,32 @@ Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fi
 
 Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extraidos da vaga, exibindo um resumo curto com senioridade, stack, ingles e sinais de lideranca quando houver dados uteis.
 
+Tambem existe um interpretador opcional do modal do LinkedIn com LLM local:
+
+- `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`
+
+Quando ativado, ele nao controla cliques livremente. Ele apenas interpreta o snapshot estruturado do modal, sugere a proxima acao provavel e passa por guardrails antes de influenciar o preflight ou o submit real. Se falhar, o fluxo volta para o comportamento deterministico conservador.
+
+O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e nao apenas a URL:
+
+- para candidaturas `confirmed`, o botao `Validar fluxo` pode abrir a vaga no navegador automatizado
+- o inspetor procura sinais como `Easy Apply`, candidatura externa ou ausencia de CTA
+- quando encontra `Easy Apply`, ele tenta abrir o modal e mapear se o fluxo parece simples ou multi-etapas
+- o preflight tambem registra campos basicos detectados no modal, como email, telefone e codigo do pais
+- quando os dados de contato estiverem configurados, ele tenta preencher esses campos em dry-run, sem enviar candidatura
+- se houver `Next/Continuar`, o inspetor tambem tenta avancar uma etapa e registrar se houve progresso real no fluxo
+- quando o modal exigir curriculo, o inspetor tambem pode carregar o arquivo configurado em `resume_path` em dry-run
+- se a etapa `Review/Revisar` aparecer, o inspetor tambem tenta alcanca-la e registrar quando o fluxo fica pronto para um submit humano
+- se `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o detalhe do preflight tambem inclui a interpretacao assistida da etapa atual do modal
+- nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
+
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
 
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH=6`
 - `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES=3`
+- `JOB_HUNTER_SAVE_FAILURE_ARTIFACTS=false`
+- `JOB_HUNTER_FAILURE_ARTIFACTS_DIR=./.artifacts/linkedin_failures`
 
 O recomendado para a fase atual e manter essa janela pequena por ciclo.
 Cada ciclo sempre comeca pela pagina `1`, desce a pagina ate o rodape enquanto tenta esgotar a lista interna de resultados e so depois avanca pela paginacao da propria interface do LinkedIn para a pagina seguinte.
@@ -194,6 +218,17 @@ Na pratica, com `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`, o comportamento esp
 - extrair os cards visiveis da pagina `2`
 
 `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH` continua como limite de seguranca para nao aprofundar demais a navegacao dentro de um unico ciclo.
+
+Para diagnostico de falhas do LinkedIn, tambem existe uma captura opcional de artefatos locais:
+
+- `JOB_HUNTER_SAVE_FAILURE_ARTIFACTS=true`
+- `JOB_HUNTER_FAILURE_ARTIFACTS_DIR=./.artifacts/linkedin_failures`
+
+Quando habilitada, falhas de submit real do LinkedIn salvam:
+
+- HTML da pagina no momento do erro
+- screenshot em PNG
+- metadata JSON com estado do modal e contexto da vaga
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:
@@ -283,6 +318,8 @@ python main.py
   - `Preparar` move `draft -> ready_for_review`
   - `Confirmar` move `ready_for_review -> confirmed`
   - `Validar fluxo` executa um preflight manual em candidaturas `confirmed`
+  - `Autorizar envio` move `confirmed -> authorized_submit`
+  - `Enviar candidatura` executa o submit real apenas para candidaturas `authorized_submit`
   - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
@@ -300,6 +337,7 @@ Estados de candidatura ficam separados dos estados de vaga:
 - `draft`
 - `ready_for_review`
 - `confirmed`
+- `authorized_submit`
 - `submitted`
 - `error_submit`
 - `cancelled`
@@ -321,6 +359,23 @@ Esse preflight:
 - valida se o fluxo esta num portal minimamente suportado
 - registra sucesso mantendo `confirmed`
 - ou registra bloqueio em `error_submit` quando o fluxo nao e suportado
+
+Quando o preflight indicar que o fluxo esta pronto para envio, ainda existe uma etapa humana final:
+
+- `Autorizar envio` move `confirmed -> authorized_submit`
+- esse estado existe para separar "fluxo pronto" de "usuario permitiu submit real"
+- qualquer tentativa futura de submit real deve partir apenas de `authorized_submit`
+
+Se a candidatura estiver em `authorized_submit`, o Telegram tambem pode expor:
+
+- `Enviar candidatura`
+
+Esse passo e o primeiro submit real controlado do projeto:
+
+- nao faz parte do loop automatico principal
+- depende de clique humano explicito no Telegram
+- usa o fluxo interno do LinkedIn e os dados locais configurados
+- quando `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o submit continua deterministico, mas pode consultar a interpretacao assistida do modal antes de desistir
 
 ## Como adicionar um novo adapter
 

@@ -14,7 +14,9 @@ from job_hunter_agent.notifier import (
     resolve_application_preflight_request,
     resolve_application_action,
     resolve_review_action,
+    resolve_application_submit_request,
 )
+from job_hunter_agent.notifier_rendering import summarize_application_notes
 from job_hunter_agent.repository import SqliteJobRepository
 from job_hunter_agent.review_rationale import (
     StructuredReviewRationale,
@@ -124,18 +126,22 @@ class ReviewActionTests(TestCase):
 
         draft = JobApplication(id=10, job_id=1, status="draft")
         ready = JobApplication(id=10, job_id=1, status="ready_for_review")
+        confirmed = JobApplication(id=10, job_id=1, status="confirmed")
 
         self.assertEqual(resolve_application_action(draft, "app_prepare")[0], "ready_for_review")
         self.assertEqual(resolve_application_action(ready, "app_confirm")[0], "confirmed")
         self.assertEqual(resolve_application_action(ready, "app_cancel")[0], "cancelled")
+        self.assertEqual(resolve_application_action(confirmed, "app_authorize")[0], "authorized_submit")
 
     def test_resolve_application_action_is_idempotent(self) -> None:
         from job_hunter_agent.domain import JobApplication
 
         confirmed = JobApplication(id=10, job_id=1, status="confirmed")
+        authorized = JobApplication(id=12, job_id=1, status="authorized_submit")
         cancelled = JobApplication(id=11, job_id=1, status="cancelled")
 
         self.assertIsNone(resolve_application_action(confirmed, "app_confirm")[0])
+        self.assertIsNone(resolve_application_action(authorized, "app_authorize")[0])
         self.assertIsNone(resolve_application_action(cancelled, "app_cancel")[0])
 
     def test_build_application_action_rows_varies_by_status(self) -> None:
@@ -147,21 +153,50 @@ class ReviewActionTests(TestCase):
         draft_rows = build_application_action_rows(JobApplication(id=1, job_id=1, status="draft"), button)
         ready_rows = build_application_action_rows(JobApplication(id=1, job_id=1, status="ready_for_review"), button)
         confirmed_rows = build_application_action_rows(JobApplication(id=1, job_id=1, status="confirmed"), button)
+        authorized_rows = build_application_action_rows(JobApplication(id=1, job_id=1, status="authorized_submit"), button)
 
         self.assertEqual(draft_rows[0][0], ("Preparar", "app_prepare:1"))
         self.assertEqual(ready_rows[0][0], ("Confirmar", "app_confirm:1"))
         self.assertEqual(confirmed_rows[0][0], ("Validar fluxo", "app_preflight:1"))
+        self.assertEqual(confirmed_rows[0][1], ("Autorizar envio", "app_authorize:1"))
+        self.assertEqual(authorized_rows[0][0], ("Enviar candidatura", "app_submit:1"))
+        self.assertEqual(authorized_rows[0][1], ("Cancelar", "app_cancel:1"))
 
     def test_resolve_application_preflight_request_requires_confirmed_status(self) -> None:
         from job_hunter_agent.domain import JobApplication
 
         confirmed = JobApplication(id=1, job_id=1, status="confirmed")
+        authorized = JobApplication(id=3, job_id=3, status="authorized_submit")
         draft = JobApplication(id=2, job_id=2, status="draft")
 
         self.assertEqual(resolve_application_preflight_request(confirmed), (True, "Executando preflight da candidatura: id=1"))
         self.assertEqual(
+            resolve_application_preflight_request(authorized),
+            (False, "Candidatura ja foi autorizada para envio: id=3"),
+        )
+        self.assertEqual(
             resolve_application_preflight_request(draft),
             (False, "Candidatura ainda nao foi confirmada para preflight: id=2"),
+        )
+
+    def test_resolve_application_submit_request_requires_authorized_status(self) -> None:
+        from job_hunter_agent.domain import JobApplication
+
+        authorized = JobApplication(id=1, job_id=1, status="authorized_submit")
+        confirmed = JobApplication(id=2, job_id=2, status="confirmed")
+        submitted = JobApplication(id=3, job_id=3, status="submitted")
+
+        self.assertEqual(
+            resolve_application_submit_request(authorized),
+            (True, "Executando submissao real da candidatura: id=1"),
+        )
+        self.assertEqual(
+            resolve_application_submit_request(confirmed),
+            (False, "Candidatura ainda nao foi autorizada para envio: id=2"),
+        )
+        self.assertEqual(
+            resolve_application_submit_request(submitted),
+            (False, "Candidatura ja foi enviada: id=3"),
         )
 
     def test_parse_structured_review_rationale_accepts_valid_json(self) -> None:
@@ -219,13 +254,13 @@ class PersistenceAndReviewIntegrationTests(TestCase):
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
-        self.repository.mark_application_status(application.id, status="ready_for_review")
+        self.repository.mark_application_status(application.id, status="authorized_submit")
 
         message = build_application_queue_message(self.repository)
 
         self.assertIn("Candidaturas:", message)
-        self.assertIn("Prontas para revisao: 1", message)
-        self.assertIn("Senior Kotlin Engineer - ACME [ready_for_review | manual_review | prioridade alta]", message)
+        self.assertIn("Autorizadas para envio: 1", message)
+        self.assertIn("Senior Kotlin Engineer - ACME [authorized_submit | manual_review | prioridade alta]", message)
 
     def test_build_application_queue_message_orders_by_priority(self) -> None:
         first_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
@@ -291,3 +326,19 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Prioridade: media", message)
         self.assertIn("Sinais: senioridade=senior | stack=java, spring | ingles=avancado | lideranca=sim", message)
         self.assertIn("Observacoes: rascunho criado apos aprovacao humana", message)
+
+    def test_summarize_application_notes_prefers_recent_operational_lines(self) -> None:
+        notes = (
+            "rascunho criado apos aprovacao humana\n"
+            "linha irrelevante antiga\n"
+            "sinais estruturados: senioridade=senior; stack_principal=java, spring\n"
+            "prioridade sugerida: alta | motivo: revisar primeiro\n"
+            "preflight real | campos=telefone | avancou_proxima_etapa=sim | perguntas=sim\n"
+        )
+
+        summary = summarize_application_notes(notes, max_chars=220)
+
+        self.assertIn("rascunho criado apos aprovacao humana", summary)
+        self.assertIn("prioridade sugerida: alta", summary)
+        self.assertIn("preflight real", summary)
+        self.assertNotIn("linha irrelevante antiga", summary)

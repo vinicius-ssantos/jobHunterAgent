@@ -5,12 +5,20 @@ from typing import Callable
 from job_hunter_agent.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
+    ApplicationSubmissionService,
     OllamaApplicationSupportAssessor,
 )
 from job_hunter_agent.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.job_requirements import OllamaJobRequirementsExtractor
+from job_hunter_agent.linkedin_application import LinkedInApplicationFlowInspector
+from job_hunter_agent.linkedin_modal_llm import (
+    OllamaLinkedInModalInterpreter,
+    deterministic_interpret_linkedin_modal,
+    format_linkedin_modal_interpretation,
+    validate_linkedin_modal_interpretation,
+)
 from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
@@ -78,8 +86,67 @@ def create_application_preparation_service(
     )
 
 
-def create_application_preflight_service(repository: JobRepository) -> ApplicationPreflightService:
-    return ApplicationPreflightService(repository)
+def create_application_preflight_service(repository: JobRepository, settings: Settings) -> ApplicationPreflightService:
+    return ApplicationPreflightService(
+        repository,
+        flow_inspector=LinkedInApplicationFlowInspector(
+            storage_state_path=settings.linkedin_storage_state_path,
+            headless=settings.browser_headless,
+            resume_path=settings.resume_path,
+            contact_email=settings.application_contact_email,
+            phone=settings.application_phone,
+            phone_country_code=settings.application_phone_country_code,
+            modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
+            save_failure_artifacts=settings.save_failure_artifacts,
+            failure_artifacts_dir=settings.failure_artifacts_dir,
+        ),
+    )
+
+
+def create_application_submission_service(repository: JobRepository, settings: Settings) -> ApplicationSubmissionService:
+    return ApplicationSubmissionService(
+        repository,
+        applicant=LinkedInApplicationFlowInspector(
+            storage_state_path=settings.linkedin_storage_state_path,
+            headless=settings.browser_headless,
+            resume_path=settings.resume_path,
+            contact_email=settings.application_contact_email,
+            phone=settings.application_phone,
+            phone_country_code=settings.application_phone_country_code,
+            modal_interpreter=create_linkedin_modal_interpreter(settings),
+            save_failure_artifacts=settings.save_failure_artifacts,
+            failure_artifacts_dir=settings.failure_artifacts_dir,
+        ),
+    )
+
+
+def create_linkedin_modal_interpretation_formatter(settings: Settings):
+    interpreter = create_linkedin_modal_interpreter(settings)
+    if interpreter is None:
+        return None
+
+    def _format(state) -> str:
+        chosen = interpreter(state)
+        return format_linkedin_modal_interpretation(chosen)
+
+    return _format
+
+
+def create_linkedin_modal_interpreter(settings: Settings):
+    if not settings.linkedin_modal_llm_enabled:
+        return None
+    llm_interpreter = OllamaLinkedInModalInterpreter(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_url,
+    )
+
+    def _interpret(state):
+        interpreted = llm_interpreter.interpret(state)
+        guarded = validate_linkedin_modal_interpretation(state, interpreted)
+        fallback = deterministic_interpret_linkedin_modal(state)
+        return guarded if guarded.confidence >= fallback.confidence else fallback
+
+    return _interpret
 
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
@@ -128,6 +195,7 @@ def create_notifier(
     enable_telegram: bool,
     on_approved,
     on_application_preflight,
+    on_application_submit,
 ):
     if not enable_telegram:
         return NullNotifier()
@@ -136,6 +204,7 @@ def create_notifier(
         repository=repository,
         on_approved=on_approved,
         on_application_preflight=on_application_preflight,
+        on_application_submit=on_application_submit,
         review_rationale_formatter=create_review_rationale_formatter(settings),
     )
 

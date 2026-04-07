@@ -590,6 +590,7 @@ class SqliteJobRepository:
                     SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) AS draft,
                     SUM(CASE WHEN status = 'ready_for_review' THEN 1 ELSE 0 END) AS ready_for_review,
                     SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed,
+                    SUM(CASE WHEN status = 'authorized_submit' THEN 1 ELSE 0 END) AS authorized_submit,
                     SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) AS submitted,
                     SUM(CASE WHEN status = 'error_submit' THEN 1 ELSE 0 END) AS error_submit,
                     SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
@@ -601,9 +602,10 @@ class SqliteJobRepository:
             "draft": row[1] or 0,
             "ready_for_review": row[2] or 0,
             "confirmed": row[3] or 0,
-            "submitted": row[4] or 0,
-            "error_submit": row[5] or 0,
-            "cancelled": row[6] or 0,
+            "authorized_submit": row[4] or 0,
+            "submitted": row[5] or 0,
+            "error_submit": row[6] or 0,
+            "cancelled": row[7] or 0,
         }
 
     def get_collection_cursor(self, source_site: str, search_url: str) -> int:
