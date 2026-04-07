@@ -1,48 +1,48 @@
 # AGENTS.md
 
-## Objective
+## Objetivo
 
-This repository implements a local-first assistant for job discovery and triage.
+Este repositório implementa um assistente local-first para descoberta e triagem de vagas.
 
-The active product scope is:
+O escopo ativo do produto é:
 
-- collect job postings from configured sources
-- normalize and score them against a local professional profile
-- persist relevant postings locally
-- send postings to Telegram for human review
-- record approval or rejection decisions
-- support explicitly authorized assisted application steps after human confirmation
+- coletar vagas a partir de fontes configuradas
+- normalizar e pontuar vagas contra um perfil profissional local
+- persistir vagas relevantes localmente
+- enviar vagas ao Telegram para revisão humana
+- registrar decisões de aprovação ou rejeição
+- suportar etapas assistidas de candidatura explicitamente autorizadas após confirmação humana
 
-Out of scope by default:
+Fora de escopo por padrão:
 
-- autonomous job application
-- multi-user support
-- SaaS concerns
-- cloud persistence
-- generic agent platform features
+- candidatura autônoma
+- suporte multiusuário
+- preocupações de SaaS
+- persistência em nuvem
+- funcionalidades genéricas de plataforma de agentes
 
-## Git and Branch Conventions
+## Convenções de Git e Branch
 
-Branching and commit policy comes first. Respect it before starting implementation work.
+A política de branches e commits vem primeiro. Respeite isso antes de iniciar qualquer implementação.
 
-GitFlow rule:
+Regra de GitFlow:
 
-- follow GitFlow strictly for day-to-day work in this repository
-- `master` is the stable integration branch and must not be used to start new implementation work
-- every new feature must be started and developed in its own branch
-- every fix that is more than trivial should be isolated in its own branch
-- every architectural refactor should be isolated in its own branch
-- if the task introduces new product capability, new configurable behavior, new portal behavior, new operational flow, or architectural refactor, create the branch first
-- branch first, implement second
+- seguir GitFlow de forma rígida no trabalho diário deste repositório
+- `master` é a branch estável de integração e não deve ser usada para iniciar trabalho novo de implementação
+- toda feature nova deve ser iniciada e desenvolvida em branch própria
+- todo fix que não seja trivial deve ser isolado em branch própria
+- toda refatoração arquitetural deve ser isolada em branch própria
+- se a tarefa introduz nova capacidade de produto, novo comportamento configurável, novo comportamento de portal, novo fluxo operacional ou refatoração arquitetural, criar a branch antes
+- branch primeiro, implementação depois
 
-Recommended branch naming:
+Nomenclatura recomendada:
 
 - `feature/<tema-curto>`
 - `fix/<tema-curto>`
 - `refactor/<tema-curto>`
 - `docs/<tema-curto>`
 
-Examples:
+Exemplos:
 
 - `feature/candidatura-assistida-arquitetura`
 - `feature/perfil-busca-configuravel`
@@ -50,112 +50,112 @@ Examples:
 - `refactor/separa-modulo-applicant`
 - `docs/fluxo-candidatura-v1`
 
-Commit rules:
+Regras de commit:
 
-- whenever there are significant uncommitted changes, prepare and create commits in the repository standard
-- commit messages must be written in Portuguese
-- prefer small, coherent commits with a single clear reason to change
+- sempre que houver modificações significativas ainda não commitadas, preparar e criar commits no padrão adotado no repositório
+- as mensagens de commit devem ser escritas em português
+- preferir commits pequenos, coerentes e com uma única razão clara para mudança
 
-Operational expectation:
+Expectativa operacional:
 
-- new features always start on a feature branch
-- broad refactors always start on a refactor branch
-- fixes should prefer a dedicated fix branch unless they are narrowly scoped and obviously low risk
-- documentation-only work should prefer a docs branch when it is part of a broader line of work
-- direct work on `master` should be treated as the exception, not the default
-- merge back only after the branch is coherent, validated, and intentionally reviewed
+- features novas sempre começam em branch `feature/*`
+- refactors amplos sempre começam em branch `refactor/*`
+- fixes devem preferir branch `fix/*`, salvo quando forem muito pequenos e obviamente seguros
+- trabalho só de documentação deve preferir branch `docs/*` quando fizer parte de uma linha de trabalho mais ampla
+- trabalho direto em `master` deve ser tratado como exceção, não como padrão
+- só fazer merge de volta quando a branch estiver coerente, validada e revisada de forma intencional
 
-## Product Constraints
+## Restrições de Produto
 
-- This is a personal-use system.
-- Human approval is mandatory before any high-impact action.
-- Candidate data stays local by default.
-- Reliability is more important than breadth.
-- A narrow, stable flow is preferable to broad unstable automation.
+- Este é um sistema de uso pessoal.
+- Aprovação humana é obrigatória antes de qualquer ação de alto impacto.
+- Dados do candidato permanecem locais por padrão.
+- Confiabilidade é mais importante que abrangência.
+- Um fluxo estreito e estável é preferível a automação ampla e instável.
 
-## Source of Truth
+## Fonte de Verdade
 
-- The active application lives under `job_hunter_agent/`.
-- `main.py` is a thin entrypoint only.
-- Legacy prototypes must not be used as runtime dependencies.
-- Do not recreate `files/` or any equivalent shadow architecture.
+- A aplicação ativa vive em `job_hunter_agent/`.
+- `main.py` é apenas um entrypoint fino.
+- Protótipos legados não devem ser usados como dependências de runtime.
+- Não recriar `files/` nem qualquer arquitetura paralela equivalente.
 
-## Architectural Boundaries
+## Fronteiras Arquiteturais
 
-Keep responsibilities separated and directional:
+Manter responsabilidades separadas e direcionais:
 
 - `job_hunter_agent/core/`
-  Domain entities, validated settings, runtime helpers, browser support, and job identity primitives.
+  Entidades de domínio, configurações validadas, helpers de runtime, suporte de browser e primitivas de identidade de vaga.
 - `job_hunter_agent/application/`
-  Process composition, lifecycle orchestration, application services, and review workflow rules.
+  Composição de processo, orquestração de ciclo de vida, serviços de aplicação e regras do fluxo de revisão.
 - `job_hunter_agent/collectors/`
-  Collection orchestration, portal adapters, and LinkedIn-specific automation.
+  Orquestração de coleta, adaptadores de portal e automação específica do LinkedIn.
 - `job_hunter_agent/infrastructure/`
-  Persistence and notifier transport/rendering adapters.
+  Persistência e adaptadores de transporte/renderização de notificações.
 - `job_hunter_agent/llm/`
-  Assistive scoring, requirement extraction, rationale formatting, and queue prioritization.
+  Scoring assistivo, extração de requisitos, formatação de rationale e priorização de fila.
 - `job_hunter_agent/__init__.py`
-  Package entrypoint only. Runtime modules should be imported from the subpackages above.
+  Apenas entrypoint do pacote. Módulos de runtime devem ser importados dos subpacotes acima.
 
-Dependency rule:
+Regra de dependência:
 
-- outer layers may depend on inner layers
-- domain must not depend on infrastructure
-- repository, notifier, and external collectors are infrastructure
-- application wiring happens at the composition edge (`application/app.py` + `application/composition.py`), not spread across business modules
+- camadas externas podem depender de camadas internas
+- domínio não deve depender de infraestrutura
+- repositório, notifier e coletores externos são infraestrutura
+- a composição da aplicação acontece na borda (`application/app.py` + `application/composition.py`), não espalhada pelos módulos de negócio
 
-## SOLID Rules
+## Regras SOLID
 
 ### Single Responsibility Principle
 
-- Each module must have one reason to change.
-- Do not mix domain logic, persistence, transport, and process wiring in the same class.
-- If a class is doing parsing, scoring, storage, and messaging, it is too large.
+- Cada módulo deve ter um único motivo para mudar.
+- Não misturar lógica de domínio, persistência, transporte e wiring de processo na mesma classe.
+- Se uma classe faz parsing, scoring, storage e mensageria, ela está grande demais.
 
 ### Open/Closed Principle
 
-- Extend behavior through interfaces and new implementations, not by adding branching everywhere.
-- New job portals must be added behind collector abstractions.
-- New notifiers must be additive, not require rewriting the collection flow.
+- Estender comportamento por interfaces e novas implementações, não adicionando branching por toda parte.
+- Novos portais devem entrar atrás de abstrações de collector.
+- Novos notifiers devem ser aditivos, sem exigir reescrita do fluxo de coleta.
 
 ### Liskov Substitution Principle
 
-- Implementations of repository, scorer, collector, and notifier contracts must preserve expected behavior.
-- Test doubles must behave like production contracts, not rely on hidden shortcuts.
+- Implementações de contratos de repositório, scorer, collector e notifier devem preservar o comportamento esperado.
+- Dublês de teste devem se comportar como os contratos de produção, sem atalhos ocultos.
 
 ### Interface Segregation Principle
 
-- Keep interfaces small and task-oriented.
-- Do not force implementations to depend on methods they do not use.
-- Prefer focused protocols over large multi-purpose base classes.
+- Manter interfaces pequenas e orientadas à tarefa.
+- Não forçar implementações a depender de métodos que não usam.
+- Preferir protocolos focados a bases grandes e multipropósito.
 
 ### Dependency Inversion Principle
 
-- High-level business flow must depend on abstractions, not concrete infrastructure details.
-- Application services should receive repositories, collectors, scorers, and notifiers through constructor injection.
-- Avoid constructing infrastructure deep inside business logic unless composition requires it at the edge.
+- O fluxo de negócio de alto nível deve depender de abstrações, não de detalhes concretos de infraestrutura.
+- Serviços de aplicação devem receber repositórios, collectors, scorers e notifiers por injeção de dependência.
+- Evitar construir infraestrutura profundamente dentro da lógica de negócio, salvo quando a composição na borda exigir.
 
-## Domain and State Rules
+## Regras de Domínio e Estado
 
-Jobs must use explicit, stable states only.
+Vagas devem usar apenas estados explícitos e estáveis.
 
-Current valid statuses:
+Estados válidos atuais:
 
 - `collected`
 - `approved`
 - `rejected`
 - `error_collect`
 
-Rules:
+Regras:
 
-- status names must stay semantically narrow
-- do not overload one status with multiple meanings
-- do not add transient or UI-only statuses without clear operational value
-- every state transition must be explicit and traceable
+- nomes de status devem permanecer semanticamente estreitos
+- não sobrecarregar um status com múltiplos significados
+- não adicionar estados transitórios ou apenas de UI sem valor operacional claro
+- toda transição de estado deve ser explícita e rastreável
 
-Application drafts and submissions must also use explicit, stable states only.
+Rascunhos e submissões de candidatura também devem usar apenas estados explícitos e estáveis.
 
-Current valid application statuses:
+Estados válidos atuais de candidatura:
 
 - `draft`
 - `ready_for_review`
@@ -165,185 +165,185 @@ Current valid application statuses:
 - `error_submit`
 - `cancelled`
 
-Rules:
+Regras:
 
-- `authorized_submit` is the final human authorization gate before any real submit attempt
-- preflight and dry-run steps must not silently skip this authorization gate
-- submit automation must only run from an explicitly authorized application state
+- `authorized_submit` é o gate final de autorização humana antes de qualquer tentativa real de envio
+- etapas de preflight e dry-run não podem pular silenciosamente esse gate
+- automação de submit só pode rodar a partir de um estado explicitamente autorizado
 
-## Collection and Scoring Rules
+## Regras de Coleta e Scoring
 
-- Treat external portals as unstable systems.
-- Collectors are I/O adapters and should fail independently by source.
-- A single source failure must not abort the whole cycle.
-- Normalize raw source data before persistence.
-- Deduplication must happen before saving or dispatching notifications.
-- Prefer a two-step strategy:
-  - source extraction
-  - relevance scoring
-- Use rule-based rejection first when exclusion criteria are obvious.
-- Use the LLM as an assistive scorer, not as an unquestioned authority.
-- Positive scoring must produce a concise rationale.
-- Never allow the model to invent candidate data absent from settings.
+- Tratar portais externos como sistemas instáveis.
+- Collectors são adaptadores de I/O e devem falhar independentemente por fonte.
+- Falha em uma única fonte não deve abortar o ciclo inteiro.
+- Normalizar dados brutos antes da persistência.
+- Deduplicação deve acontecer antes de salvar ou despachar notificações.
+- Preferir uma estratégia em duas etapas:
+  - extração na fonte
+  - scoring de relevância
+- Usar rejeição por regra primeiro quando critérios de exclusão forem óbvios.
+- Usar a LLM como scorer assistivo, não como autoridade incontestável.
+- Scoring positivo deve produzir rationale curto.
+- Nunca permitir que o modelo invente dados do candidato ausentes nas configurações.
 
-## Local LLM Usage Rules
+## Regras de Uso de LLM Local
 
-- Local LLM features are assistive only and must preserve deterministic fallback behavior.
-- Support classification, requirement extraction, rationale formatting, and queue prioritization must degrade safely when the model fails.
-- LLM outputs must be parsed into explicit structured data before use.
-- Invalid or incomplete model responses must fall back to conservative deterministic behavior.
-- LLM-assisted metadata must not silently overwrite trusted source data with invented values.
+- Funcionalidades com LLM local são apenas assistivas e devem preservar fallback determinístico.
+- Classificação de suporte, extração de requisitos, formatação de rationale e priorização de fila devem degradar com segurança quando o modelo falhar.
+- Saídas de LLM devem ser parseadas em dados estruturados explícitos antes do uso.
+- Respostas inválidas ou incompletas devem cair em comportamento conservador e determinístico.
+- Metadados assistidos por LLM não podem sobrescrever silenciosamente dados confiáveis da fonte com conteúdo inventado.
 
-## Telegram and Review Rules
+## Regras de Telegram e Revisão
 
-- Telegram is the human review interface.
-- Notifications must be short, structured, and action-oriented.
-- A job card should include:
-  - title
-  - company
-  - location
-  - work mode
-  - salary text when available
-  - relevance score
+- Telegram é a interface de revisão humana.
+- Notificações devem ser curtas, estruturadas e orientadas à ação.
+- Um card de vaga deve incluir:
+  - título
+  - empresa
+  - local
+  - modalidade
+  - texto salarial quando disponível
+  - score de relevância
   - rationale
-  - source link
-- Callback handlers must map to a single state transition.
-- Handlers should be idempotent where practical.
-- Review actions must not trigger unrelated side effects.
-- Real application submit actions must remain explicitly separated from review approval and preflight actions.
-- Any submit-capable action must require a dedicated human authorization state before execution.
+  - link da fonte
+- Handlers de callback devem mapear para uma única transição de estado.
+- Handlers devem ser idempotentes quando viável.
+- Ações de revisão não devem disparar efeitos colaterais não relacionados.
+- Ações de submit real devem permanecer explicitamente separadas de aprovação de review e preflight.
+- Qualquer ação com potencial de submit deve exigir um estado dedicado de autorização humana antes da execução.
 
-## Configuration Rules
+## Regras de Configuração
 
-- Configuration must fail fast when invalid.
-- Placeholder secrets must never be accepted silently.
-- Required settings must be validated at startup.
-- Default values should be safe for development and obviously invalid for real secrets.
-- Do not spread configuration lookups across the codebase.
-- Access settings through a validated settings object.
+- Configuração deve falhar rápido quando inválida.
+- Secrets placeholder nunca devem ser aceitos silenciosamente.
+- Configurações obrigatórias devem ser validadas no startup.
+- Defaults devem ser seguros para desenvolvimento e obviamente inválidos para secrets reais.
+- Não espalhar lookups de configuração pelo código.
+- Acessar configurações por um objeto validado.
 
-## Persistence Rules
+## Regras de Persistência
 
-- Repository code owns SQL and schema details.
-- Domain objects must not contain SQLite-specific concerns.
-- Keep schema simple until the product proves a stronger need.
-- Persist enough metadata to debug operational failures.
-- Avoid leaking database row shapes into higher layers.
+- O código de repositório é dono de SQL e detalhes de schema.
+- Objetos de domínio não devem conter preocupações específicas de SQLite.
+- Manter o schema simples até o produto provar necessidade real de algo mais forte.
+- Persistir metadados suficientes para depurar falhas operacionais.
+- Evitar vazar shape de row de banco para camadas superiores.
 
-## Error Handling and Observability
+## Tratamento de Erros e Observabilidade
 
-- Failures must be visible, not swallowed.
-- Log at source boundaries with enough context to debug later.
-- Prefer controlled degradation over full failure.
-- User-facing messages should be concise.
-- Internal logs should preserve source, action, and failure reason.
+- Falhas devem ser visíveis, não engolidas.
+- Logar nas bordas da fonte com contexto suficiente para depuração posterior.
+- Preferir degradação controlada a falha total.
+- Mensagens voltadas ao usuário devem ser curtas.
+- Logs internos devem preservar fonte, ação e motivo da falha.
 
-## Testing Standards
+## Padrões de Teste
 
-Every non-trivial change should preserve or improve verification.
+Toda mudança não trivial deve preservar ou melhorar a verificação.
 
-Minimum expectations:
+Expectativas mínimas:
 
-- repository tests for persistence, deduplication, and state summaries
-- collector tests for normalization, filtering, and scoring decisions
-- settings validation tests when configuration rules change
-- notifier tests when callback or review behavior changes
+- testes de repositório para persistência, deduplicação e resumos de estado
+- testes de collector para normalização, filtragem e decisões de scoring
+- testes de validação de settings quando regras de configuração mudarem
+- testes de notifier quando comportamento de callback ou review mudar
 
-Testing guidelines:
+Diretrizes de teste:
 
-- prefer unit tests for business rules
-- add integration tests only around critical seams
-- test behavior, not implementation details
-- use local temporary paths inside the workspace for sandbox-safe tests
+- preferir testes unitários para regras de negócio
+- adicionar testes de integração apenas em seams críticos
+- testar comportamento, não detalhe de implementação
+- usar caminhos temporários locais dentro do workspace para testes seguros no sandbox
 
-## Code Quality Rules
+## Regras de Qualidade de Código
 
-- Use Python 3.11+ compatible code.
-- Prefer explicit names over short clever names.
-- Keep functions and classes small.
-- Prefer immutable dataclasses for domain models.
-- Avoid hidden shared state.
-- Avoid premature abstraction, but refactor once duplication becomes structural.
-- Use ASCII unless the file already justifies otherwise.
-- Comments should explain intent or a non-obvious tradeoff, not restate code.
+- Usar código compatível com Python 3.11+.
+- Preferir nomes explícitos a nomes curtos e “espertos”.
+- Manter funções e classes pequenas.
+- Preferir dataclasses imutáveis para modelos de domínio.
+- Evitar estado compartilhado oculto.
+- Evitar abstração prematura, mas refatorar quando a duplicação se tornar estrutural.
+- Usar ASCII, salvo quando o arquivo já justificar outra escolha.
+- Comentários devem explicar intenção ou tradeoff não óbvio, não repetir o código.
 
-## Change Control
+## Controle de Mudança
 
-Before changing code, verify:
+Antes de mudar código, verificar:
 
-- does this improve the core loop
-- does this preserve architectural boundaries
-- does this reduce or increase coupling
-- does this introduce hidden runtime behavior
-- does this require README or AGENTS updates
+- isso melhora o loop principal?
+- isso preserva as fronteiras arquiteturais?
+- isso reduz ou aumenta acoplamento?
+- isso introduz comportamento implícito de runtime?
+- isso exige atualização de README ou AGENTS?
 
-Do not add features just because they are technically possible.
+Não adicionar features apenas porque são tecnicamente possíveis.
 
-## Self-Improvement Rule
+## Regra de Autoevolução
 
-`AGENTS.md` must not drift behind the codebase.
+`AGENTS.md` não pode ficar defasado em relação ao código.
 
-Whenever a significant change lands, explicitly reassess whether this file still matches:
+Sempre que uma mudança significativa entrar, reavaliar explicitamente se este arquivo ainda reflete:
 
-- the active module boundaries
-- the real runtime flow
-- the current branch/commit policy
-- the operational rules that future work must follow
+- as fronteiras reais dos módulos
+- o fluxo real de runtime
+- a política atual de branch e commit
+- as regras operacionais que o trabalho futuro deve seguir
 
-If the answer is no, update `AGENTS.md` in the same line of work before considering the task complete.
+Se a resposta for não, atualizar `AGENTS.md` na mesma linha de trabalho antes de considerar a tarefa concluída.
 
-At the end of substantial work, perform a short check:
+Ao fim de um trabalho substancial, fazer uma checagem curta:
 
-- does `AGENTS.md` still describe the current architecture truthfully
-- did a module gain or lose responsibility
-- did process rules, branching rules, or validation rules change
+- o `AGENTS.md` ainda descreve a arquitetura atual com veracidade?
+- algum módulo ganhou ou perdeu responsabilidade?
+- regras de processo, branching ou validação mudaram?
 
-If any of those changed, `AGENTS.md` must be updated immediately rather than deferred.
+Se qualquer uma dessas respostas for sim, `AGENTS.md` deve ser atualizado imediatamente, sem postergar.
 
-## Branching Policy
+## Política de Branch
 
-Use the conventions above as the default operating rule.
+Usar as convenções acima como regra operacional padrão.
 
-Typical cases where a dedicated branch is mandatory:
+Casos em que branch dedicada é obrigatória:
 
-- new product capabilities outside the current validated loop
-- new configurable behaviors that affect matching, review, or operational flow
-- architectural refactors spanning multiple modules
-- new automation flows with external side effects
-- changes that introduce new states, persistence rules, or review flows
-- portal-specific application flows
+- novas capacidades de produto fora do loop atualmente validado
+- novos comportamentos configuráveis que afetem matching, review ou fluxo operacional
+- refatorações arquiteturais que atravessem múltiplos módulos
+- novos fluxos de automação com efeitos colaterais externos
+- mudanças que introduzam novos estados, regras de persistência ou fluxos de review
+- fluxos de aplicação específicos de portal
 
-Typical cases where direct work on the current branch may still be acceptable:
+Casos em que trabalho direto na branch atual ainda pode ser aceitável:
 
-- small fixes
-- localized parser cleanup
-- test-only changes
-- documentation-only updates
-- checklist alignment without runtime impact
+- pequenos fixes
+- limpeza localizada de parser
+- mudanças só em testes
+- mudanças só em documentação
+- alinhamento de checklist sem impacto de runtime
 
-Rule of thumb:
+Regra prática:
 
-- if the work can destabilize `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`, use a dedicated branch
-- if the work is a new feature, use a dedicated branch even if the implementation seems small
-- if there is any doubt, create the branch
+- se o trabalho pode desestabilizar `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`, usar branch dedicada
+- se o trabalho é uma feature nova, usar branch dedicada mesmo que a implementação pareça pequena
+- se houver qualquer dúvida, criar a branch
 
-## Anti-Patterns
+## Antipadrões
 
-- giant prompts that browse, reason, score, and act all at once
-- business rules embedded in Telegram handlers
-- infrastructure instantiated across random modules
-- direct SQL outside the repository layer
-- domain models aware of transport or storage details
-- reintroducing autonomous application into the main loop without explicit product approval
-- using the repo as a playground for generic agent experiments unrelated to the product
+- prompts gigantes que navegam, raciocinam, pontuam e agem ao mesmo tempo
+- regras de negócio embutidas em handlers do Telegram
+- infraestrutura instanciada em módulos aleatórios
+- SQL direto fora da camada de repositório
+- modelos de domínio conscientes de transporte ou storage
+- reintroduzir candidatura autônoma no loop principal sem aprovação explícita de produto
+- usar o repositório como playground para experimentos genéricos de agentes sem relação com o produto
 
-## Definition of Done
+## Definição de Pronto
 
-A change is complete only when:
+Uma mudança só está completa quando:
 
-- the collect -> score -> persist -> notify -> review loop still works
-- responsibilities remain correctly separated
-- state transitions remain valid
-- failure behavior is explicit
-- tests cover changed behavior or a concrete gap is documented
-- documentation is updated when runtime or setup changes
+- o loop `collect -> score -> persist -> notify -> review` continua funcionando
+- responsabilidades permanecem corretamente separadas
+- transições de estado continuam válidas
+- o comportamento de falha é explícito
+- testes cobrem o comportamento alterado ou uma lacuna concreta fica documentada
+- documentação é atualizada quando runtime ou setup mudam
