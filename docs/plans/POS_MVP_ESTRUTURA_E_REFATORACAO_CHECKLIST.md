@@ -194,6 +194,163 @@ Regra da fase atual:
 
 ## P2: Melhoria de Produto
 
+### Integracao de LLMs locais
+
+Descricao:
+Essas sugestoes de evolucao com modelos locais parecem promissoras para o fluxo atual, mas ainda exigem analise mais aprofundada antes de virarem decisao de arquitetura ou implementacao. A avaliacao pendente deve cobrir beneficio operacional real, confiabilidade das saidas estruturadas, custo de manutencao, latencia local e aderencia as regras de fallback conservador do produto.
+
+- [ ] Avaliar separar configuracao de modelos por responsabilidade, em vez de reutilizar um unico modelo para todo o pipeline
+- [ ] Avaliar `qwen2.5:7b` como modelo padrao para tarefas textuais estruturadas:
+  - [ ] scoring
+  - [ ] extracao de requisitos
+  - [ ] rationale de revisao
+  - [ ] prioridade operacional
+- [ ] Avaliar `qwen3-vl:8b` apenas para fluxos que realmente dependam de visao:
+  - [ ] interpretacao de modal
+  - [ ] leitura assistida de screenshot
+  - [ ] analise visual de pagina quando heuristica textual nao bastar
+- [ ] Avaliar uso opcional de `deepseek-r1:8b` para segunda opiniao em casos limitrofes, sem virar dependencia do fluxo principal
+- [ ] Definir criterios objetivos para decidir quando um uso de LLM local e benefico:
+  - [ ] melhora de qualidade perceptivel
+  - [ ] preservacao de fallback deterministico
+  - [ ] latencia aceitavel no hardware local
+  - [ ] saida estruturada suficientemente confiavel
+- [ ] Validar se a separacao por modelo reduz risco operacional ou apenas aumenta complexidade de configuracao e manutencao
+
+### Oportunidades adicionais ainda em analise
+
+Descricao:
+As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ainda precisam de analise de viabilidade antes de entrarem no backlog priorizado. A avaliacao deve considerar aderencia ao escopo local-first, impacto no loop principal, complexidade de manutencao, risco de ampliar demais o produto e custo operacional no uso diario.
+
+- [ ] Avaliar calibracao do scoring com base no historico local de vagas `approved` e `rejected`
+- [ ] Avaliar registrar motivo curto e padronizado para descarte por regra ou por score
+- [ ] Avaliar criar um feedback loop local de revisao humana para refinar criterios de triagem
+- [ ] Avaliar um modo formal de `dry-run` para preflight e submit, com relatorio e artefatos
+- [ ] Avaliar adicionar health checks antes de operacoes criticas:
+  - [ ] `Ollama`
+  - [ ] Playwright
+  - [ ] sessao autenticada do LinkedIn
+  - [ ] Telegram
+  - [ ] caminhos obrigatorios como curriculo e banco
+- [ ] Avaliar rate limiting, retry e backoff explicitos por portal
+- [ ] Avaliar enriquecimento local de metadados da vaga:
+  - [ ] idioma
+  - [ ] senioridade
+  - [ ] regiao
+  - [ ] faixa salarial estimada quando houver sinal suficiente
+- [ ] Avaliar canonicalizacao de empresas para reduzir variacoes de nome e melhorar deduplicacao
+- [ ] Avaliar guardar snapshot minimo ou hash do conteudo original da vaga para auditoria e depuracao
+- [ ] Avaliar a necessidade de uma acao de revisao adiada sem distorcer os estados oficiais de vaga
+- [ ] Avaliar agrupamento de vagas muito parecidas para reduzir ruido no Telegram
+- [ ] Avaliar um ranking operacional de atencao para destacar o que merece preflight primeiro
+- [ ] Avaliar checklist de prontidao antes do preflight ou submit real
+- [ ] Avaliar catalogo local de perguntas recorrentes de candidatura e respostas sugeridas, sempre com aprovacao humana antes de uso
+- [ ] Avaliar deteccao antecipada de bloqueios recorrentes que hoje so aparecem no preflight
+- [ ] Avaliar metricas locais simples por ciclo e por portal:
+  - [ ] taxa de duplicata
+  - [ ] taxa de aprovacao
+  - [ ] taxa de erro
+  - [ ] taxa de `manual_review`
+  - [ ] tempo por etapa
+- [ ] Avaliar relatorio local resumido por execucao ou por dia
+- [ ] Avaliar versionamento de prompts, heuristicas e formatos estruturados para facilitar comparacao de comportamento
+- [ ] Avaliar contratos mais formais para saidas estruturadas dos usos de LLM
+- [ ] Avaliar separar de forma mais explicita:
+  - [ ] sinal extraido
+  - [ ] interpretacao
+  - [ ] decisao operacional
+- [ ] Avaliar se uma fila interna local de tarefas operacionais traria robustez real sem transformar o projeto em plataforma generica
+
+### Parametrizacao e desacoplamento de criterios ainda em analise
+
+Descricao:
+Hoje existe sinal de acoplamento entre configuracao tecnica, criterios de matching e heuristicas de inferencia. Essa frente parece promissora para reduzir duplicacao e melhorar manutencao, mas ainda precisa de analise de viabilidade e recorte para evitar excesso de generalizacao. A avaliacao deve preservar o foco do produto, respeitar SOLID e impedir que a configuracao vire uma plataforma generica de regras.
+
+- [ ] Mapear tudo o que hoje representa politica de triagem ou inferencia e esta espalhado entre configuracao, prompts e heuristicas
+- [ ] Avaliar extrair um objeto de dominio central para perfil e criterios de matching, separado de `Settings`
+- [ ] Avaliar manter `Settings` focado em infraestrutura, runtime e bootstrap
+- [ ] Avaliar introduzir um modelo validado para perfil profissional e busca, como `CandidateProfile` ou `JobSearchProfile`
+- [ ] Avaliar introduzir uma policy central de matching para vocabulario, aliases e criterios reutilizaveis
+- [ ] Validar se a centralizacao reduz acoplamento real sem piorar a experiencia de configuracao
+
+Mapeamento inicial dos pontos acoplados identificados no codigo:
+
+- [ ] Perfil textual principal acoplado em configuracao:
+  - [ ] `profile_text`
+  - [ ] `relaxed_testing_profile_hint`
+- [ ] Keywords de inclusao e exclusao acopladas em configuracao:
+  - [ ] `include_keywords`
+  - [ ] `exclude_keywords`
+  - [ ] `relaxed_testing_remove_exclude_keywords`
+- [ ] Regras de corte operacional acopladas em configuracao:
+  - [ ] `accepted_work_modes`
+  - [ ] `minimum_salary_brl`
+  - [ ] `minimum_relevance`
+  - [ ] `relaxed_testing_minimum_relevance`
+- [ ] Perfil de busca inicial acoplado em `sites.search_url`, com termos de cargo e stack embutidos
+- [ ] Prompt de scoring acoplado diretamente a criterios de perfil e keywords
+- [ ] Prefiltro deterministico de scoring acoplado diretamente a keywords excluidas
+- [ ] Taxonomia de senioridade acoplada em heuristica deterministica:
+  - [ ] `junior`
+  - [ ] `pleno`
+  - [ ] `senior`
+  - [ ] `especialista`
+  - [ ] `lideranca`
+- [ ] Taxonomia de ingles acoplada em heuristica e parsing:
+  - [ ] `nao_informado`
+  - [ ] `basico`
+  - [ ] `intermediario`
+  - [ ] `avancado`
+  - [ ] `fluente`
+- [ ] Vocabulos de stack principal acoplados em heuristica:
+  - [ ] `java`
+  - [ ] `kotlin`
+  - [ ] `spring`
+  - [ ] `spring boot`
+  - [ ] `angular`
+  - [ ] `react`
+- [ ] Vocabulos de stack secundaria acoplados em heuristica:
+  - [ ] `aws`
+  - [ ] `azure`
+  - [ ] `docker`
+  - [ ] `kubernetes`
+  - [ ] `postgresql`
+  - [ ] `sql`
+  - [ ] `microservices`
+- [ ] Sinais de lideranca acoplados em heuristica:
+  - [ ] `lideranca`
+  - [ ] `liderar`
+  - [ ] `tech lead`
+  - [ ] `mentoria`
+  - [ ] `coordenar`
+  - [ ] `ownership`
+- [ ] Exemplos de saida esperada dos prompts acoplados a tecnologias e senioridade especificas
+- [ ] Parsing e normalizacao acoplados a enums textuais repetidos em mais de um modulo
+
+Possivel alvo de centralizacao a avaliar:
+
+- [ ] aliases de cargo e titulo:
+  - [ ] `engenheiro de software`
+  - [ ] `software engineer`
+  - [ ] `desenvolvedor backend`
+- [ ] taxonomia de senioridade
+- [ ] taxonomia de stack principal e secundaria
+- [ ] sinais de lideranca
+- [ ] niveis de ingles
+- [ ] criterios de modalidade
+- [ ] criterios salariais
+- [ ] regras de relaxed matching para teste
+- [ ] termos usados em busca inicial por portal
+
+Impactos arquiteturais a validar:
+
+- [ ] reduzir dependencia direta de `llm/scoring.py` em `Settings` para criterios de negocio
+- [ ] reduzir dependencia de heuristicas locais em listas hardcoded dentro de `llm/job_requirements.py`
+- [ ] reutilizar a mesma taxonomia entre prompt, heuristica, parsing e validacao
+- [ ] evitar divergencia entre configuracao de busca, scoring e extracao estruturada
+- [ ] manter composicao na borda sem espalhar factories de criterio pelo codigo
+- [ ] preservar testabilidade com perfis alternativos sem duplicar fixtures ou mocks demais
+
 ### Telegram e revisao
 
 - [ ] Tornar o Telegram suficiente para operar o fluxo completo com seguranca
@@ -262,4 +419,3 @@ Regra da fase atual:
 - [ ] Regressao operacional principal permanece verde
 - [ ] Estrutura do codigo fica mais modular no fluxo LinkedIn
 - [ ] Telegram ou CLI passam a ser suficientes para operar o produto com seguranca
-
