@@ -270,6 +270,18 @@ class LinkedInApplicationFlowInspector:
                 state = await self._read_page_state(page)
                 if state.easy_apply:
                     state = await self._inspect_easy_apply_modal(page, state)
+                    if state.easy_apply and not state.modal_open:
+                        artifact_detail = await self._capture_failure_artifacts(
+                            page,
+                            state=state,
+                            job=job,
+                            phase="preflight",
+                            detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+                        )
+                    else:
+                        artifact_detail = ""
+                else:
+                    artifact_detail = ""
             finally:
                 await context.close()
                 await browser.close()
@@ -285,6 +297,11 @@ class LinkedInApplicationFlowInspector:
                     outcome=inspection.outcome,
                     detail=f"{inspection.detail} | {extra}",
                 )
+        if artifact_detail:
+            inspection = LinkedInApplicationInspection(
+                outcome=inspection.outcome,
+                detail=f"{inspection.detail}{artifact_detail}",
+            )
         return inspection
 
     async def _submit_async(self, job: JobPosting) -> ApplicationSubmissionResult:
@@ -378,7 +395,14 @@ class LinkedInApplicationFlowInspector:
             () => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
               const main = document.querySelector('main') || document.body;
-              const topCard = document.querySelector('.jobs-details-top-card') || main;
+              const detailPanel =
+                document.querySelector('.jobs-search__job-details--container') ||
+                document.querySelector('.jobs-details') ||
+                main;
+              const topCard =
+                detailPanel.querySelector('.jobs-details-top-card') ||
+                detailPanel.querySelector('[data-live-test-job-apply-button]') ||
+                detailPanel;
               const prioritizedSelectors = [
                 '[data-live-test-job-apply-button]',
                 '[data-control-name="jobdetails_topcard_inapply"]',
@@ -394,10 +418,10 @@ class LinkedInApplicationFlowInspector:
               const prioritizedTexts = prioritizedNodes
                 .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
                 .filter(Boolean);
-              const texts = Array.from(main.querySelectorAll("button, a"))
-                .map((node) => normalize(node.textContent))
+              const texts = Array.from(detailPanel.querySelectorAll("button, a"))
+                .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
                 .filter(Boolean);
-              const joined = normalize(main.innerText || "").slice(0, 400);
+              const joined = normalize(detailPanel.innerText || "").slice(0, 400);
               const easyApplyTexts = (prioritizedTexts.length ? prioritizedTexts : texts)
                 .filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
               const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
@@ -737,6 +761,24 @@ class LinkedInApplicationFlowInspector:
     async def _try_open_easy_apply_modal(self, page) -> bool:
         await self._dismiss_interfering_dialogs(page)
         candidates = [
+            page.locator('.jobs-search__job-details--container [data-live-test-job-apply-button] button, .jobs-search__job-details--container button[data-live-test-job-apply-button]').first,
+            page.locator('.jobs-search__job-details--container [data-control-name="jobdetails_topcard_inapply"]').first,
+            page.locator('.jobs-search__job-details--container [data-control-name="topcard_inapply"]').first,
+            page.locator('.jobs-search__job-details--container [data-control-name="jobs-details-top-card-apply-button"]').first,
+            page.locator('.jobs-search__job-details--container .jobs-apply-button--top-card button').first,
+            page.locator('.jobs-search__job-details--container .jobs-s-apply button').first,
+            page.locator('.jobs-search__job-details--container button.jobs-apply-button').first,
+            page.locator('.jobs-search__job-details--container button[aria-label*="Easy Apply" i]').first,
+            page.locator('.jobs-search__job-details--container button[aria-label*="Candidatura simplificada" i]').first,
+            page.locator('.jobs-details-top-card [data-live-test-job-apply-button] button, .jobs-details-top-card button[data-live-test-job-apply-button]').first,
+            page.locator('.jobs-details-top-card [data-control-name="jobdetails_topcard_inapply"]').first,
+            page.locator('.jobs-details-top-card [data-control-name="topcard_inapply"]').first,
+            page.locator('.jobs-details-top-card [data-control-name="jobs-details-top-card-apply-button"]').first,
+            page.locator('.jobs-details-top-card .jobs-apply-button--top-card button').first,
+            page.locator('.jobs-details-top-card .jobs-s-apply button').first,
+            page.locator('.jobs-details-top-card button.jobs-apply-button').first,
+            page.locator('.jobs-details-top-card button[aria-label*="Easy Apply" i]').first,
+            page.locator('.jobs-details-top-card button[aria-label*="Candidatura simplificada" i]').first,
             page.locator('[data-live-test-job-apply-button] button, button[data-live-test-job-apply-button]').first,
             page.locator('[data-control-name="jobdetails_topcard_inapply"]').first,
             page.locator('[data-control-name="topcard_inapply"]').first,
@@ -755,6 +797,11 @@ class LinkedInApplicationFlowInspector:
         for candidate in candidates:
             try:
                 if await candidate.count() == 0:
+                    continue
+                try:
+                    if not await candidate.is_visible(timeout=1000):
+                        continue
+                except Exception:
                     continue
                 await candidate.scroll_into_view_if_needed()
                 await page.wait_for_timeout(400)
@@ -788,7 +835,22 @@ class LinkedInApplicationFlowInspector:
             """
             () => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-              const candidates = Array.from(document.querySelectorAll('button, a'));
+              const roots = [
+                document.querySelector('.jobs-details-top-card'),
+                document.querySelector('.jobs-search__job-details--container'),
+                document.querySelector('.jobs-details'),
+                document.querySelector('main'),
+                document.body,
+              ].filter(Boolean);
+              const seen = new Set();
+              const candidates = [];
+              for (const root of roots) {
+                for (const element of Array.from(root.querySelectorAll('button, a'))) {
+                  if (seen.has(element)) continue;
+                  seen.add(element);
+                  candidates.push(element);
+                }
+              }
               for (const element of candidates) {
                 const text = normalize(element.textContent);
                 const aria = normalize(element.getAttribute('aria-label') || '');
@@ -812,7 +874,7 @@ class LinkedInApplicationFlowInspector:
 
     async def _wait_for_modal(self, page) -> bool:
         try:
-            await page.locator('[role="dialog"]').first.wait_for(state="visible", timeout=4500)
+            await page.locator('[role="dialog"], .jobs-easy-apply-modal, .artdeco-modal').first.wait_for(state="visible", timeout=4500)
             await page.wait_for_load_state("domcontentloaded")
             await page.wait_for_timeout(1400)
             return True
@@ -834,6 +896,7 @@ class LinkedInApplicationFlowInspector:
             () => {
               const target =
                 document.querySelector('.jobs-details-top-card') ||
+                document.querySelector('.jobs-search__job-details--container [data-live-test-job-apply-button]') ||
                 document.querySelector('[data-live-test-job-apply-button]') ||
                 document.querySelector('.jobs-search__job-details--container') ||
                 document.querySelector('main');
