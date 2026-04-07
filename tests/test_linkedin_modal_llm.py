@@ -1,7 +1,7 @@
 import unittest
 
-from job_hunter_agent.linkedin_application import LinkedInApplicationPageState
-from job_hunter_agent.linkedin_modal_llm import (
+from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationPageState
+from job_hunter_agent.collectors.linkedin_modal_llm import (
     build_linkedin_modal_snapshot_payload,
     deterministic_interpret_linkedin_modal,
     format_linkedin_modal_interpretation,

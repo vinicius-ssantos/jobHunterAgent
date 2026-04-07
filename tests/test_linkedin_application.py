@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 import json
 
-from job_hunter_agent.linkedin_application import (
+from job_hunter_agent.collectors.linkedin_application import (
     build_linkedin_modal_snapshot,
     describe_linkedin_easy_apply_entrypoint,
     LinkedInApplicationPageState,

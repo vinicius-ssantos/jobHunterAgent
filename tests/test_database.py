@@ -1,7 +1,7 @@
 import shutil
 import unittest
 
-from job_hunter_agent.applicant import (
+from job_hunter_agent.application.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
     ApplicationSubmissionService,
@@ -9,15 +9,15 @@ from job_hunter_agent.applicant import (
     classify_job_application_support,
     parse_application_support_response,
 )
-from job_hunter_agent.application_priority import (
+from job_hunter_agent.llm.application_priority import (
     DeterministicApplicationPriorityAssessor,
     extract_application_priority_level,
     format_application_priority_note,
     parse_application_priority_response,
 )
-from job_hunter_agent.domain import JobPosting
-from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
-from job_hunter_agent.job_requirements import (
+from job_hunter_agent.core.domain import JobPosting
+from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
+from job_hunter_agent.llm.job_requirements import (
     DeterministicJobRequirementsExtractor,
     JobRequirementSignals,
     extract_job_requirement_signals,
@@ -25,7 +25,7 @@ from job_hunter_agent.job_requirements import (
     format_job_requirement_summary,
     parse_job_requirements_response,
 )
-from job_hunter_agent.repository import SqliteJobRepository
+from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
@@ -590,7 +590,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
     def test_application_submission_marks_submitted_when_applicant_succeeds(self) -> None:
         class _Applicant:
             def submit(self, application, job):
-                from job_hunter_agent.applicant import ApplicationSubmissionResult
+                from job_hunter_agent.application.applicant import ApplicationSubmissionResult
 
                 return ApplicationSubmissionResult(
                     status="submitted",

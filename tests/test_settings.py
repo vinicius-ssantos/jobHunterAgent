@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from job_hunter_agent.settings import Settings, load_settings
+from job_hunter_agent.core.settings import Settings, load_settings
 
 
 class SettingsTests(TestCase):
@@ -89,7 +89,7 @@ class SettingsTests(TestCase):
             )
 
     def test_rejects_without_active_sites(self) -> None:
-        from job_hunter_agent.domain import SiteConfig
+        from job_hunter_agent.core.domain import SiteConfig
 
         with self.assertRaises(ValueError):
             Settings(

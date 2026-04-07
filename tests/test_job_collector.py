@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 from unittest import IsolatedAsyncioTestCase, TestCase
 
-from job_hunter_agent.collector import (
+from job_hunter_agent.collectors.collector import (
     automation_result_to_text,
     build_available_file_paths,
     clean_linkedin_company,
@@ -33,18 +33,18 @@ from job_hunter_agent.collector import (
     should_repair_linkedin_fields,
     summarize_linkedin_raw_card,
 )
-from job_hunter_agent.domain import JobPosting, RawJob, ScoredJob, SiteConfig
-from job_hunter_agent.linkedin import LinkedInDeterministicCollector
-from job_hunter_agent.portal_collectors import (
+from job_hunter_agent.core.domain import JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.collectors.linkedin import LinkedInDeterministicCollector
+from job_hunter_agent.collectors.portal_collectors import (
     BrowserUseSiteCollector,
     DefaultPortalCollectorAdapter,
     GupyCollectorAdapter,
     IndeedCollectorAdapter,
     LinkedInCollectorAdapter,
 )
-from job_hunter_agent.repository import SqliteJobRepository
-from job_hunter_agent.scoring import HybridJobScorer
-from job_hunter_agent.settings import Settings
+from job_hunter_agent.infrastructure.repository import SqliteJobRepository
+from job_hunter_agent.llm.scoring import HybridJobScorer
+from job_hunter_agent.core.settings import Settings
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 

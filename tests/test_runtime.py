@@ -3,7 +3,7 @@ import shutil
 import unittest
 from unittest.mock import patch
 
-from job_hunter_agent.runtime import RuntimeGuard, is_project_browser_process, is_project_python_process
+from job_hunter_agent.core.runtime import RuntimeGuard, is_project_browser_process, is_project_python_process
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 

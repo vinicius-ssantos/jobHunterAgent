@@ -4,16 +4,16 @@ import asyncio
 from unittest.mock import patch
 from unittest import IsolatedAsyncioTestCase
 
-from job_hunter_agent.app import JobHunterApplication, parse_args
-from job_hunter_agent.composition import (
+from job_hunter_agent.application.app import JobHunterApplication, parse_args
+from job_hunter_agent.application.composition import (
     build_known_job_lookup,
     create_linkedin_modal_interpreter,
     create_linkedin_modal_interpretation_formatter,
     create_notifier,
 )
-from job_hunter_agent.linkedin_application import LinkedInApplicationPageState
-from job_hunter_agent.domain import JobPosting
-from job_hunter_agent.notifier import NullNotifier
+from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationPageState
+from job_hunter_agent.core.domain import JobPosting
+from job_hunter_agent.infrastructure.notifier import NullNotifier
 
 
 class _FakeRuntimeGuard:
@@ -158,7 +158,7 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _RepositoryWithJobs()
 
-        from job_hunter_agent.applicant import ApplicationPreparationService
+        from job_hunter_agent.application.applicant import ApplicationPreparationService
 
         app.application_preparation = ApplicationPreparationService(app.repository)
 
@@ -349,7 +349,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         class _Interpreter:
             def interpret(self, state):
-                from job_hunter_agent.linkedin_modal_llm import LinkedInModalInterpretation
+                from job_hunter_agent.collectors.linkedin_modal_llm import LinkedInModalInterpretation
 
                 return LinkedInModalInterpretation(
                     step_type="review_final",
@@ -387,7 +387,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         class _Interpreter:
             def interpret(self, state):
-                from job_hunter_agent.linkedin_modal_llm import LinkedInModalInterpretation
+                from job_hunter_agent.collectors.linkedin_modal_llm import LinkedInModalInterpretation
 
                 return LinkedInModalInterpretation(
                     step_type="review_final",

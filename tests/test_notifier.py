@@ -1,8 +1,8 @@
 import shutil
 from unittest import TestCase
 
-from job_hunter_agent.domain import JobPosting
-from job_hunter_agent.notifier import (
+from job_hunter_agent.core.domain import JobPosting
+from job_hunter_agent.infrastructure.notifier import (
     NullNotifier,
     build_application_action_rows,
     build_application_card_message,
@@ -16,9 +16,9 @@ from job_hunter_agent.notifier import (
     resolve_review_action,
     resolve_application_submit_request,
 )
-from job_hunter_agent.notifier_rendering import summarize_application_notes
-from job_hunter_agent.repository import SqliteJobRepository
-from job_hunter_agent.review_rationale import (
+from job_hunter_agent.infrastructure.notifier_rendering import summarize_application_notes
+from job_hunter_agent.infrastructure.repository import SqliteJobRepository
+from job_hunter_agent.llm.review_rationale import (
     StructuredReviewRationale,
     parse_structured_review_rationale,
     render_review_rationale,
@@ -122,7 +122,7 @@ class ReviewActionTests(TestCase):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_resolve_application_action_happy_path(self) -> None:
-        from job_hunter_agent.domain import JobApplication
+        from job_hunter_agent.core.domain import JobApplication
 
         draft = JobApplication(id=10, job_id=1, status="draft")
         ready = JobApplication(id=10, job_id=1, status="ready_for_review")
@@ -134,7 +134,7 @@ class ReviewActionTests(TestCase):
         self.assertEqual(resolve_application_action(confirmed, "app_authorize")[0], "authorized_submit")
 
     def test_resolve_application_action_is_idempotent(self) -> None:
-        from job_hunter_agent.domain import JobApplication
+        from job_hunter_agent.core.domain import JobApplication
 
         confirmed = JobApplication(id=10, job_id=1, status="confirmed")
         authorized = JobApplication(id=12, job_id=1, status="authorized_submit")
@@ -145,7 +145,7 @@ class ReviewActionTests(TestCase):
         self.assertIsNone(resolve_application_action(cancelled, "app_cancel")[0])
 
     def test_build_application_action_rows_varies_by_status(self) -> None:
-        from job_hunter_agent.domain import JobApplication
+        from job_hunter_agent.core.domain import JobApplication
 
         def button(label: str, callback_data: str) -> tuple[str, str]:
             return (label, callback_data)
@@ -163,7 +163,7 @@ class ReviewActionTests(TestCase):
         self.assertEqual(authorized_rows[0][1], ("Cancelar", "app_cancel:1"))
 
     def test_resolve_application_preflight_request_requires_confirmed_status(self) -> None:
-        from job_hunter_agent.domain import JobApplication
+        from job_hunter_agent.core.domain import JobApplication
 
         confirmed = JobApplication(id=1, job_id=1, status="confirmed")
         authorized = JobApplication(id=3, job_id=3, status="authorized_submit")
@@ -180,7 +180,7 @@ class ReviewActionTests(TestCase):
         )
 
     def test_resolve_application_submit_request_requires_authorized_status(self) -> None:
-        from job_hunter_agent.domain import JobApplication
+        from job_hunter_agent.core.domain import JobApplication
 
         authorized = JobApplication(id=1, job_id=1, status="authorized_submit")
         confirmed = JobApplication(id=2, job_id=2, status="confirmed")
