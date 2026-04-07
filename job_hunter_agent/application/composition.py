@@ -11,6 +11,7 @@ from job_hunter_agent.application.applicant import (
 from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
+from job_hunter_agent.core.matching import build_matching_criteria
 from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationFlowInspector
 from job_hunter_agent.collectors.linkedin_modal_llm import (
@@ -153,7 +154,18 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
     known_job_lookup = build_known_job_lookup(repository)
     return JobCollectionService(
         settings=settings,
-        matching_criteria=settings.matching_criteria,
+        matching_criteria=build_matching_criteria(
+            profile_text=settings.profile_text,
+            include_keywords=settings.include_keywords,
+            exclude_keywords=settings.exclude_keywords,
+            accepted_work_modes=settings.accepted_work_modes,
+            minimum_salary_brl=settings.minimum_salary_brl,
+            minimum_relevance=settings.minimum_relevance,
+            relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
+            relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
+            relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
+            relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
+        ),
         repository=repository,
         site_collector=BrowserUseSiteCollector(
             model_name=settings.ollama_model,

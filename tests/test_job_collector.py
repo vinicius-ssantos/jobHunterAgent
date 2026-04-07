@@ -42,7 +42,7 @@ from job_hunter_agent.collectors.portal_collectors import (
     IndeedCollectorAdapter,
     LinkedInCollectorAdapter,
 )
-from job_hunter_agent.core.matching import MatchingCriteria
+from job_hunter_agent.core.matching import MatchingCriteria, build_matching_criteria
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.llm.scoring import HybridJobScorer
 from job_hunter_agent.core.settings import Settings
@@ -164,6 +164,18 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
             telegram_chat_id="chat",
             sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
         )
+        self.matching_criteria = build_matching_criteria(
+            profile_text=self.settings.profile_text,
+            include_keywords=self.settings.include_keywords,
+            exclude_keywords=self.settings.exclude_keywords,
+            accepted_work_modes=self.settings.accepted_work_modes,
+            minimum_salary_brl=self.settings.minimum_salary_brl,
+            minimum_relevance=self.settings.minimum_relevance,
+            relaxed_matching_for_testing=self.settings.relaxed_matching_for_testing,
+            relaxed_testing_profile_hint=self.settings.relaxed_testing_profile_hint,
+            relaxed_testing_remove_exclude_keywords=self.settings.relaxed_testing_remove_exclude_keywords,
+            relaxed_testing_minimum_relevance=self.settings.relaxed_testing_minimum_relevance,
+        )
 
     async def asyncTearDown(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -171,7 +183,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_filters_and_saves_only_relevant_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -184,19 +196,26 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         self.assertTrue(self.repository.job_exists(jobs[0].url, jobs[0].external_key))
 
     async def test_collect_new_jobs_filters_out_wrong_work_mode_before_scoring(self) -> None:
+        filtered_settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            accepted_work_modes=("remoto",),
+            sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+        )
         service = JobCollectionService(
-            settings=Settings(
-                telegram_token="token",
-                telegram_chat_id="chat",
-                accepted_work_modes=("remoto",),
-                sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+            settings=filtered_settings,
+            matching_criteria=build_matching_criteria(
+                profile_text=filtered_settings.profile_text,
+                include_keywords=filtered_settings.include_keywords,
+                exclude_keywords=filtered_settings.exclude_keywords,
+                accepted_work_modes=filtered_settings.accepted_work_modes,
+                minimum_salary_brl=filtered_settings.minimum_salary_brl,
+                minimum_relevance=filtered_settings.minimum_relevance,
+                relaxed_matching_for_testing=filtered_settings.relaxed_matching_for_testing,
+                relaxed_testing_profile_hint=filtered_settings.relaxed_testing_profile_hint,
+                relaxed_testing_remove_exclude_keywords=filtered_settings.relaxed_testing_remove_exclude_keywords,
+                relaxed_testing_minimum_relevance=filtered_settings.relaxed_testing_minimum_relevance,
             ),
-            matching_criteria=Settings(
-                telegram_token="token",
-                telegram_chat_id="chat",
-                accepted_work_modes=("remoto",),
-                sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
-            ).matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -210,7 +229,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_contains_cycle_counts(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -226,7 +245,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_discards_minimally_invalid_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=InvalidFakeSiteCollector(),
             scorer=FakeScorer(),
@@ -239,7 +258,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_tracks_portal_failures(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=FailingSiteCollector(),
             scorer=FakeScorer(),
@@ -252,19 +271,26 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         self.assertEqual(report.errors, 1)
 
     async def test_collect_new_jobs_report_times_out_slow_portal(self) -> None:
+        timeout_settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            portal_collection_timeout_seconds=0,
+            sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+        )
         service = JobCollectionService(
-            settings=Settings(
-                telegram_token="token",
-                telegram_chat_id="chat",
-                portal_collection_timeout_seconds=0,
-                sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+            settings=timeout_settings,
+            matching_criteria=build_matching_criteria(
+                profile_text=timeout_settings.profile_text,
+                include_keywords=timeout_settings.include_keywords,
+                exclude_keywords=timeout_settings.exclude_keywords,
+                accepted_work_modes=timeout_settings.accepted_work_modes,
+                minimum_salary_brl=timeout_settings.minimum_salary_brl,
+                minimum_relevance=timeout_settings.minimum_relevance,
+                relaxed_matching_for_testing=timeout_settings.relaxed_matching_for_testing,
+                relaxed_testing_profile_hint=timeout_settings.relaxed_testing_profile_hint,
+                relaxed_testing_remove_exclude_keywords=timeout_settings.relaxed_testing_remove_exclude_keywords,
+                relaxed_testing_minimum_relevance=timeout_settings.relaxed_testing_minimum_relevance,
             ),
-            matching_criteria=Settings(
-                telegram_token="token",
-                telegram_chat_id="chat",
-                portal_collection_timeout_seconds=0,
-                sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
-            ).matching_criteria,
             repository=self.repository,
             site_collector=SlowSiteCollector(),
             scorer=FakeScorer(),
@@ -285,7 +311,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_skips_scoring_errors_and_keeps_valid_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=MixedRawSiteCollector(),
             scorer=FlakyScorer(),
@@ -299,7 +325,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_logs_duplicates_in_portal_summary(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -348,7 +374,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         )
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FailingIfCalledScorer(),
@@ -361,7 +387,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_remembers_discarded_jobs_to_skip_next_cycle(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.settings.matching_criteria,
+            matching_criteria=self.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),

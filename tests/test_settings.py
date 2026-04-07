@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
+from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy, build_matching_criteria
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
@@ -106,9 +106,22 @@ class SettingsTests(TestCase):
             relaxed_matching_for_testing=True,
         )
 
-        self.assertNotIn("junior", settings.scoring_exclude_keywords)
-        self.assertIn("junior e pleno", settings.scoring_profile_text)
-        self.assertEqual(settings.scoring_minimum_relevance, 4)
+        criteria = build_matching_criteria(
+            profile_text=settings.profile_text,
+            include_keywords=settings.include_keywords,
+            exclude_keywords=settings.exclude_keywords,
+            accepted_work_modes=settings.accepted_work_modes,
+            minimum_salary_brl=settings.minimum_salary_brl,
+            minimum_relevance=settings.minimum_relevance,
+            relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
+            relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
+            relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
+            relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
+        )
+
+        self.assertNotIn("junior", criteria.exclude_keywords)
+        self.assertIn("junior e pleno", criteria.profile_text)
+        self.assertEqual(criteria.minimum_relevance, 4)
 
     def test_matching_criteria_exposes_validated_business_inputs(self) -> None:
         settings = Settings(
@@ -122,7 +135,18 @@ class SettingsTests(TestCase):
             minimum_relevance=7,
         )
 
-        criteria = settings.matching_criteria
+        criteria = build_matching_criteria(
+            profile_text=settings.profile_text,
+            include_keywords=settings.include_keywords,
+            exclude_keywords=settings.exclude_keywords,
+            accepted_work_modes=settings.accepted_work_modes,
+            minimum_salary_brl=settings.minimum_salary_brl,
+            minimum_relevance=settings.minimum_relevance,
+            relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
+            relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
+            relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
+            relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
+        )
 
         self.assertEqual(criteria.profile_text, "Backend engineer")
         self.assertEqual(criteria.include_keywords, ("java", "kotlin"))
@@ -161,10 +185,23 @@ class SettingsTests(TestCase):
             relaxed_testing_minimum_relevance=5,
         )
 
-        self.assertIn("pleno e mid-level", settings.scoring_profile_text)
-        self.assertNotIn("junior", settings.scoring_exclude_keywords)
-        self.assertNotIn("trainee", settings.scoring_exclude_keywords)
-        self.assertEqual(settings.scoring_minimum_relevance, 5)
+        criteria = build_matching_criteria(
+            profile_text=settings.profile_text,
+            include_keywords=settings.include_keywords,
+            exclude_keywords=settings.exclude_keywords,
+            accepted_work_modes=settings.accepted_work_modes,
+            minimum_salary_brl=settings.minimum_salary_brl,
+            minimum_relevance=settings.minimum_relevance,
+            relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
+            relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
+            relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
+            relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
+        )
+
+        self.assertIn("pleno e mid-level", criteria.profile_text)
+        self.assertNotIn("junior", criteria.exclude_keywords)
+        self.assertNotIn("trainee", criteria.exclude_keywords)
+        self.assertEqual(criteria.minimum_relevance, 5)
 
     def test_rejects_invalid_linkedin_max_pages_per_cycle(self) -> None:
         with self.assertRaises(ValueError):

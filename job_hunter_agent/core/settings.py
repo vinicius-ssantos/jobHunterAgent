@@ -6,7 +6,6 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from job_hunter_agent.core.domain import SiteConfig
-from job_hunter_agent.core.matching import MatchingCriteria
 
 
 class Settings(BaseSettings):
@@ -151,37 +150,6 @@ class Settings(BaseSettings):
         if not any(site.enabled for site in value):
             raise ValueError("Ative pelo menos um site.")
         return value
-
-    @property
-    def scoring_profile_text(self) -> str:
-        if not self.relaxed_matching_for_testing:
-            return self.profile_text
-        return f"{self.profile_text} {self.relaxed_testing_profile_hint}".strip()
-
-    @property
-    def scoring_exclude_keywords(self) -> tuple[str, ...]:
-        if not self.relaxed_matching_for_testing:
-            return self.exclude_keywords
-        blocked = {keyword.lower() for keyword in self.relaxed_testing_remove_exclude_keywords}
-        return tuple(keyword for keyword in self.exclude_keywords if keyword.lower() not in blocked)
-
-    @property
-    def scoring_minimum_relevance(self) -> int:
-        if not self.relaxed_matching_for_testing:
-            return self.minimum_relevance
-        return self.relaxed_testing_minimum_relevance
-
-    @property
-    def matching_criteria(self) -> MatchingCriteria:
-        return MatchingCriteria(
-            profile_text=self.scoring_profile_text,
-            include_keywords=self.include_keywords,
-            exclude_keywords=self.scoring_exclude_keywords,
-            accepted_work_modes=self.accepted_work_modes,
-            minimum_salary_brl=self.minimum_salary_brl,
-            minimum_relevance=self.scoring_minimum_relevance,
-        )
-
 
 def load_settings() -> Settings:
     return Settings()

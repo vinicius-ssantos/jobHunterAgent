@@ -36,3 +36,38 @@ class MatchingPolicy:
 
     def accepts_relevance(self, relevance: int) -> bool:
         return relevance >= self.criteria.minimum_relevance
+
+
+def build_matching_criteria(
+    *,
+    profile_text: str,
+    include_keywords: tuple[str, ...],
+    exclude_keywords: tuple[str, ...],
+    accepted_work_modes: tuple[str, ...],
+    minimum_salary_brl: int,
+    minimum_relevance: int,
+    relaxed_matching_for_testing: bool,
+    relaxed_testing_profile_hint: str,
+    relaxed_testing_remove_exclude_keywords: tuple[str, ...],
+    relaxed_testing_minimum_relevance: int,
+) -> MatchingCriteria:
+    resolved_profile_text = profile_text
+    resolved_exclude_keywords = exclude_keywords
+    resolved_minimum_relevance = minimum_relevance
+
+    if relaxed_matching_for_testing:
+        resolved_profile_text = f"{profile_text} {relaxed_testing_profile_hint}".strip()
+        blocked = {keyword.lower() for keyword in relaxed_testing_remove_exclude_keywords}
+        resolved_exclude_keywords = tuple(
+            keyword for keyword in exclude_keywords if keyword.lower() not in blocked
+        )
+        resolved_minimum_relevance = relaxed_testing_minimum_relevance
+
+    return MatchingCriteria(
+        profile_text=resolved_profile_text,
+        include_keywords=include_keywords,
+        exclude_keywords=resolved_exclude_keywords,
+        accepted_work_modes=accepted_work_modes,
+        minimum_salary_brl=minimum_salary_brl,
+        minimum_relevance=resolved_minimum_relevance,
+    )
