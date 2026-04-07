@@ -21,6 +21,43 @@ Out of scope by default:
 - cloud persistence
 - generic agent platform features
 
+## Git and Branch Conventions
+
+Branching and commit policy comes first. Respect it before starting implementation work.
+
+Rule:
+
+- every new feature must be started and developed in its own branch
+- do not start new feature work directly on `master`
+- if the task introduces new product capability, new configurable behavior, new portal behavior, new operational flow, or architectural refactor, create the branch first
+
+Recommended branch naming:
+
+- `feature/<tema-curto>`
+- `fix/<tema-curto>`
+- `refactor/<tema-curto>`
+- `docs/<tema-curto>`
+
+Examples:
+
+- `feature/candidatura-assistida-arquitetura`
+- `feature/perfil-busca-configuravel`
+- `fix/linkedin-parser-residual`
+- `refactor/separa-modulo-applicant`
+- `docs/fluxo-candidatura-v1`
+
+Commit rules:
+
+- whenever there are significant uncommitted changes, prepare and create commits in the repository standard
+- commit messages must be written in Portuguese
+- prefer small, coherent commits with a single clear reason to change
+
+Operational expectation:
+
+- new features always start on a feature branch
+- broad refactors should start on a refactor branch
+- direct work on `master` is acceptable only for narrow fixes, test-only changes, or documentation-only changes with low runtime risk
+
 ## Product Constraints
 
 - This is a personal-use system.
@@ -258,17 +295,18 @@ If any of those changed, `AGENTS.md` must be updated immediately rather than def
 
 ## Branching Policy
 
-Use feature branches when the change is substantial enough to put the stable MVP loop at risk.
+Use the conventions above as the default operating rule.
 
-Typical cases where a branch is recommended:
+Typical cases where a dedicated branch is mandatory:
 
 - new product capabilities outside the current validated loop
+- new configurable behaviors that affect matching, review, or operational flow
 - architectural refactors spanning multiple modules
 - new automation flows with external side effects
 - changes that introduce new states, persistence rules, or review flows
 - portal-specific application flows
 
-Typical cases where a branch is usually not necessary:
+Typical cases where direct work on the current branch may still be acceptable:
 
 - small fixes
 - localized parser cleanup
@@ -276,27 +314,10 @@ Typical cases where a branch is usually not necessary:
 - documentation-only updates
 - checklist alignment without runtime impact
 
-Recommended branch naming:
-
-- `feature/<tema-curto>`
-- `fix/<tema-curto>`
-- `refactor/<tema-curto>`
-- `docs/<tema-curto>`
-
-Examples:
-
-- `feature/candidatura-assistida-arquitetura`
-- `fix/linkedin-parser-residual`
-- `refactor/separa-modulo-applicant`
-- `docs/fluxo-candidatura-v1`
-
 Rule of thumb:
 
-- if the work can destabilize `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`, prefer a branch
-- if the work is narrow and easily reversible, committing directly on the current branch is acceptable
-
-- Sempre que houver modificacoes significativas ainda nao commitadas, preparar e criar commits no padrao adotado no repositorio.
-- As mensagens de commit devem ser escritas em portugues.
+- if the work can destabilize `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`, use a dedicated branch
+- if the work is a new feature, use a dedicated branch even if the implementation seems small
 
 ## Anti-Patterns
 
