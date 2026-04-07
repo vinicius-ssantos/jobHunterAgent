@@ -50,8 +50,8 @@ Keep responsibilities separated and directional:
   Persistence and notifier transport/rendering adapters.
 - `job_hunter_agent/llm/`
   Assistive scoring, requirement extraction, rationale formatting, and queue prioritization.
-- `job_hunter_agent/*.py`
-  Thin compatibility wrappers only. New implementation code should live in the subpackages above.
+- `job_hunter_agent/__init__.py`
+  Package entrypoint only. Runtime modules should be imported from the subpackages above.
 
 Dependency rule:
 

@@ -127,7 +127,7 @@ class RuntimeTests(unittest.TestCase):
         fake_process = FakeProcess(pid=1234, cwd=str(self.temp_dir), cmdline=["python", "main.py"])
         terminated_calls: list[int] = []
 
-        with patch("job_hunter_agent.runtime.psutil.Process", return_value=fake_process):
+        with patch("job_hunter_agent.core.runtime.psutil.Process", return_value=fake_process):
             guard._terminate_project_browser_processes = lambda: 0
             guard._terminate_process_tree = lambda process: terminated_calls.append(process.pid) or 1
             terminated = guard.prepare_for_startup()

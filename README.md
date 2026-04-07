@@ -13,8 +13,6 @@ O runtime ativo mora no pacote `job_hunter_agent/`.
 - `job_hunter_agent/llm/`
 - `main.py` apenas como entrypoint fino
 
-Os modulos diretamente em `job_hunter_agent/` foram mantidos como wrappers de compatibilidade para preservar imports antigos e patching nominal em testes.
-
 O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
 ## Documentacao

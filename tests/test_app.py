@@ -441,7 +441,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         from unittest.mock import patch
 
-        with patch("job_hunter_agent.composition.OllamaLinkedInModalInterpreter", return_value=_Interpreter()):
+        with patch("job_hunter_agent.application.composition.OllamaLinkedInModalInterpreter", return_value=_Interpreter()):
             formatter = create_linkedin_modal_interpretation_formatter(settings)
 
         rendered = formatter(
@@ -477,7 +477,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
                     rationale="botao final visivel",
                 )
 
-        with patch("job_hunter_agent.composition.OllamaLinkedInModalInterpreter", return_value=_Interpreter()):
+        with patch("job_hunter_agent.application.composition.OllamaLinkedInModalInterpreter", return_value=_Interpreter()):
             interpreter = create_linkedin_modal_interpreter(settings)
 
         interpreted = interpreter(
