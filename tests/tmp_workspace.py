@@ -5,7 +5,8 @@ import time
 import uuid
 from pathlib import Path
 
-_RECENT_DIRS_TO_KEEP = 2
+_RECENT_DIRS_TO_KEEP = 5
+_PRUNE_GRACE_SECONDS = 300.0
 
 
 def prepare_workspace_tmp_dir(prefix: str) -> Path:
@@ -30,6 +31,9 @@ def _prune_prefix_entries(root: Path, *, prefix: str, current_temp_dir: Path) ->
     candidate_dirs.sort(key=lambda item: item.stat().st_mtime, reverse=True)
 
     for child in candidate_dirs[_RECENT_DIRS_TO_KEEP:]:
+        age_seconds = max(0.0, time.time() - child.stat().st_mtime)
+        if age_seconds < _PRUNE_GRACE_SECONDS:
+            continue
         _remove_path_with_retries(child, required=False)
 
     for child in root.iterdir():
