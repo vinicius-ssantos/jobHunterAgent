@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
 from job_hunter_agent.collectors.collector import JobCollectionService
@@ -207,15 +208,35 @@ class JobHunterApplication:
                 )
         return "\n".join(lines)
 
-    def authorize_application(self, application_id: int) -> str:
+    def transition_application(self, application_id: int, action: str) -> str:
         application = self.repository.get_application(application_id)
         if application is None:
             return f"Candidatura nao encontrada: id={application_id}"
-        next_status, detail = resolve_application_action(application, "app_authorize")
+        next_status, detail = resolve_application_action(application, action)
         if next_status is None:
             return detail
         self.repository.mark_application_status(application_id, status=next_status)
         return detail
+
+    def authorize_application(self, application_id: int) -> str:
+        return self.transition_application(application_id, "app_authorize")
+
+    def show_latest_failure_artifacts(self, *, limit: int = 5) -> str:
+        artifacts_dir = Path(self.settings.failure_artifacts_dir)
+        if not artifacts_dir.exists():
+            return f"Nenhum diretorio de artefatos encontrado: {artifacts_dir}"
+        files = sorted(
+            artifacts_dir.glob("*_meta.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if not files:
+            return f"Nenhum artefato de falha encontrado em: {artifacts_dir}"
+        lines = [f"Artefatos recentes: {min(len(files), limit)}"]
+        for path in files[:limit]:
+            timestamp = datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
+            lines.append(f"{timestamp} | {path.name}")
+        return "\n".join(lines)
 
     async def run_collection_cycle(self) -> bool:
         run = self.repository.start_collection_run()
@@ -370,6 +391,35 @@ def parse_args() -> argparse.Namespace:
         help="Quantidade maxima de eventos retornados.",
     )
 
+    applications_prepare_parser = applications_subparsers.add_parser(
+        "prepare",
+        help="Move uma candidatura de draft para ready_for_review.",
+    )
+    applications_prepare_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_confirm_parser = applications_subparsers.add_parser(
+        "confirm",
+        help="Confirma uma candidatura pronta para revisao.",
+    )
+    applications_confirm_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_cancel_parser = applications_subparsers.add_parser(
+        "cancel",
+        help="Cancela uma candidatura em andamento.",
+    )
+    applications_cancel_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_artifacts_parser = applications_subparsers.add_parser(
+        "artifacts",
+        help="Lista artefatos recentes de falha do LinkedIn.",
+    )
+    applications_artifacts_parser.add_argument(
+        "--limit",
+        type=int,
+        default=5,
+        help="Quantidade maxima de artefatos retornados.",
+    )
+
     applications_preflight_parser = applications_subparsers.add_parser(
         "preflight",
         help="Roda o preflight de uma candidatura confirmada.",
@@ -429,6 +479,18 @@ def run() -> None:
             return
         if args.applications_command == "events":
             print(app.show_application_events(args.id, limit=args.limit))
+            return
+        if args.applications_command == "prepare":
+            print(app.transition_application(args.id, "app_prepare"))
+            return
+        if args.applications_command == "confirm":
+            print(app.transition_application(args.id, "app_confirm"))
+            return
+        if args.applications_command == "cancel":
+            print(app.transition_application(args.id, "app_cancel"))
+            return
+        if args.applications_command == "artifacts":
+            print(app.show_latest_failure_artifacts(limit=args.limit))
             return
         if args.applications_command == "authorize":
             print(app.authorize_application(args.id))

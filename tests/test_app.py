@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from unittest.mock import patch
 from unittest import IsolatedAsyncioTestCase
 
@@ -300,6 +301,22 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.jobs_command, "approve")
         self.assertEqual(args.id, 11)
 
+    async def test_parse_args_accepts_applications_prepare_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "prepare", "--id", "12"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "prepare")
+        self.assertEqual(args.id, 12)
+
+    async def test_parse_args_accepts_applications_artifacts_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "artifacts", "--limit", "2"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "artifacts")
+        self.assertEqual(args.limit, 2)
+
     async def test_parse_args_accepts_applications_events_command(self) -> None:
         with patch("sys.argv", ["main.py", "applications", "events", "--id", "7", "--limit", "3"]):
             args = parse_args()
@@ -439,6 +456,57 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("submit_submitted", rendered)
         self.assertIn("authorized_submit -> submitted", rendered)
         self.assertIn("submissao real concluida no LinkedIn", rendered)
+
+    async def test_transition_application_updates_valid_state(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.marked: list[tuple[int, str]] = []
+
+            def get_application(self, application_id: int):
+                return JobApplication(id=application_id, job_id=5, status="draft")
+
+            def mark_application_status(
+                self,
+                application_id: int,
+                *,
+                status: str,
+                notes=None,
+                last_preflight_detail=None,
+                last_submit_detail=None,
+                last_error=None,
+                submitted_at=None,
+            ):
+                self.marked.append((application_id, status))
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        detail = app.transition_application(3, "app_prepare")
+
+        self.assertEqual(detail, "Candidatura pronta para revisao: id=3")
+        self.assertEqual(app.repository.marked, [(3, "ready_for_review")])
+
+    async def test_show_latest_failure_artifacts_renders_recent_files(self) -> None:
+        temp_dir = Path(self.id().replace(".", "_"))
+        temp_root = Path.cwd() / ".tmp-tests" / temp_dir
+        temp_root.mkdir(parents=True, exist_ok=True)
+        first = temp_root / "2026-04-07_10-00-00_preflight_job-1_meta.json"
+        second = temp_root / "2026-04-07_11-00-00_submit_job-2_meta.json"
+        first.write_text("{}", encoding="utf-8")
+        second.write_text("{}", encoding="utf-8")
+        try:
+            app = JobHunterApplication.__new__(JobHunterApplication)
+            app.settings = type("Settings", (), {"failure_artifacts_dir": temp_root})()
+
+            rendered = app.show_latest_failure_artifacts(limit=2)
+
+            self.assertIn("Artefatos recentes: 2", rendered)
+            self.assertIn(second.name, rendered)
+            self.assertIn(first.name, rendered)
+        finally:
+            for item in temp_root.glob("*"):
+                item.unlink()
+            temp_root.rmdir()
 
 
 class JobCliTests(IsolatedAsyncioTestCase):
