@@ -7,12 +7,12 @@ from pathlib import Path
 import re
 from typing import Callable, TYPE_CHECKING
 
-from job_hunter_agent.browser_support import load_playwright_storage_state, resolve_local_chromium
-from job_hunter_agent.applicant import ApplicationSubmissionResult
-from job_hunter_agent.domain import JobPosting
+from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
+from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+from job_hunter_agent.core.domain import JobPosting
 
 if TYPE_CHECKING:
-    from job_hunter_agent.linkedin_modal_llm import LinkedInModalInterpretation
+    from job_hunter_agent.collectors.linkedin_modal_llm import LinkedInModalInterpretation
 
 
 @dataclass(frozen=True)
@@ -651,13 +651,13 @@ class LinkedInApplicationFlowInspector:
 
     def _interpret_modal_state(self, state: LinkedInApplicationPageState):
         if self.modal_interpreter is None:
-            from job_hunter_agent.linkedin_modal_llm import deterministic_interpret_linkedin_modal
+            from job_hunter_agent.collectors.linkedin_modal_llm import deterministic_interpret_linkedin_modal
 
             return deterministic_interpret_linkedin_modal(state)
         try:
             return self.modal_interpreter(state)
         except Exception:
-            from job_hunter_agent.linkedin_modal_llm import deterministic_interpret_linkedin_modal
+            from job_hunter_agent.collectors.linkedin_modal_llm import deterministic_interpret_linkedin_modal
 
             return deterministic_interpret_linkedin_modal(state)
 
@@ -665,7 +665,7 @@ class LinkedInApplicationFlowInspector:
         if not state.modal_open:
             return ""
         try:
-            from job_hunter_agent.linkedin_modal_llm import format_linkedin_modal_interpretation
+            from job_hunter_agent.collectors.linkedin_modal_llm import format_linkedin_modal_interpretation
 
             interpretation = self._interpret_modal_state(state)
             return f" | {format_linkedin_modal_interpretation(interpretation)}"

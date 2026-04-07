@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from job_hunter_agent.domain import SiteConfig
+from job_hunter_agent.core.domain import SiteConfig
 
 
 class Settings(BaseSettings):

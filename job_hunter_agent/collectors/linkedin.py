@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from job_hunter_agent.browser_support import extract_json_object, load_playwright_storage_state, resolve_local_chromium
-from job_hunter_agent.domain import RawJob, SiteConfig
+from job_hunter_agent.core.browser_support import extract_json_object, load_playwright_storage_state, resolve_local_chromium
+from job_hunter_agent.core.domain import RawJob, SiteConfig
 
 
 logger = logging.getLogger(__name__)

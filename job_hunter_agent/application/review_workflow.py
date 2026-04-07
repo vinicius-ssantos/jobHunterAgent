@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from job_hunter_agent.domain import JobApplication, JobPosting
+from job_hunter_agent.core.domain import JobApplication, JobPosting
 
 
 def resolve_review_action(job: JobPosting, action: str) -> tuple[str | None, str]:

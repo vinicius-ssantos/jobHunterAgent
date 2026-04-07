@@ -5,15 +5,15 @@ import hashlib
 import logging
 from typing import Protocol
 
-from job_hunter_agent.browser_support import (
+from job_hunter_agent.core.browser_support import (
     automation_result_to_text,
     build_available_file_paths,
     extract_json_object,
     load_playwright_storage_state,
     resolve_local_chromium,
 )
-from job_hunter_agent.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
-from job_hunter_agent.linkedin import (
+from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
     OllamaLinkedInFieldRepairer,
     apply_linkedin_field_repair,
@@ -36,14 +36,14 @@ from job_hunter_agent.linkedin import (
     strip_title_prefix_from_location,
     summarize_linkedin_raw_card,
 )
-from job_hunter_agent.repository import JobRepository
-from job_hunter_agent.scoring import (
+from job_hunter_agent.infrastructure.repository import JobRepository
+from job_hunter_agent.llm.scoring import (
     HybridJobScorer,
     parse_salary_floor,
     parse_scoring_response,
     standardize_error_message,
 )
-from job_hunter_agent.settings import Settings
+from job_hunter_agent.core.settings import Settings
 
 
 logger = logging.getLogger(__name__)

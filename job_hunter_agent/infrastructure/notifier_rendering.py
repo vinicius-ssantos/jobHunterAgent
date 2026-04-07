@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from job_hunter_agent.application_priority import extract_application_priority_level
-from job_hunter_agent.domain import JobApplication, JobPosting
-from job_hunter_agent.job_requirements import (
+from job_hunter_agent.llm.application_priority import extract_application_priority_level
+from job_hunter_agent.core.domain import JobApplication, JobPosting
+from job_hunter_agent.llm.job_requirements import (
     extract_job_requirement_signals,
     format_job_requirement_summary,
 )
-from job_hunter_agent.repository import JobRepository
-from job_hunter_agent.review_rationale import StructuredReviewRationale, render_review_rationale
+from job_hunter_agent.infrastructure.repository import JobRepository
+from job_hunter_agent.llm.review_rationale import StructuredReviewRationale, render_review_rationale
 
 
 def summarize_application_notes(notes: str, *, max_chars: int = 500) -> str:

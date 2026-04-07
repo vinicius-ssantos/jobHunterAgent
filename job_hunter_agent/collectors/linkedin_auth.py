@@ -5,8 +5,8 @@ from pathlib import Path
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 
-from job_hunter_agent.browser_support import resolve_local_chromium
-from job_hunter_agent.settings import Settings
+from job_hunter_agent.core.browser_support import resolve_local_chromium
+from job_hunter_agent.core.settings import Settings
 
 
 async def bootstrap_linkedin_storage_state(settings: Settings) -> Path:

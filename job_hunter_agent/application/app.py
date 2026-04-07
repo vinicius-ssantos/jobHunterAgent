@@ -5,8 +5,8 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from job_hunter_agent.collector import JobCollectionService
-from job_hunter_agent.composition import (
+from job_hunter_agent.collectors.collector import JobCollectionService
+from job_hunter_agent.application.composition import (
     create_application_preflight_service,
     create_application_preparation_service,
     create_application_submission_service,
@@ -15,11 +15,11 @@ from job_hunter_agent.composition import (
     create_repository,
     create_runtime_guard,
 )
-from job_hunter_agent.linkedin_auth import bootstrap_linkedin_storage_state
-from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
-from job_hunter_agent.repository import JobRepository
-from job_hunter_agent.settings import load_settings
-from job_hunter_agent.runtime import RuntimeGuard
+from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
+from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
+from job_hunter_agent.infrastructure.repository import JobRepository
+from job_hunter_agent.core.settings import load_settings
+from job_hunter_agent.core.runtime import RuntimeGuard
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

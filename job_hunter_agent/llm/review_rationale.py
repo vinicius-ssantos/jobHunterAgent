@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from job_hunter_agent.browser_support import extract_json_object
-from job_hunter_agent.domain import JobPosting
+from job_hunter_agent.core.browser_support import extract_json_object
+from job_hunter_agent.core.domain import JobPosting
 
 
 @dataclass(frozen=True)

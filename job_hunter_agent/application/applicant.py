@@ -4,20 +4,20 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Protocol
 
-from job_hunter_agent.browser_support import extract_json_object
-from job_hunter_agent.application_priority import (
+from job_hunter_agent.core.browser_support import extract_json_object
+from job_hunter_agent.llm.application_priority import (
     ApplicationPriorityAssessor,
     DeterministicApplicationPriorityAssessor,
     format_application_priority_note,
 )
-from job_hunter_agent.domain import JobApplication, JobPosting
-from job_hunter_agent.job_requirements import (
+from job_hunter_agent.core.domain import JobApplication, JobPosting
+from job_hunter_agent.llm.job_requirements import (
     DeterministicJobRequirementsExtractor,
     JobRequirementSignals,
     JobRequirementsExtractor,
     format_job_requirement_signals,
 )
-from job_hunter_agent.repository import JobRepository
+from job_hunter_agent.infrastructure.repository import JobRepository
 
 
 @dataclass(frozen=True)

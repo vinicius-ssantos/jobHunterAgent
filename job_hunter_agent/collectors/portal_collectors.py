@@ -8,15 +8,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
-from job_hunter_agent.browser_support import (
+from job_hunter_agent.core.browser_support import (
     automation_result_to_text,
     build_available_file_paths,
     extract_json_object,
     resolve_local_chromium,
 )
-from job_hunter_agent.domain import RawJob, SiteConfig
-from job_hunter_agent.linkedin import LinkedInDeterministicCollector
-from job_hunter_agent.scoring import standardize_error_message
+from job_hunter_agent.core.domain import RawJob, SiteConfig
+from job_hunter_agent.collectors.linkedin import LinkedInDeterministicCollector
+from job_hunter_agent.llm.scoring import standardize_error_message
 
 
 logger = logging.getLogger(__name__)

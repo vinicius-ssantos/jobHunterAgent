@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Protocol
 
-from job_hunter_agent.domain import (
+from job_hunter_agent.core.domain import (
     CollectionRun,
     JobApplication,
     JobPosting,
@@ -14,7 +14,7 @@ from job_hunter_agent.domain import (
     VALID_APPLICATION_SUPPORT_LEVELS,
     VALID_STATUSES,
 )
-from job_hunter_agent.job_identity import JobIdentityStrategy, PortalAwareJobIdentityStrategy
+from job_hunter_agent.core.job_identity import JobIdentityStrategy, PortalAwareJobIdentityStrategy
 
 
 class JobRepository(Protocol):

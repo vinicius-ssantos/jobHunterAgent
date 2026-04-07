@@ -2,30 +2,30 @@ from __future__ import annotations
 
 from typing import Callable
 
-from job_hunter_agent.applicant import (
+from job_hunter_agent.application.applicant import (
     ApplicationPreparationService,
     ApplicationPreflightService,
     ApplicationSubmissionService,
     OllamaApplicationSupportAssessor,
 )
-from job_hunter_agent.application_priority import OllamaApplicationPriorityAssessor
-from job_hunter_agent.collector import HybridJobScorer, JobCollectionService
-from job_hunter_agent.job_identity import PortalAwareJobIdentityStrategy
-from job_hunter_agent.job_requirements import OllamaJobRequirementsExtractor
-from job_hunter_agent.linkedin_application import LinkedInApplicationFlowInspector
-from job_hunter_agent.linkedin_modal_llm import (
+from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
+from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
+from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
+from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
+from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationFlowInspector
+from job_hunter_agent.collectors.linkedin_modal_llm import (
     OllamaLinkedInModalInterpreter,
     deterministic_interpret_linkedin_modal,
     format_linkedin_modal_interpretation,
     validate_linkedin_modal_interpretation,
 )
-from job_hunter_agent.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
-from job_hunter_agent.notifier import NullNotifier, TelegramNotifier
-from job_hunter_agent.portal_collectors import BrowserUseSiteCollector
-from job_hunter_agent.repository import JobRepository, SqliteJobRepository
-from job_hunter_agent.review_rationale import OllamaReviewRationaleFormatter
-from job_hunter_agent.runtime import RuntimeGuard
-from job_hunter_agent.settings import Settings
+from job_hunter_agent.collectors.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
+from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
+from job_hunter_agent.collectors.portal_collectors import BrowserUseSiteCollector
+from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobRepository
+from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
+from job_hunter_agent.core.runtime import RuntimeGuard
+from job_hunter_agent.core.settings import Settings
 
 
 def create_repository(settings: Settings) -> JobRepository:

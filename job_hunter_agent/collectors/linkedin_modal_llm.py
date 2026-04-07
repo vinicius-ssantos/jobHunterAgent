@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from job_hunter_agent.browser_support import extract_json_object
-from job_hunter_agent.linkedin_application import LinkedInApplicationPageState
+from job_hunter_agent.core.browser_support import extract_json_object
+from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationPageState
 
 
 @dataclass(frozen=True)

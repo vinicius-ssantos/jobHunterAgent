@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, Optional, Protocol
 
-from job_hunter_agent.domain import JobApplication, JobPosting
-from job_hunter_agent.notifier_rendering import (
+from job_hunter_agent.core.domain import JobApplication, JobPosting
+from job_hunter_agent.infrastructure.notifier_rendering import (
     build_application_action_rows as rendering_build_application_action_rows,
     build_application_card_message as rendering_build_application_card_message,
     build_application_preview_line as rendering_build_application_preview_line,
@@ -13,15 +13,15 @@ from job_hunter_agent.notifier_rendering import (
     build_missing_application_reply as rendering_build_missing_application_reply,
     build_missing_job_reply as rendering_build_missing_job_reply,
 )
-from job_hunter_agent.repository import JobRepository
-from job_hunter_agent.review_rationale import ReviewRationaleFormatter
-from job_hunter_agent.review_workflow import (
+from job_hunter_agent.infrastructure.repository import JobRepository
+from job_hunter_agent.llm.review_rationale import ReviewRationaleFormatter
+from job_hunter_agent.application.review_workflow import (
     resolve_application_action as workflow_resolve_application_action,
     resolve_application_preflight_request as workflow_resolve_application_preflight_request,
     resolve_application_submit_request as workflow_resolve_application_submit_request,
     resolve_review_action as workflow_resolve_review_action,
 )
-from job_hunter_agent.settings import Settings
+from job_hunter_agent.core.settings import Settings
 
 
 logger = logging.getLogger(__name__)

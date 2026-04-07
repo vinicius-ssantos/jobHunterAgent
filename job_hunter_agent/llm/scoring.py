@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from job_hunter_agent.browser_support import extract_json_object
-from job_hunter_agent.domain import RawJob, ScoredJob
-from job_hunter_agent.settings import Settings
+from job_hunter_agent.core.browser_support import extract_json_object
+from job_hunter_agent.core.domain import RawJob, ScoredJob
+from job_hunter_agent.core.settings import Settings
 
 
 class HybridJobScorer:
