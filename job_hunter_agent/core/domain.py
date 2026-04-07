@@ -97,3 +97,14 @@ class JobApplication:
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     submitted_at: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class JobApplicationEvent:
+    application_id: int
+    event_type: str
+    detail: str = ""
+    from_status: Optional[str] = None
+    to_status: Optional[str] = None
+    id: Optional[int] = None
+    created_at: Optional[str] = None

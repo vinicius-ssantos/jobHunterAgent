@@ -176,6 +176,14 @@ class ApplicationPreflightService:
 
         if application.status != "confirmed":
             detail = "preflight disponivel apenas para candidaturas confirmadas"
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="preflight_ignored",
+                detail=detail,
+                from_status=application.status,
+                to_status=application.status,
+            )
             return ApplicationPreflightResult(
                 outcome="ignored",
                 detail=detail,
@@ -189,6 +197,14 @@ class ApplicationPreflightService:
                 status="error_submit",
                 notes=_append_note(application.notes, detail),
                 last_error=detail,
+            )
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="preflight_blocked",
+                detail=detail,
+                from_status=application.status,
+                to_status="error_submit",
             )
             return ApplicationPreflightResult(
                 outcome="blocked",
@@ -209,6 +225,14 @@ class ApplicationPreflightService:
                         notes=_append_note(application.notes, detail),
                         last_error="",
                     )
+                    _record_application_event(
+                        self.repository,
+                        application.id,
+                        event_type="preflight_error",
+                        detail=detail,
+                        from_status=application.status,
+                        to_status="confirmed",
+                    )
                     return ApplicationPreflightResult(
                         outcome="error",
                         detail=detail,
@@ -222,6 +246,14 @@ class ApplicationPreflightService:
                             notes=_append_note(application.notes, inspection.detail),
                             last_error="",
                         )
+                        _record_application_event(
+                            self.repository,
+                            application.id,
+                            event_type="preflight_ready",
+                            detail=inspection.detail,
+                            from_status=application.status,
+                            to_status="confirmed",
+                        )
                         return ApplicationPreflightResult(
                             outcome="ready",
                             detail=inspection.detail,
@@ -234,6 +266,14 @@ class ApplicationPreflightService:
                             notes=_append_note(application.notes, inspection.detail),
                             last_error="",
                         )
+                        _record_application_event(
+                            self.repository,
+                            application.id,
+                            event_type="preflight_manual_review",
+                            detail=inspection.detail,
+                            from_status=application.status,
+                            to_status="confirmed",
+                        )
                         return ApplicationPreflightResult(
                             outcome="manual_review",
                             detail=inspection.detail,
@@ -245,6 +285,14 @@ class ApplicationPreflightService:
                         status="error_submit",
                         notes=_append_note(application.notes, detail),
                         last_error=detail,
+                    )
+                    _record_application_event(
+                        self.repository,
+                        application.id,
+                        event_type="preflight_blocked",
+                        detail=detail,
+                        from_status=application.status,
+                        to_status="error_submit",
                     )
                     return ApplicationPreflightResult(
                         outcome="blocked",
@@ -261,6 +309,14 @@ class ApplicationPreflightService:
                 notes=_append_note(application.notes, detail),
                 last_error="",
             )
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="preflight_ready",
+                detail=detail,
+                from_status=application.status,
+                to_status="confirmed",
+            )
             return ApplicationPreflightResult(
                 outcome="ready",
                 detail=detail,
@@ -273,6 +329,14 @@ class ApplicationPreflightService:
             status="error_submit",
             notes=_append_note(application.notes, detail),
             last_error=detail,
+        )
+        _record_application_event(
+            self.repository,
+            application.id,
+            event_type="preflight_blocked",
+            detail=detail,
+            from_status=application.status,
+            to_status="error_submit",
         )
         return ApplicationPreflightResult(
             outcome="blocked",
@@ -296,6 +360,14 @@ class ApplicationSubmissionService:
 
         if application.status != "authorized_submit":
             detail = "submissao real disponivel apenas para candidaturas autorizadas"
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="submit_ignored",
+                detail=detail,
+                from_status=application.status,
+                to_status=application.status,
+            )
             return ApplicationSubmitResult(
                 outcome="ignored",
                 detail=detail,
@@ -309,6 +381,14 @@ class ApplicationSubmissionService:
                 status="authorized_submit",
                 notes=_append_note(application.notes, detail),
                 last_error="",
+            )
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="submit_ignored",
+                detail=detail,
+                from_status=application.status,
+                to_status="authorized_submit",
             )
             return ApplicationSubmitResult(
                 outcome="ignored",
@@ -325,6 +405,14 @@ class ApplicationSubmissionService:
                 status="error_submit",
                 notes=_append_note(application.notes, detail),
                 last_error=detail,
+            )
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="submit_error",
+                detail=detail,
+                from_status=application.status,
+                to_status="error_submit",
             )
             return ApplicationSubmitResult(
                 outcome="error",
@@ -345,6 +433,14 @@ class ApplicationSubmissionService:
                 last_error="",
                 submitted_at=submitted_at,
             )
+            _record_application_event(
+                self.repository,
+                application.id,
+                event_type="submit_submitted",
+                detail=detail,
+                from_status=application.status,
+                to_status="submitted",
+            )
             return ApplicationSubmitResult(
                 outcome="submitted",
                 detail=detail,
@@ -356,6 +452,14 @@ class ApplicationSubmissionService:
             status="error_submit",
             notes=_append_note(application.notes, detail),
             last_error=detail,
+        )
+        _record_application_event(
+            self.repository,
+            application.id,
+            event_type="submit_error",
+            detail=detail,
+            from_status=application.status,
+            to_status="error_submit",
         )
         return ApplicationSubmitResult(
             outcome="error",
@@ -473,3 +577,21 @@ def _append_note(existing_notes: str, new_note: str) -> str:
     if normalized_new in existing_lines:
         return normalized_existing
     return f"{normalized_existing}\n{normalized_new}"
+
+
+def _record_application_event(
+    repository: JobRepository,
+    application_id: int,
+    *,
+    event_type: str,
+    detail: str = "",
+    from_status: Optional[str] = None,
+    to_status: Optional[str] = None,
+) -> None:
+    repository.record_application_event(
+        application_id,
+        event_type=event_type,
+        detail=detail,
+        from_status=from_status,
+        to_status=to_status,
+    )

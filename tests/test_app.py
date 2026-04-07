@@ -11,7 +11,7 @@ from job_hunter_agent.application.composition import (
     create_linkedin_modal_interpretation_formatter,
     create_notifier,
 )
-from job_hunter_agent.core.domain import JobApplication
+from job_hunter_agent.core.domain import JobApplication, JobApplicationEvent
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationPageState
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.infrastructure.notifier import NullNotifier
@@ -324,6 +324,42 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("Candidaturas listadas: 1", rendered)
         self.assertIn("2: confirmed", rendered)
         self.assertIn("Backend Java | ACME", rendered)
+
+    async def test_show_application_renders_recent_events(self) -> None:
+        class _Repository:
+            def get_application(self, application_id: int):
+                return JobApplication(
+                    id=application_id,
+                    job_id=10,
+                    status="confirmed",
+                    support_level="manual_review",
+                    notes="preflight real ok",
+                )
+
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+            def list_application_events(self, application_id: int, limit: int = 5):
+                return [
+                    JobApplicationEvent(
+                        id=3,
+                        application_id=application_id,
+                        event_type="preflight_ready",
+                        detail="CTA encontrado",
+                        from_status="confirmed",
+                        to_status="confirmed",
+                        created_at="2026-04-07T10:00:00",
+                    )
+                ]
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.show_application(2)
+
+        self.assertIn("eventos_recentes:", rendered)
+        self.assertIn("preflight_ready", rendered)
+        self.assertIn("CTA encontrado", rendered)
 
     async def test_authorize_application_updates_status_when_transition_is_valid(self) -> None:
         class _Repository:

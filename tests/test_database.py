@@ -291,6 +291,45 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(summary["authorized_submit"], 0)
         self.assertEqual(summary["submitted"], 1)
 
+    def test_application_events_track_status_transitions(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(saved.id, notes="primeiro passo")
+
+        self.repository.mark_application_status(application.id, status="ready_for_review")
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        events = self.repository.list_application_events(application.id)
+
+        self.assertEqual(
+            [event.event_type for event in events],
+            ["status_changed", "status_changed", "draft_created"],
+        )
+        self.assertEqual(events[0].from_status, "ready_for_review")
+        self.assertEqual(events[0].to_status, "confirmed")
+        self.assertEqual(events[1].from_status, "draft")
+        self.assertEqual(events[1].to_status, "ready_for_review")
+        self.assertEqual(events[2].to_status, "draft")
+
+    def test_record_application_event_persists_operational_detail(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(saved.id)
+
+        self.repository.record_application_event(
+            application.id,
+            event_type="preflight_ready",
+            detail="preflight real ok: CTA encontrado",
+            from_status="confirmed",
+            to_status="confirmed",
+        )
+
+        events = self.repository.list_application_events(application.id, limit=1)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].event_type, "preflight_ready")
+        self.assertIn("CTA encontrado", events[0].detail)
+        self.assertEqual(events[0].from_status, "confirmed")
+        self.assertEqual(events[0].to_status, "confirmed")
+
     def test_mark_application_status_rejects_invalid_value(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
         application = self.repository.create_application_draft(saved.id)
@@ -543,6 +582,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(stored.status, "confirmed")
         self.assertIn("preflight ok", stored.notes)
         self.assertEqual(stored.last_error, "")
+        self.assertEqual(self.repository.list_application_events(application.id, limit=1)[0].event_type, "preflight_ready")
 
     def test_application_preflight_uses_real_flow_inspector_when_available(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
@@ -616,6 +656,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(stored.status, "submitted")
         self.assertEqual(stored.submitted_at, "2026-04-05T10:00:00")
         self.assertIn("submissao real concluida", stored.notes)
+        self.assertEqual(self.repository.list_application_events(application.id, limit=1)[0].event_type, "submit_submitted")
 
     def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]

@@ -133,6 +133,15 @@ class JobHunterApplication:
             f"submitted_at={application.submitted_at or '-'}",
             f"notes={application.notes or '-'}",
         ]
+        events = self.repository.list_application_events(application_id, limit=5)
+        if events:
+            lines.append("eventos_recentes:")
+            for event in events:
+                lines.append(
+                    f"- {event.created_at or '-'} | {event.event_type} | "
+                    f"{event.from_status or '-'} -> {event.to_status or '-'} | "
+                    f"{event.detail or '-'}"
+                )
         return "\n".join(lines)
 
     def authorize_application(self, application_id: int) -> str:

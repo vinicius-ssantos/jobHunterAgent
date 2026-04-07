@@ -9,6 +9,7 @@ from typing import Optional, Protocol
 from job_hunter_agent.core.domain import (
     CollectionRun,
     JobApplication,
+    JobApplicationEvent,
     JobPosting,
     VALID_APPLICATION_STATUSES,
     VALID_APPLICATION_SUPPORT_LEVELS,
@@ -102,6 +103,25 @@ class JobRepository(Protocol):
         raise NotImplementedError
 
     def application_summary(self) -> dict[str, int]:
+        raise NotImplementedError
+
+    def record_application_event(
+        self,
+        application_id: int,
+        *,
+        event_type: str,
+        detail: str = "",
+        from_status: Optional[str] = None,
+        to_status: Optional[str] = None,
+    ) -> JobApplicationEvent:
+        raise NotImplementedError
+
+    def list_application_events(
+        self,
+        application_id: int,
+        *,
+        limit: Optional[int] = None,
+    ) -> list[JobApplicationEvent]:
         raise NotImplementedError
 
     def get_collection_cursor(self, source_site: str, search_url: str) -> int:
@@ -202,6 +222,20 @@ class SqliteJobRepository:
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (job_id) REFERENCES jobs(id)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS job_application_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    application_id INTEGER NOT NULL,
+                    event_type TEXT NOT NULL,
+                    detail TEXT NOT NULL DEFAULT '',
+                    from_status TEXT,
+                    to_status TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (application_id) REFERENCES job_applications(id)
                 )
                 """
             )
@@ -493,6 +527,13 @@ class SqliteJobRepository:
                 """,
                 (job_id, support_level, support_rationale, notes),
             )
+            self._record_application_event_with_connection(
+                connection,
+                cursor.lastrowid,
+                event_type="draft_created",
+                detail="rascunho de candidatura criado",
+                to_status="draft",
+            )
             row = connection.execute(
                 """
                 SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
@@ -541,7 +582,7 @@ class SqliteJobRepository:
         with self._connect() as connection:
             current = connection.execute(
                 """
-                SELECT notes, last_error, submitted_at
+                SELECT status, notes, last_error, submitted_at
                 FROM job_applications
                 WHERE id = ?
                 """,
@@ -549,9 +590,10 @@ class SqliteJobRepository:
             ).fetchone()
             if current is None:
                 raise ValueError(f"Application not found: {application_id}")
-            resolved_notes = current[0] if notes is None else notes
-            resolved_error = current[1] if last_error is None else last_error
-            resolved_submitted_at = current[2] if submitted_at is None else submitted_at
+            previous_status = current[0]
+            resolved_notes = current[1] if notes is None else notes
+            resolved_error = current[2] if last_error is None else last_error
+            resolved_submitted_at = current[3] if submitted_at is None else submitted_at
             connection.execute(
                 """
                 UPDATE job_applications
@@ -566,6 +608,13 @@ class SqliteJobRepository:
                     datetime.now().isoformat(timespec="seconds"),
                     application_id,
                 ),
+            )
+            self._record_application_event_with_connection(
+                connection,
+                application_id,
+                event_type="status_changed" if previous_status != status else "status_reaffirmed",
+                from_status=previous_status,
+                to_status=status,
             )
 
     def list_applications_by_status(self, status: str) -> list[JobApplication]:
@@ -608,6 +657,47 @@ class SqliteJobRepository:
             "cancelled": row[7] or 0,
         }
 
+    def record_application_event(
+        self,
+        application_id: int,
+        *,
+        event_type: str,
+        detail: str = "",
+        from_status: Optional[str] = None,
+        to_status: Optional[str] = None,
+    ) -> JobApplicationEvent:
+        with self._connect() as connection:
+            return self._record_application_event_with_connection(
+                connection,
+                application_id,
+                event_type=event_type,
+                detail=detail,
+                from_status=from_status,
+                to_status=to_status,
+            )
+
+    def list_application_events(
+        self,
+        application_id: int,
+        *,
+        limit: Optional[int] = None,
+    ) -> list[JobApplicationEvent]:
+        query = """
+            SELECT id, application_id, event_type, detail, from_status, to_status, created_at
+            FROM job_application_events
+            WHERE application_id = ?
+            ORDER BY id DESC
+        """
+        params: tuple[object, ...]
+        if limit is None:
+            params = (application_id,)
+        else:
+            query += "\nLIMIT ?"
+            params = (application_id, limit)
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [self._row_to_application_event(row) for row in rows]
+
     def get_collection_cursor(self, source_site: str, search_url: str) -> int:
         with self._connect() as connection:
             row = connection.execute(
@@ -639,6 +729,39 @@ class SqliteJobRepository:
                     datetime.now().isoformat(timespec="seconds"),
                 ),
             )
+
+    @staticmethod
+    def _record_application_event_with_connection(
+        connection: sqlite3.Connection,
+        application_id: int,
+        *,
+        event_type: str,
+        detail: str = "",
+        from_status: Optional[str] = None,
+        to_status: Optional[str] = None,
+    ) -> JobApplicationEvent:
+        exists = connection.execute(
+            "SELECT 1 FROM job_applications WHERE id = ?",
+            (application_id,),
+        ).fetchone()
+        if exists is None:
+            raise ValueError(f"Application not found: {application_id}")
+        cursor = connection.execute(
+            """
+            INSERT INTO job_application_events (application_id, event_type, detail, from_status, to_status)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (application_id, event_type, detail, from_status, to_status),
+        )
+        row = connection.execute(
+            """
+            SELECT id, application_id, event_type, detail, from_status, to_status, created_at
+            FROM job_application_events
+            WHERE id = ?
+            """,
+            (cursor.lastrowid,),
+        ).fetchone()
+        return SqliteJobRepository._row_to_application_event(row)
 
     @staticmethod
     def _row_to_job(row: tuple) -> JobPosting:
@@ -684,4 +807,16 @@ class SqliteJobRepository:
             created_at=row[7],
             updated_at=row[8],
             submitted_at=row[9],
+        )
+
+    @staticmethod
+    def _row_to_application_event(row: tuple) -> JobApplicationEvent:
+        return JobApplicationEvent(
+            id=row[0],
+            application_id=row[1],
+            event_type=row[2],
+            detail=row[3],
+            from_status=row[4],
+            to_status=row[5],
+            created_at=row[6],
         )
