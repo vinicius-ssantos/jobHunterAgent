@@ -69,6 +69,8 @@ def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
     blockers: list[str] = []
     if not state.modal_open:
         blockers.append("modal_fechado")
+    if state.easy_apply and "/apply/" in state.sample:
+        blockers.append("fluxo_apply_sem_modal")
     if state.save_application_dialog_visible:
         blockers.append("confirmacao_salvar_candidatura")
     if state.modal_questions_visible:
@@ -394,6 +396,7 @@ class LinkedInApplicationFlowInspector:
             """
             () => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+              const currentUrl = window.location.href || "";
               const main = document.querySelector('main') || document.body;
               const detailPanel =
                 document.querySelector('.jobs-search__job-details--container') ||
@@ -424,6 +427,7 @@ class LinkedInApplicationFlowInspector:
               const joined = normalize(detailPanel.innerText || "").slice(0, 400);
               const easyApplyTexts = (prioritizedTexts.length ? prioritizedTexts : texts)
                 .filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
+              const applyFlowActive = currentUrl.includes("/apply/") || currentUrl.includes("openSDUIApplyFlow=true");
               const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
               const submitVisible = texts.some((text) => text.includes("enviar candidatura") || text.includes("submit application"));
 
@@ -471,7 +475,7 @@ class LinkedInApplicationFlowInspector:
               if (workAuthorizationVisible) resumableFields.push("autorizacao_trabalho");
               if (yearsOfExperienceVisible) resumableFields.push("anos_experiencia");
               return {
-                easy_apply: easyApplyTexts.length > 0,
+                easy_apply: easyApplyTexts.length > 0 || applyFlowActive,
                 external_apply: externalApply,
                 submit_visible: submitVisible,
                 modal_open: !!modal,
@@ -482,7 +486,7 @@ class LinkedInApplicationFlowInspector:
                 modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
                 save_application_dialog_visible: saveApplicationDialogVisible,
                 cta_text: easyApplyTexts[0] || "",
-                sample: joined,
+                sample: `${currentUrl} | ${joined}`.slice(0, 400),
                 modal_sample: (modalTexts.join(" | ") || confirmationJoined).slice(0, 400),
                 contact_email_visible: contactEmailVisible,
                 contact_phone_visible: contactPhoneVisible,
@@ -761,6 +765,8 @@ class LinkedInApplicationFlowInspector:
     async def _try_open_easy_apply_modal(self, page) -> bool:
         await self._dismiss_interfering_dialogs(page)
         candidates = [
+            page.locator('.jobs-search__job-details--container a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
+            page.locator('.jobs-details-top-card a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
             page.locator('.jobs-search__job-details--container [data-live-test-job-apply-button] button, .jobs-search__job-details--container button[data-live-test-job-apply-button]').first,
             page.locator('.jobs-search__job-details--container [data-control-name="jobdetails_topcard_inapply"]').first,
             page.locator('.jobs-search__job-details--container [data-control-name="topcard_inapply"]').first,
@@ -810,13 +816,13 @@ class LinkedInApplicationFlowInspector:
                 except Exception:
                     pass
                 await candidate.click(timeout=3500)
-                if await self._wait_for_modal(page):
+                if await self._wait_for_apply_flow(page):
                     return True
                 if await self._handle_save_application_dialog(page):
                     await page.wait_for_timeout(800)
                     continue
                 await candidate.click(timeout=3500, force=True)
-                if await self._wait_for_modal(page):
+                if await self._wait_for_apply_flow(page):
                     return True
                 if await self._handle_save_application_dialog(page):
                     await page.wait_for_timeout(800)
@@ -824,7 +830,7 @@ class LinkedInApplicationFlowInspector:
                 handle = await candidate.element_handle()
                 if handle is not None:
                     await page.evaluate("(element) => element.click()", handle)
-                    if await self._wait_for_modal(page):
+                    if await self._wait_for_apply_flow(page):
                         return True
                     if await self._handle_save_application_dialog(page):
                         await page.wait_for_timeout(800)
@@ -866,11 +872,22 @@ class LinkedInApplicationFlowInspector:
             }
             """
         )
-        if fallback_opened and await self._wait_for_modal(page):
+        if fallback_opened and await self._wait_for_apply_flow(page):
             return True
         await self._handle_save_application_dialog(page)
         await self._dismiss_interfering_dialogs(page)
         return False
+
+    async def _wait_for_apply_flow(self, page) -> bool:
+        if await self._wait_for_modal(page):
+            return True
+        try:
+            await page.wait_for_url(re.compile(r"/apply/|openSDUIApplyFlow=true", re.IGNORECASE), timeout=4500)
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_timeout(1400)
+            return True
+        except Exception:
+            return False
 
     async def _wait_for_modal(self, page) -> bool:
         try:
