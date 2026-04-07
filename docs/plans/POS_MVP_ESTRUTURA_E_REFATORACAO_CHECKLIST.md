@@ -351,6 +351,63 @@ Impactos arquiteturais a validar:
 - [ ] manter composicao na borda sem espalhar factories de criterio pelo codigo
 - [ ] preservar testabilidade com perfis alternativos sem duplicar fixtures ou mocks demais
 
+### OpenClaw como operador futuro ainda em analise
+
+Descricao:
+Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada externa de orquestracao, consolidando contexto e executando etapas preparatorias, enquanto a decisao humana final por vaga permanece reduzida a uma unica acao de `sim` ou `nao`. O entendimento atual e que o OpenClaw nao deveria navegar diretamente no portal nem executar logica critica fora do sistema. O desenho mais plausivel e usar o `jobHunterAgent` como executor real, com OpenClaw preenchendo parametros, chamando operacoes publicas e organizando o fluxo como se fosse um operador da aplicacao. Essa direcao parece coerente como camada opcional de operacao, mas ainda exige analise de viabilidade, limites de autonomia e possiveis ajustes de estados e regras do produto.
+
+- [ ] Avaliar OpenClaw apenas como operador externo da aplicacao, e nao como runtime principal do produto
+- [ ] Registrar explicitamente que o `jobHunterAgent` continua como executor real de navegacao, coleta, preflight, submit e validacoes de estado
+- [ ] Registrar explicitamente que OpenClaw atua como orquestrador e operador de interface, e nao como executor direto do portal
+- [ ] Avaliar um fluxo futuro com apenas uma decisao humana final por vaga
+- [ ] Validar se esse desenho preserva a regra de aprovacao humana antes de qualquer acao de alto impacto
+- [ ] Validar o modelo operacional em que OpenClaw preenche parametros e usa o `jobHunterAgent` como interface operacional, sem acesso direto a banco ou bypass de estados
+- [ ] Definir quais etapas poderiam ser automatizadas antes da decisao final:
+  - [ ] coleta
+  - [ ] scoring
+  - [ ] extracao de sinais
+  - [ ] priorizacao
+  - [ ] preflight
+  - [ ] consolidacao de resumo operacional
+- [ ] Definir quais etapas devem continuar bloqueadas sem autorizacao humana explicita
+- [ ] Definir explicitamente o que nao deve ser responsabilidade do OpenClaw:
+  - [ ] navegar diretamente no LinkedIn fora do executor oficial
+  - [ ] interpretar DOM cru como fonte de verdade operacional
+  - [ ] criar transicoes de estado fora das regras do sistema
+  - [ ] executar submit real fora do gate formal de autorizacao
+- [ ] Registrar exemplos plausiveis de uso:
+  - [ ] disparar coleta e consolidar a fila para revisao
+  - [ ] pedir detalhes e sinais de vagas elegiveis
+  - [ ] rodar preflight via operacao publica do sistema
+  - [ ] apresentar um pacote consolidado para decisao final de `sim` ou `nao`
+- [ ] Registrar exemplos nao recomendados:
+  - [ ] autonomia longa sem contratos rigidos
+  - [ ] submit sem gate explicito
+  - [ ] regra de negocio implicita carregada pela LLM
+  - [ ] navegacao e execucao real fora do `jobHunterAgent`
+- [ ] Avaliar se o estado atual suporta bem um modelo de `uma decisao por vaga` ou se exige novos estados intermediarios
+- [ ] Avaliar a necessidade de um estado consolidado equivalente a `pronta para decisao final`
+- [ ] Garantir que OpenClaw nao altere estado critico fora das interfaces publicas e controladas do sistema
+- [ ] Avaliar a necessidade de expor operacoes formais para o operador externo:
+  - [ ] listar fila
+  - [ ] detalhar vaga
+  - [ ] aprovar ou rejeitar
+  - [ ] preparar candidatura
+  - [ ] rodar preflight
+  - [ ] autorizar submit
+  - [ ] executar submit quando permitido
+- [ ] Definir o pacote minimo de contexto consolidado que deve voltar ao humano antes do `sim` ou `nao`:
+  - [ ] dados normalizados da vaga
+  - [ ] score e rationale
+  - [ ] sinais extraidos
+  - [ ] resultado do preflight
+  - [ ] risco principal
+  - [ ] motivo de bloqueio quando houver
+- [ ] Avaliar se uma LLM local e suficiente para essa camada de orquestracao, desde que o escopo fique restrito a leitura de contexto, escolha de operacoes publicas e consolidacao de resposta
+- [ ] Validar se o uso de LLM local continua plausivel apenas para orquestracao curta, e nao para autonomia longa com improvisacao operacional
+- [ ] Avaliar se esse desenho reduz atrito operacional sem esconder demais o que foi feito automaticamente
+- [ ] Avaliar impacto dessa abordagem no escopo atual do produto e no `AGENTS.md`
+
 ### Telegram e revisao
 
 - [ ] Tornar o Telegram suficiente para operar o fluxo completo com seguranca
