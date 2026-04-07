@@ -67,15 +67,21 @@ Regra da fase atual:
 ## P0: UX Operacional
 
 - [ ] Eliminar operacao por `python -c` para tarefas frequentes
+- [ ] Fechar cobertura operacional completa por CLI para que o fluxo nao dependa do Telegram como unico caminho de execucao
 - [ ] Criar comandos claros para:
+  - [ ] listar vagas pendentes de revisao
+  - [ ] aprovar vaga
+  - [ ] rejeitar vaga
   - [ ] listar vagas aprovadas
   - [ ] listar candidaturas
   - [ ] preparar candidatura
   - [ ] confirmar candidatura
+  - [ ] cancelar candidatura
   - [ ] rodar preflight
   - [ ] autorizar submit
   - [ ] executar submit
   - [ ] ver artefatos da ultima falha
+- [ ] Explicitar na UX que parte do fluxo ja possui CLI, mas algumas transicoes de review ainda precisam de cobertura equivalente ao Telegram
 - [ ] Definir uma interface principal:
   - [ ] Telegram como interface de operacao principal
   - [ ] CLI como fallback tecnico
