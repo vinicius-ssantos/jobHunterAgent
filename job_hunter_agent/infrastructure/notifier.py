@@ -177,13 +177,13 @@ class TelegramNotifier:
                 return
 
             if next_status == "approved":
-                self.repository.mark_status(target_id, next_status)
+                self.repository.mark_status(target_id, next_status, detail=reply_text)
                 await query.edit_message_reply_markup(reply_markup=None)
                 await query.message.reply_text(reply_text)
                 if self.on_approved:
                     await self.on_approved([target_id])
             elif next_status == "rejected":
-                self.repository.mark_status(target_id, next_status)
+                self.repository.mark_status(target_id, next_status, detail=reply_text)
                 await query.edit_message_reply_markup(reply_markup=None)
                 await query.message.reply_text(reply_text)
             return
@@ -224,7 +224,7 @@ class TelegramNotifier:
             await query.message.reply_text(reply_text)
             return
 
-        self.repository.mark_application_status(target_id, status=next_status)
+        self.repository.mark_application_status(target_id, status=next_status, event_detail=reply_text)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(reply_text)
 

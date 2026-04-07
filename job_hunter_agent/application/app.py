@@ -170,6 +170,15 @@ class JobHunterApplication:
             f"application_id={application.id if application is not None else '-'}",
             f"application_status={application.status if application is not None else '-'}",
         ]
+        events = self.repository.list_job_events(job_id, limit=5)
+        if events:
+            lines.append("eventos_recentes:")
+            for event in events:
+                lines.append(
+                    f"- {event.created_at or '-'} | {event.event_type} | "
+                    f"{event.from_status or '-'} -> {event.to_status or '-'} | "
+                    f"{event.detail or '-'}"
+                )
         return "\n".join(lines)
 
     def show_status_overview(self) -> str:
@@ -202,7 +211,7 @@ class JobHunterApplication:
         next_status, detail = resolve_review_action(job, action)
         if next_status is None:
             return detail
-        self.repository.mark_status(job_id, next_status)
+        self.repository.mark_status(job_id, next_status, detail=detail)
         return detail
 
     def create_application_draft_for_job(self, job_id: int) -> str:
@@ -283,7 +292,7 @@ class JobHunterApplication:
         next_status, detail = resolve_application_action(application, action)
         if next_status is None:
             return detail
-        self.repository.mark_application_status(application_id, status=next_status)
+        self.repository.mark_application_status(application_id, status=next_status, event_detail=detail)
         return detail
 
     def authorize_application(self, application_id: int) -> str:

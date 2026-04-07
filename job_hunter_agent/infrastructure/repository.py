@@ -10,6 +10,7 @@ from job_hunter_agent.core.domain import (
     CollectionRun,
     JobApplication,
     JobApplicationEvent,
+    JobStatusEvent,
     JobPosting,
     VALID_APPLICATION_STATUSES,
     VALID_APPLICATION_SUPPORT_LEVELS,
@@ -22,13 +23,16 @@ class JobRepository(Protocol):
     def save_new_jobs(self, jobs: list[JobPosting]) -> list[JobPosting]:
         raise NotImplementedError
 
-    def mark_status(self, job_id: int, status: str) -> None:
+    def mark_status(self, job_id: int, status: str, *, detail: str = "") -> None:
         raise NotImplementedError
 
     def list_jobs_by_status(self, status: str) -> list[JobPosting]:
         raise NotImplementedError
 
     def get_job(self, job_id: int) -> Optional[JobPosting]:
+        raise NotImplementedError
+
+    def list_job_events(self, job_id: int, *, limit: Optional[int] = None) -> list[JobStatusEvent]:
         raise NotImplementedError
 
     def job_exists(self, url: str, external_key: str) -> bool:
@@ -93,6 +97,7 @@ class JobRepository(Protocol):
         application_id: int,
         *,
         status: str,
+        event_detail: str = "",
         notes: Optional[str] = None,
         last_preflight_detail: Optional[str] = None,
         last_submit_detail: Optional[str] = None,
@@ -245,6 +250,20 @@ class SqliteJobRepository:
             )
             connection.execute(
                 """
+                CREATE TABLE IF NOT EXISTS job_status_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL,
+                    event_type TEXT NOT NULL,
+                    detail TEXT NOT NULL DEFAULT '',
+                    from_status TEXT,
+                    to_status TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES jobs(id)
+                )
+                """
+            )
+            connection.execute(
+                """
                 CREATE TABLE IF NOT EXISTS collection_cursors (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     source_site TEXT NOT NULL,
@@ -312,21 +331,39 @@ class SqliteJobRepository:
                 except sqlite3.IntegrityError:
                     continue
 
-                saved_jobs.append(
-                    replace(
-                        job,
-                        id=cursor.lastrowid,
-                        created_at=datetime.now().isoformat(timespec="seconds"),
-                    )
+                saved_job = replace(
+                    job,
+                    id=cursor.lastrowid,
+                    created_at=datetime.now().isoformat(timespec="seconds"),
                 )
+                self._record_job_event_with_connection(
+                    connection,
+                    saved_job.id,
+                    event_type="job_collected",
+                    detail="vaga coletada e persistida localmente",
+                    to_status=saved_job.status,
+                )
+                saved_jobs.append(saved_job)
 
         return saved_jobs
 
-    def mark_status(self, job_id: int, status: str) -> None:
+    def mark_status(self, job_id: int, status: str, *, detail: str = "") -> None:
         if status not in VALID_STATUSES:
             raise ValueError(f"Invalid status: {status}")
         with self._connect() as connection:
+            current = connection.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            if current is None:
+                raise ValueError(f"Job not found: {job_id}")
+            previous_status = current[0]
             connection.execute("UPDATE jobs SET status = ? WHERE id = ?", (status, job_id))
+            self._record_job_event_with_connection(
+                connection,
+                job_id,
+                event_type="status_changed" if previous_status != status else "status_reaffirmed",
+                detail=detail,
+                from_status=previous_status,
+                to_status=status,
+            )
 
     def list_jobs_by_status(self, status: str) -> list[JobPosting]:
         with self._connect() as connection:
@@ -354,6 +391,23 @@ class SqliteJobRepository:
                 (job_id,),
             ).fetchone()
         return self._row_to_job(row) if row else None
+
+    def list_job_events(self, job_id: int, *, limit: Optional[int] = None) -> list[JobStatusEvent]:
+        query = """
+            SELECT id, job_id, event_type, detail, from_status, to_status, created_at
+            FROM job_status_events
+            WHERE job_id = ?
+            ORDER BY id DESC
+        """
+        params: tuple[object, ...]
+        if limit is None:
+            params = (job_id,)
+        else:
+            query += "\nLIMIT ?"
+            params = (job_id, limit)
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [self._row_to_job_event(row) for row in rows]
 
     def job_exists(self, url: str, external_key: str) -> bool:
         with self._connect() as connection:
@@ -588,6 +642,7 @@ class SqliteJobRepository:
         application_id: int,
         *,
         status: str,
+        event_detail: str = "",
         notes: Optional[str] = None,
         last_preflight_detail: Optional[str] = None,
         last_submit_detail: Optional[str] = None,
@@ -634,6 +689,7 @@ class SqliteJobRepository:
                 connection,
                 application_id,
                 event_type="status_changed" if previous_status != status else "status_reaffirmed",
+                detail=event_detail,
                 from_status=previous_status,
                 to_status=status,
             )
@@ -786,6 +842,39 @@ class SqliteJobRepository:
         return SqliteJobRepository._row_to_application_event(row)
 
     @staticmethod
+    def _record_job_event_with_connection(
+        connection: sqlite3.Connection,
+        job_id: int,
+        *,
+        event_type: str,
+        detail: str = "",
+        from_status: Optional[str] = None,
+        to_status: Optional[str] = None,
+    ) -> JobStatusEvent:
+        exists = connection.execute(
+            "SELECT 1 FROM jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if exists is None:
+            raise ValueError(f"Job not found: {job_id}")
+        cursor = connection.execute(
+            """
+            INSERT INTO job_status_events (job_id, event_type, detail, from_status, to_status)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (job_id, event_type, detail, from_status, to_status),
+        )
+        row = connection.execute(
+            """
+            SELECT id, job_id, event_type, detail, from_status, to_status, created_at
+            FROM job_status_events
+            WHERE id = ?
+            """,
+            (cursor.lastrowid,),
+        ).fetchone()
+        return SqliteJobRepository._row_to_job_event(row)
+
+    @staticmethod
     def _row_to_job(row: tuple) -> JobPosting:
         return JobPosting(
             id=row[0],
@@ -838,6 +927,18 @@ class SqliteJobRepository:
         return JobApplicationEvent(
             id=row[0],
             application_id=row[1],
+            event_type=row[2],
+            detail=row[3],
+            from_status=row[4],
+            to_status=row[5],
+            created_at=row[6],
+        )
+
+    @staticmethod
+    def _row_to_job_event(row: tuple) -> JobStatusEvent:
+        return JobStatusEvent(
+            id=row[0],
+            job_id=row[1],
             event_type=row[2],
             detail=row[3],
             from_status=row[4],

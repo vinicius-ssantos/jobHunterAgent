@@ -151,8 +151,8 @@ class SqliteJobRepositoryTests(unittest.TestCase):
                 sample_job("https://example.com/job-2", "key-2"),
             ]
         )
-        self.repository.mark_status(saved[0].id, "approved")
-        self.repository.mark_status(saved[1].id, "rejected")
+        self.repository.mark_status(saved[0].id, "approved", detail="Vaga aprovada: Senior Kotlin Engineer - ACME")
+        self.repository.mark_status(saved[1].id, "rejected", detail="Vaga ignorada: Senior Kotlin Engineer - ACME")
 
         summary = self.repository.summary()
 
@@ -233,6 +233,22 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repository.mark_status(saved[0].id, "archived")
 
+    def test_job_events_track_collection_and_review_transitions(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+
+        self.repository.mark_status(saved.id, "approved", detail="Vaga aprovada: Senior Kotlin Engineer - ACME")
+
+        events = self.repository.list_job_events(saved.id)
+
+        self.assertEqual(
+            [event.event_type for event in events],
+            ["status_changed", "job_collected"],
+        )
+        self.assertEqual(events[0].from_status, "collected")
+        self.assertEqual(events[0].to_status, "approved")
+        self.assertEqual(events[0].detail, "Vaga aprovada: Senior Kotlin Engineer - ACME")
+        self.assertEqual(events[1].to_status, "collected")
+
     def test_list_recent_jobs_returns_latest_first(self) -> None:
         self.repository.save_new_jobs(
             [
@@ -297,8 +313,16 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         saved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
         application = self.repository.create_application_draft(saved.id, notes="primeiro passo")
 
-        self.repository.mark_application_status(application.id, status="ready_for_review")
-        self.repository.mark_application_status(application.id, status="confirmed")
+        self.repository.mark_application_status(
+            application.id,
+            status="ready_for_review",
+            event_detail=f"Candidatura pronta para revisao: id={application.id}",
+        )
+        self.repository.mark_application_status(
+            application.id,
+            status="confirmed",
+            event_detail=f"Candidatura confirmada: id={application.id}",
+        )
 
         events = self.repository.list_application_events(application.id)
 
@@ -308,8 +332,10 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         )
         self.assertEqual(events[0].from_status, "ready_for_review")
         self.assertEqual(events[0].to_status, "confirmed")
+        self.assertEqual(events[0].detail, f"Candidatura confirmada: id={application.id}")
         self.assertEqual(events[1].from_status, "draft")
         self.assertEqual(events[1].to_status, "ready_for_review")
+        self.assertEqual(events[1].detail, f"Candidatura pronta para revisao: id={application.id}")
         self.assertEqual(events[2].to_status, "draft")
 
     def test_record_application_event_persists_operational_detail(self) -> None:

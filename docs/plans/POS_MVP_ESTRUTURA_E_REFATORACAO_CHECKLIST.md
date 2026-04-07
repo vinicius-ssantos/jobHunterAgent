@@ -45,7 +45,7 @@ Regra da fase atual:
   - [x] ultimo submit
   - [x] ultimo erro
   - [x] historico resumido de transicoes
-- [ ] Garantir que toda transicao relevante tenha timestamp e motivo explicito
+- [x] Garantir que toda transicao relevante tenha timestamp e motivo explicito
 - [ ] Revisar se `support_level` e `support_rationale` devem ser atualizados por ciclo ou preservados como snapshot inicial
 
 ### Observabilidade

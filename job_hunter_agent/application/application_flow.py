@@ -40,6 +40,7 @@ class ApplicationFlowCoordinator:
         self.repository.mark_application_status(
             context.application.id,
             status=status,
+            event_detail=detail,
             last_preflight_detail=detail,
             last_error="" if clear_error else detail,
         )
@@ -65,6 +66,7 @@ class ApplicationFlowCoordinator:
         self.repository.mark_application_status(
             context.application.id,
             status=status,
+            event_detail=detail,
             last_submit_detail=detail,
             last_error="" if clear_error else detail,
             submitted_at=submitted_at,

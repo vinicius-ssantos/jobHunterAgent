@@ -488,6 +488,9 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
                     support_level="manual_review",
                 )
 
+            def list_job_events(self, job_id: int, limit: int = 5):
+                return []
+
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
 
@@ -497,6 +500,38 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("empresa=ACME", rendered)
         self.assertIn("application_id=4", rendered)
         self.assertIn("application_status=confirmed", rendered)
+
+    async def test_show_job_renders_recent_job_events(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+            def get_application_by_job(self, job_id: int):
+                return None
+
+            def list_job_events(self, job_id: int, limit: int = 5):
+                from job_hunter_agent.core.domain import JobStatusEvent
+
+                return [
+                    JobStatusEvent(
+                        id=2,
+                        job_id=job_id,
+                        event_type="status_changed",
+                        detail="Vaga aprovada: Backend Java - ACME",
+                        from_status="collected",
+                        to_status="approved",
+                        created_at="2026-04-07T12:00:00",
+                    )
+                ]
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.show_job(10)
+
+        self.assertIn("eventos_recentes:", rendered)
+        self.assertIn("status_changed", rendered)
+        self.assertIn("Vaga aprovada: Backend Java - ACME", rendered)
 
     async def test_list_applications_renders_existing_items(self) -> None:
         class _Repository:
@@ -627,13 +662,14 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
                 application_id: int,
                 *,
                 status: str,
+                event_detail="",
                 notes=None,
                 last_preflight_detail=None,
                 last_submit_detail=None,
                 last_error=None,
                 submitted_at=None,
             ):
-                self.marked.append((application_id, status))
+                self.marked.append((application_id, status, event_detail))
 
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
@@ -641,7 +677,10 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         detail = app.transition_application(3, "app_prepare")
 
         self.assertEqual(detail, "Candidatura pronta para revisao: id=3")
-        self.assertEqual(app.repository.marked, [(3, "ready_for_review")])
+        self.assertEqual(
+            app.repository.marked,
+            [(3, "ready_for_review", "Candidatura pronta para revisao: id=3")],
+        )
 
     async def test_show_latest_failure_artifacts_renders_recent_files(self) -> None:
         temp_dir = Path(self.id().replace(".", "_"))
@@ -690,8 +729,8 @@ class JobCliTests(IsolatedAsyncioTestCase):
             def get_job(self, job_id: int):
                 return _sample_job(job_id=job_id, status="collected")
 
-            def mark_status(self, job_id: int, status: str):
-                self.marked.append((job_id, status))
+            def mark_status(self, job_id: int, status: str, *, detail: str = ""):
+                self.marked.append((job_id, status, detail))
 
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
@@ -699,7 +738,10 @@ class JobCliTests(IsolatedAsyncioTestCase):
         detail = app.review_job(8, "approve")
 
         self.assertEqual(detail, "Vaga aprovada: Backend Java - ACME")
-        self.assertEqual(app.repository.marked, [(8, "approved")])
+        self.assertEqual(
+            app.repository.marked,
+            [(8, "approved", "Vaga aprovada: Backend Java - ACME")],
+        )
 
     async def test_review_job_rejects_invalid_transition(self) -> None:
         class _Repository:
@@ -709,8 +751,8 @@ class JobCliTests(IsolatedAsyncioTestCase):
             def get_job(self, job_id: int):
                 return _sample_job(job_id=job_id, status="approved")
 
-            def mark_status(self, job_id: int, status: str):
-                self.marked.append((job_id, status))
+            def mark_status(self, job_id: int, status: str, *, detail: str = ""):
+                self.marked.append((job_id, status, detail))
 
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
@@ -733,13 +775,14 @@ class JobCliTests(IsolatedAsyncioTestCase):
                 application_id: int,
                 *,
                 status: str,
+                event_detail="",
                 notes=None,
                 last_preflight_detail=None,
                 last_submit_detail=None,
                 last_error=None,
                 submitted_at=None,
             ):
-                self.marked.append((application_id, status))
+                self.marked.append((application_id, status, event_detail))
 
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
@@ -747,7 +790,10 @@ class JobCliTests(IsolatedAsyncioTestCase):
         detail = app.authorize_application(9)
 
         self.assertEqual(detail, "Candidatura autorizada para envio: id=9")
-        self.assertEqual(app.repository.marked, [(9, "authorized_submit")])
+        self.assertEqual(
+            app.repository.marked,
+            [(9, "authorized_submit", "Candidatura autorizada para envio: id=9")],
+        )
 
     async def test_authorize_application_reports_invalid_transition(self) -> None:
         class _Repository:
