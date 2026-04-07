@@ -39,12 +39,12 @@ Regra da fase atual:
 
 ### Higiene de estado
 
-- [ ] Parar de acumular todo o historico operacional em `notes`
+- [x] Parar de acumular todo o historico operacional em `notes`
 - [ ] Separar no armazenamento:
-  - [ ] ultimo preflight
-  - [ ] ultimo submit
-  - [ ] ultimo erro
-  - [ ] historico resumido de transicoes
+  - [x] ultimo preflight
+  - [x] ultimo submit
+  - [x] ultimo erro
+  - [x] historico resumido de transicoes
 - [ ] Garantir que toda transicao relevante tenha timestamp e motivo explicito
 - [ ] Revisar se `support_level` e `support_rationale` devem ser atualizados por ciclo ou preservados como snapshot inicial
 
@@ -66,20 +66,20 @@ Regra da fase atual:
 
 ## P0: UX Operacional
 
-- [ ] Eliminar operacao por `python -c` para tarefas frequentes
+- [x] Eliminar operacao por `python -c` para tarefas frequentes
 - [ ] Fechar cobertura operacional completa por CLI para que o fluxo nao dependa do Telegram como unico caminho de execucao
 - [ ] Criar comandos claros para:
-  - [ ] listar vagas pendentes de revisao
-  - [ ] aprovar vaga
-  - [ ] rejeitar vaga
-  - [ ] listar vagas aprovadas
-  - [ ] listar candidaturas
+  - [x] listar vagas pendentes de revisao
+  - [x] aprovar vaga
+  - [x] rejeitar vaga
+  - [x] listar vagas aprovadas
+  - [x] listar candidaturas
   - [ ] preparar candidatura
   - [ ] confirmar candidatura
   - [ ] cancelar candidatura
-  - [ ] rodar preflight
-  - [ ] autorizar submit
-  - [ ] executar submit
+  - [x] rodar preflight
+  - [x] autorizar submit
+  - [x] executar submit
   - [ ] ver artefatos da ultima falha
 - [ ] Explicitar na UX que parte do fluxo ja possui CLI, mas algumas transicoes de review ainda precisam de cobertura equivalente ao Telegram
 - [ ] Definir uma interface principal:

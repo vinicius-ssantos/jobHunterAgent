@@ -5,7 +5,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES
+from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
 from job_hunter_agent.collectors.collector import JobCollectionService
 from job_hunter_agent.application.composition import (
     create_application_preflight_service,
@@ -17,6 +17,7 @@ from job_hunter_agent.application.composition import (
     create_runtime_guard,
 )
 from job_hunter_agent.application.review_workflow import resolve_application_action
+from job_hunter_agent.application.review_workflow import resolve_review_action
 from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.infrastructure.repository import JobRepository
@@ -40,6 +41,13 @@ APPLICATION_STATUS_ALIASES = {
     "ready": "authorized_submit",
     "review": "ready_for_review",
     "error": "error_submit",
+}
+JOB_STATUS_ORDER = ("collected", "approved", "rejected", "error_collect")
+JOB_STATUS_ALIASES = {
+    "all": None,
+    "pending": "collected",
+    "review": "collected",
+    "approved_only": "approved",
 }
 
 
@@ -118,6 +126,37 @@ class JobHunterApplication:
             filter_text = status if status is not None else "todos"
             return f"Nenhuma candidatura encontrada para status={filter_text}."
         return "\n".join([f"Candidaturas listadas: {total}"] + lines)
+
+    def list_jobs(self, *, status: str | None = None) -> str:
+        requested_statuses = (
+            (status,)
+            if status is not None
+            else tuple(current for current in JOB_STATUS_ORDER if current in VALID_STATUSES)
+        )
+        lines: list[str] = []
+        total = 0
+        for current_status in requested_statuses:
+            jobs = self.repository.list_jobs_by_status(current_status)
+            for job in jobs:
+                lines.append(
+                    f"{job.id}: {job.status} | {job.title} | {job.company} | "
+                    f"relevancia={job.relevance} | modalidade={job.work_mode}"
+                )
+                total += 1
+        if not lines:
+            filter_text = status if status is not None else "todos"
+            return f"Nenhuma vaga encontrada para status={filter_text}."
+        return "\n".join([f"Vagas listadas: {total}"] + lines)
+
+    def review_job(self, job_id: int, action: str) -> str:
+        job = self.repository.get_job(job_id)
+        if job is None:
+            return f"Vaga nao encontrada: id={job_id}"
+        next_status, detail = resolve_review_action(job, action)
+        if next_status is None:
+            return detail
+        self.repository.mark_status(job_id, next_status)
+        return detail
 
     def show_application_events(self, application_id: int, *, limit: int = 10) -> str:
         application = self.repository.get_application(application_id)
@@ -288,6 +327,23 @@ def parse_args() -> argparse.Namespace:
         help="Abre o Chromium para exportar o storage_state autenticado do LinkedIn.",
     )
     subparsers = parser.add_subparsers(dest="command")
+    jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
+    jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", required=True)
+
+    jobs_list_parser = jobs_subparsers.add_parser("list", help="Lista vagas por status.")
+    jobs_list_parser.add_argument(
+        "--status",
+        choices=["all", "pending", "review", "approved_only", *sorted(VALID_STATUSES)],
+        default="all",
+        help="Filtra por status de vaga.",
+    )
+
+    jobs_approve_parser = jobs_subparsers.add_parser("approve", help="Aprova uma vaga coletada.")
+    jobs_approve_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
+
+    jobs_reject_parser = jobs_subparsers.add_parser("reject", help="Rejeita uma vaga coletada.")
+    jobs_reject_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
+
     applications_parser = subparsers.add_parser("applications", help="Operacoes de candidaturas.")
     applications_subparsers = applications_parser.add_subparsers(dest="applications_command", required=True)
 
@@ -350,6 +406,18 @@ def run() -> None:
         settings = load_settings()
         asyncio.run(bootstrap_linkedin_storage_state(settings))
         return
+    if args.command == "jobs":
+        app = JobHunterApplication(enable_telegram=not args.sem_telegram)
+        if args.jobs_command == "list":
+            status = JOB_STATUS_ALIASES.get(args.status, args.status)
+            print(app.list_jobs(status=status))
+            return
+        if args.jobs_command == "approve":
+            print(app.review_job(args.id, "approve"))
+            return
+        if args.jobs_command == "reject":
+            print(app.review_job(args.id, "reject"))
+            return
     if args.command == "applications":
         app = JobHunterApplication(enable_telegram=not args.sem_telegram)
         if args.applications_command == "list":

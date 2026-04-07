@@ -284,6 +284,22 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.applications_command, "list")
         self.assertEqual(args.status, "confirmed")
 
+    async def test_parse_args_accepts_jobs_list_command(self) -> None:
+        with patch("sys.argv", ["main.py", "jobs", "list", "--status", "pending"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "jobs")
+        self.assertEqual(args.jobs_command, "list")
+        self.assertEqual(args.status, "pending")
+
+    async def test_parse_args_accepts_jobs_approve_command(self) -> None:
+        with patch("sys.argv", ["main.py", "jobs", "approve", "--id", "11"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "jobs")
+        self.assertEqual(args.jobs_command, "approve")
+        self.assertEqual(args.id, 11)
+
     async def test_parse_args_accepts_applications_events_command(self) -> None:
         with patch("sys.argv", ["main.py", "applications", "events", "--id", "7", "--limit", "3"]):
             args = parse_args()
@@ -423,6 +439,61 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("submit_submitted", rendered)
         self.assertIn("authorized_submit -> submitted", rendered)
         self.assertIn("submissao real concluida no LinkedIn", rendered)
+
+
+class JobCliTests(IsolatedAsyncioTestCase):
+    async def test_list_jobs_renders_existing_items(self) -> None:
+        class _Repository:
+            def list_jobs_by_status(self, status: str):
+                if status == "collected":
+                    return [_sample_job(job_id=4, status="collected")]
+                return []
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.list_jobs(status="collected")
+
+        self.assertIn("Vagas listadas: 1", rendered)
+        self.assertIn("4: collected | Backend Java | ACME", rendered)
+
+    async def test_review_job_approves_valid_transition(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.marked: list[tuple[int, str]] = []
+
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="collected")
+
+            def mark_status(self, job_id: int, status: str):
+                self.marked.append((job_id, status))
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        detail = app.review_job(8, "approve")
+
+        self.assertEqual(detail, "Vaga aprovada: Backend Java - ACME")
+        self.assertEqual(app.repository.marked, [(8, "approved")])
+
+    async def test_review_job_rejects_invalid_transition(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.marked: list[tuple[int, str]] = []
+
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+            def mark_status(self, job_id: int, status: str):
+                self.marked.append((job_id, status))
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        detail = app.review_job(8, "approve")
+
+        self.assertEqual(detail, "Vaga ja estava aprovada: Backend Java - ACME")
+        self.assertEqual(app.repository.marked, [])
 
     async def test_authorize_application_updates_status_when_transition_is_valid(self) -> None:
         class _Repository:
