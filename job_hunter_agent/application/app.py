@@ -35,6 +35,12 @@ APPLICATION_STATUS_ORDER = (
     "error_submit",
     "cancelled",
 )
+APPLICATION_STATUS_ALIASES = {
+    "all": None,
+    "ready": "authorized_submit",
+    "review": "ready_for_review",
+    "error": "error_submit",
+}
 
 
 class JobHunterApplication:
@@ -112,6 +118,22 @@ class JobHunterApplication:
             filter_text = status if status is not None else "todos"
             return f"Nenhuma candidatura encontrada para status={filter_text}."
         return "\n".join([f"Candidaturas listadas: {total}"] + lines)
+
+    def show_application_events(self, application_id: int, *, limit: int = 10) -> str:
+        application = self.repository.get_application(application_id)
+        if application is None:
+            return f"Candidatura nao encontrada: id={application_id}"
+        events = self.repository.list_application_events(application_id, limit=limit)
+        if not events:
+            return f"Nenhum evento encontrado para candidatura: id={application_id}"
+        lines = [f"Eventos da candidatura {application_id}: {len(events)}"]
+        for event in events:
+            lines.append(
+                f"{event.created_at or '-'} | {event.event_type} | "
+                f"{event.from_status or '-'} -> {event.to_status or '-'} | "
+                f"{event.detail or '-'}"
+            )
+        return "\n".join(lines)
 
     def show_application(self, application_id: int) -> str:
         application = self.repository.get_application(application_id)
@@ -272,13 +294,25 @@ def parse_args() -> argparse.Namespace:
     applications_list_parser = applications_subparsers.add_parser("list", help="Lista candidaturas.")
     applications_list_parser.add_argument(
         "--status",
-        choices=["all", *sorted(VALID_APPLICATION_STATUSES)],
+        choices=["all", "ready", "review", "error", *sorted(VALID_APPLICATION_STATUSES)],
         default="all",
         help="Filtra por status de candidatura.",
     )
 
     applications_show_parser = applications_subparsers.add_parser("show", help="Mostra uma candidatura.")
     applications_show_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_events_parser = applications_subparsers.add_parser(
+        "events",
+        help="Lista eventos recentes de uma candidatura.",
+    )
+    applications_events_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+    applications_events_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Quantidade maxima de eventos retornados.",
+    )
 
     applications_preflight_parser = applications_subparsers.add_parser(
         "preflight",
@@ -319,11 +353,14 @@ def run() -> None:
     if args.command == "applications":
         app = JobHunterApplication(enable_telegram=not args.sem_telegram)
         if args.applications_command == "list":
-            status = None if args.status == "all" else args.status
+            status = APPLICATION_STATUS_ALIASES.get(args.status, args.status)
             print(app.list_applications(status=status))
             return
         if args.applications_command == "show":
             print(app.show_application(args.id))
+            return
+        if args.applications_command == "events":
+            print(app.show_application_events(args.id, limit=args.limit))
             return
         if args.applications_command == "authorize":
             print(app.authorize_application(args.id))

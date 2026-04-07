@@ -284,6 +284,15 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.applications_command, "list")
         self.assertEqual(args.status, "confirmed")
 
+    async def test_parse_args_accepts_applications_events_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "events", "--id", "7", "--limit", "3"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "events")
+        self.assertEqual(args.id, 7)
+        self.assertEqual(args.limit, 3)
+
     async def test_parse_args_accepts_applications_submit_command(self) -> None:
         with patch("sys.argv", ["main.py", "applications", "submit", "--id", "7"]):
             args = parse_args()
@@ -325,6 +334,28 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("2: confirmed", rendered)
         self.assertIn("Backend Java | ACME", rendered)
 
+    async def test_list_applications_supports_ready_alias_from_cli_mapping(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.seen_statuses: list[str] = []
+
+            def list_applications_by_status(self, status: str):
+                self.seen_statuses.append(status)
+                if status == "authorized_submit":
+                    return [JobApplication(id=9, job_id=10, status="authorized_submit", support_level="manual_review")]
+                return []
+
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.list_applications(status="authorized_submit")
+
+        self.assertIn("9: authorized_submit", rendered)
+        self.assertEqual(app.repository.seen_statuses, ["authorized_submit"])
+
     async def test_show_application_renders_recent_events(self) -> None:
         class _Repository:
             def get_application(self, application_id: int):
@@ -364,6 +395,34 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("last_submit_detail=submissao ainda nao executada", rendered)
         self.assertIn("preflight_ready", rendered)
         self.assertIn("CTA encontrado", rendered)
+
+    async def test_show_application_events_renders_event_stream(self) -> None:
+        class _Repository:
+            def get_application(self, application_id: int):
+                return JobApplication(id=application_id, job_id=10, status="confirmed")
+
+            def list_application_events(self, application_id: int, limit: int = 10):
+                return [
+                    JobApplicationEvent(
+                        id=4,
+                        application_id=application_id,
+                        event_type="submit_submitted",
+                        detail="submissao real concluida no LinkedIn",
+                        from_status="authorized_submit",
+                        to_status="submitted",
+                        created_at="2026-04-07T11:00:00",
+                    )
+                ]
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.show_application_events(2, limit=5)
+
+        self.assertIn("Eventos da candidatura 2: 1", rendered)
+        self.assertIn("submit_submitted", rendered)
+        self.assertIn("authorized_submit -> submitted", rendered)
+        self.assertIn("submissao real concluida no LinkedIn", rendered)
 
     async def test_authorize_application_updates_status_when_transition_is_valid(self) -> None:
         class _Repository:
