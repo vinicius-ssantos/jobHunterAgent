@@ -40,47 +40,25 @@ Out of scope by default:
 
 Keep responsibilities separated and directional:
 
-- `job_hunter_agent/domain.py`
-  Domain entities, immutable models, shared vocabulary, status values.
-- `job_hunter_agent/settings.py`
-  Application settings and startup validation.
-- `job_hunter_agent/job_identity.py`
-  Strategy for portal-aware job identity and canonical lookup patterns.
-- `job_hunter_agent/repository.py`
-  Persistence contracts and SQLite implementation.
-- `job_hunter_agent/collector.py`
-  Collection contracts, orchestration, filtering, and persistence-facing scoring flow.
-- `job_hunter_agent/applicant.py`
-  Assisted application preparation, support classification, and preflight orchestration.
-- `job_hunter_agent/portal_collectors.py`
-  Portal adapters and browser automation integration.
-- `job_hunter_agent/linkedin.py`
-  LinkedIn deterministic extraction, enrichment, and field repair helpers.
-- `job_hunter_agent/scoring.py`
-  Scoring implementation and parsing helpers for model responses.
-- `job_hunter_agent/job_requirements.py`
-  Structured extraction and formatting of operational requirement signals from job text.
-- `job_hunter_agent/review_rationale.py`
-  Assistive formatting of review rationale for human decision-making.
-- `job_hunter_agent/application_priority.py`
-  Assistive prioritization of application drafts and queue ordering.
-- `job_hunter_agent/notifier.py`
-  Telegram transport and handler wiring.
-- `job_hunter_agent/notifier_rendering.py`
-  Rendering of Telegram messages, cards, and action rows.
-- `job_hunter_agent/review_workflow.py`
-  Review and application transition policy.
-- `job_hunter_agent/composition.py`
-  Composition helpers and infrastructure assembly.
-- `job_hunter_agent/app.py`
-  Process composition, lifecycle, scheduling, top-level orchestration.
+- `job_hunter_agent/core/`
+  Domain entities, validated settings, runtime helpers, browser support, and job identity primitives.
+- `job_hunter_agent/application/`
+  Process composition, lifecycle orchestration, application services, and review workflow rules.
+- `job_hunter_agent/collectors/`
+  Collection orchestration, portal adapters, and LinkedIn-specific automation.
+- `job_hunter_agent/infrastructure/`
+  Persistence and notifier transport/rendering adapters.
+- `job_hunter_agent/llm/`
+  Assistive scoring, requirement extraction, rationale formatting, and queue prioritization.
+- `job_hunter_agent/*.py`
+  Thin compatibility wrappers only. New implementation code should live in the subpackages above.
 
 Dependency rule:
 
 - outer layers may depend on inner layers
 - domain must not depend on infrastructure
 - repository, notifier, and external collectors are infrastructure
-- application wiring happens at the composition edge (`app.py` + `composition.py`), not spread across business modules
+- application wiring happens at the composition edge (`application/app.py` + `application/composition.py`), not spread across business modules
 
 ## SOLID Rules
 

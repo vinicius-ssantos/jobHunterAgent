@@ -6,20 +6,14 @@ MVP local para coleta, triagem e revisao humana de vagas via Telegram.
 
 O runtime ativo mora no pacote `job_hunter_agent/`.
 
-- `job_hunter_agent/settings.py`
-- `job_hunter_agent/domain.py`
-- `job_hunter_agent/repository.py`
-- `job_hunter_agent/collector.py`
-- `job_hunter_agent/portal_collectors.py`
-- `job_hunter_agent/scoring.py`
-- `job_hunter_agent/linkedin.py`
-- `job_hunter_agent/notifier.py`
-- `job_hunter_agent/notifier_rendering.py`
-- `job_hunter_agent/review_workflow.py`
-- `job_hunter_agent/composition.py`
-- `job_hunter_agent/job_identity.py`
-- `job_hunter_agent/app.py`
+- `job_hunter_agent/core/`
+- `job_hunter_agent/application/`
+- `job_hunter_agent/collectors/`
+- `job_hunter_agent/infrastructure/`
+- `job_hunter_agent/llm/`
 - `main.py` apenas como entrypoint fino
+
+Os modulos diretamente em `job_hunter_agent/` foram mantidos como wrappers de compatibilidade para preservar imports antigos.
 
 O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
