@@ -23,11 +23,15 @@ O runtime ativo mora no pacote `job_hunter_agent/`.
 
 O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
-## Refatoracao incremental
+## Documentacao
 
-Os achados arquiteturais e a ordem planejada de melhoria incremental estao em:
+Documentacao ativa:
 
-- `ARCHITECTURE_REFACTOR_PLAN.md`
+- `docs/plans/POS_MVP_ESTRUTURA_E_REFATORACAO_CHECKLIST.md`
+
+Documentacao historica:
+
+- `docs/archive/ARCHITECTURE_REFACTOR_PLAN.md`
 
 ## Escopo da v1
 
