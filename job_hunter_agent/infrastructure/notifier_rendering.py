@@ -19,8 +19,6 @@ def summarize_application_notes(notes: str, *, max_chars: int = 500) -> str:
         "rascunho criado apos aprovacao humana",
         "sinais estruturados:",
         "prioridade sugerida:",
-        "preflight real",
-        "submissao real",
     ):
         for line in reversed(normalized_lines):
             if line.lower().startswith(prefix):
@@ -33,6 +31,22 @@ def summarize_application_notes(notes: str, *, max_chars: int = 500) -> str:
         if line not in unique_lines:
             unique_lines.append(line)
     summary = "\n".join(unique_lines)
+    if len(summary) <= max_chars:
+        return summary
+    return summary[: max_chars - 3].rstrip() + "..."
+
+
+def summarize_application_operation(application: JobApplication, *, max_chars: int = 500) -> str:
+    lines: list[str] = []
+    if application.last_preflight_detail:
+        lines.append(f"Preflight: {application.last_preflight_detail}")
+    if application.last_submit_detail:
+        lines.append(f"Submit: {application.last_submit_detail}")
+    if application.last_error:
+        lines.append(f"Erro: {application.last_error}")
+    if not lines:
+        return "Nenhuma"
+    summary = "\n".join(lines)
     if len(summary) <= max_chars:
         return summary
     return summary[: max_chars - 3].rstrip() + "..."
@@ -107,6 +121,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
     priority = extract_application_priority_level(application.notes)
     requirement_summary = format_job_requirement_summary(extract_job_requirement_signals(application.notes))
     summarized_notes = summarize_application_notes(application.notes or "")
+    operation_summary = summarize_application_operation(application)
     if not job:
         return (
             f"Candidatura {application.id}\n"
@@ -115,7 +130,9 @@ def build_application_card_message(repository: JobRepository, application: JobAp
             f"Suporte: {application.support_level}\n"
             f"Prioridade: {priority}\n"
             f"Sinais: {requirement_summary}\n"
-            f"Racional: {application.support_rationale or 'Nao informado'}"
+            f"Racional: {application.support_rationale or 'Nao informado'}\n"
+            f"Contexto: {summarized_notes}\n"
+            f"Operacao: {operation_summary}"
         )
     return (
         f"Candidatura {application.id}\n"
@@ -126,7 +143,8 @@ def build_application_card_message(repository: JobRepository, application: JobAp
         f"Prioridade: {priority}\n"
         f"Sinais: {requirement_summary}\n"
         f"Racional: {application.support_rationale or 'Nao informado'}\n"
-        f"Observacoes: {summarized_notes}\n"
+        f"Contexto: {summarized_notes}\n"
+        f"Operacao: {operation_summary}\n"
         f"Abrir vaga: {job.url}"
     )
 

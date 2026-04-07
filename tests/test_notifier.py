@@ -16,7 +16,10 @@ from job_hunter_agent.infrastructure.notifier import (
     resolve_review_action,
     resolve_application_submit_request,
 )
-from job_hunter_agent.infrastructure.notifier_rendering import summarize_application_notes
+from job_hunter_agent.infrastructure.notifier_rendering import (
+    summarize_application_notes,
+    summarize_application_operation,
+)
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.llm.review_rationale import (
     StructuredReviewRationale,
@@ -317,6 +320,12 @@ class PersistenceAndReviewIntegrationTests(TestCase):
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
+        self.repository.mark_application_status(
+            application.id,
+            status="confirmed",
+            last_preflight_detail="preflight real ok: CTA encontrado",
+        )
+        application = self.repository.get_application(application.id)
 
         message = build_application_card_message(self.repository, application)
 
@@ -325,20 +334,36 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Suporte: manual_review", message)
         self.assertIn("Prioridade: media", message)
         self.assertIn("Sinais: senioridade=senior | stack=java, spring | ingles=avancado | lideranca=sim", message)
-        self.assertIn("Observacoes: rascunho criado apos aprovacao humana", message)
+        self.assertIn("Contexto: rascunho criado apos aprovacao humana", message)
+        self.assertIn("Operacao: Preflight: preflight real ok: CTA encontrado", message)
 
-    def test_summarize_application_notes_prefers_recent_operational_lines(self) -> None:
+    def test_summarize_application_notes_prefers_human_context_lines(self) -> None:
         notes = (
             "rascunho criado apos aprovacao humana\n"
             "linha irrelevante antiga\n"
             "sinais estruturados: senioridade=senior; stack_principal=java, spring\n"
             "prioridade sugerida: alta | motivo: revisar primeiro\n"
-            "preflight real | campos=telefone | avancou_proxima_etapa=sim | perguntas=sim\n"
         )
 
         summary = summarize_application_notes(notes, max_chars=220)
 
         self.assertIn("rascunho criado apos aprovacao humana", summary)
         self.assertIn("prioridade sugerida: alta", summary)
-        self.assertIn("preflight real", summary)
         self.assertNotIn("linha irrelevante antiga", summary)
+
+    def test_summarize_application_operation_prefers_explicit_state_fields(self) -> None:
+        summary = summarize_application_operation(
+            application=type(
+                "_Application",
+                (),
+                {
+                    "last_preflight_detail": "preflight real ok: CTA encontrado",
+                    "last_submit_detail": "submissao real concluida no LinkedIn",
+                    "last_error": "",
+                },
+            )(),
+            max_chars=220,
+        )
+
+        self.assertIn("Preflight: preflight real ok: CTA encontrado", summary)
+        self.assertIn("Submit: submissao real concluida no LinkedIn", summary)
