@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Optional, Protocol
 
+from job_hunter_agent.application.application_flow import (
+    ApplicationFlowCoordinator,
+    load_application_context,
+)
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.llm.application_priority import (
     ApplicationPriorityAssessor,
@@ -165,19 +168,16 @@ class ApplicationPreflightService:
     def __init__(self, repository: JobRepository, flow_inspector: ApplicationFlowInspector | None = None) -> None:
         self.repository = repository
         self.flow_inspector = flow_inspector
+        self.flow = ApplicationFlowCoordinator(repository)
 
     def run_for_application(self, application_id: int) -> ApplicationPreflightResult:
-        application = self.repository.get_application(application_id)
-        if not application:
-            raise ValueError(f"Application not found: {application_id}")
-        job = self.repository.get_job(application.job_id)
-        if not job:
-            raise ValueError(f"Job not found for application: {application_id}")
+        context = load_application_context(self.repository, application_id)
+        application = context.application
+        job = context.job
 
         if application.status != "confirmed":
             detail = "preflight disponivel apenas para candidaturas confirmadas"
-            _record_application_event(
-                self.repository,
+            self.flow.record_event(
                 application.id,
                 event_type="preflight_ignored",
                 detail=detail,
@@ -192,24 +192,18 @@ class ApplicationPreflightService:
 
         if application.support_level == "unsupported":
             detail = "preflight bloqueado: fluxo classificado como nao suportado"
-            self.repository.mark_application_status(
-                application.id,
-                status="error_submit",
-                last_preflight_detail=detail,
-                last_error=detail,
-            )
-            _record_application_event(
-                self.repository,
-                application.id,
-                event_type="preflight_blocked",
+            application_status = self.flow.record_preflight_result(
+                context,
+                outcome="blocked",
                 detail=detail,
-                from_status=application.status,
-                to_status="error_submit",
+                event_type="preflight_blocked",
+                status="error_submit",
+                clear_error=False,
             )
             return ApplicationPreflightResult(
                 outcome="blocked",
                 detail=detail,
-                application_status="error_submit",
+                application_status=application_status,
             )
 
         if job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
@@ -219,129 +213,93 @@ class ApplicationPreflightService:
                 except Exception as exc:
                     inspection = None
                     detail = f"preflight real falhou ao inspecionar a pagina: {exc}"
-                    self.repository.mark_application_status(
-                        application.id,
-                        status="confirmed",
-                        last_preflight_detail=detail,
-                        last_error="",
-                    )
-                    _record_application_event(
-                        self.repository,
-                        application.id,
-                        event_type="preflight_error",
+                    application_status = self.flow.record_preflight_result(
+                        context,
+                        outcome="error",
                         detail=detail,
-                        from_status=application.status,
-                        to_status="confirmed",
+                        event_type="preflight_error",
+                        status="confirmed",
+                        clear_error=True,
                     )
                     return ApplicationPreflightResult(
                         outcome="error",
                         detail=detail,
-                        application_status="confirmed",
+                        application_status=application_status,
                     )
                 if inspection is not None:
                     if inspection.outcome == "ready":
-                        self.repository.mark_application_status(
-                            application.id,
-                            status="confirmed",
-                            last_preflight_detail=inspection.detail,
-                            last_error="",
-                        )
-                        _record_application_event(
-                            self.repository,
-                            application.id,
-                            event_type="preflight_ready",
+                        application_status = self.flow.record_preflight_result(
+                            context,
+                            outcome="ready",
                             detail=inspection.detail,
-                            from_status=application.status,
-                            to_status="confirmed",
+                            event_type="preflight_ready",
+                            status="confirmed",
+                            clear_error=True,
                         )
                         return ApplicationPreflightResult(
                             outcome="ready",
                             detail=inspection.detail,
-                            application_status="confirmed",
+                            application_status=application_status,
                         )
                     if inspection.outcome == "manual_review":
-                        self.repository.mark_application_status(
-                            application.id,
-                            status="confirmed",
-                            last_preflight_detail=inspection.detail,
-                            last_error="",
-                        )
-                        _record_application_event(
-                            self.repository,
-                            application.id,
-                            event_type="preflight_manual_review",
+                        application_status = self.flow.record_preflight_result(
+                            context,
+                            outcome="manual_review",
                             detail=inspection.detail,
-                            from_status=application.status,
-                            to_status="confirmed",
+                            event_type="preflight_manual_review",
+                            status="confirmed",
+                            clear_error=True,
                         )
                         return ApplicationPreflightResult(
                             outcome="manual_review",
                             detail=inspection.detail,
-                            application_status="confirmed",
+                            application_status=application_status,
                         )
                     detail = inspection.detail
-                    self.repository.mark_application_status(
-                        application.id,
-                        status="error_submit",
-                        last_preflight_detail=detail,
-                        last_error=detail,
-                    )
-                    _record_application_event(
-                        self.repository,
-                        application.id,
-                        event_type="preflight_blocked",
+                    application_status = self.flow.record_preflight_result(
+                        context,
+                        outcome="blocked",
                         detail=detail,
-                        from_status=application.status,
-                        to_status="error_submit",
+                        event_type="preflight_blocked",
+                        status="error_submit",
+                        clear_error=False,
                     )
                     return ApplicationPreflightResult(
                         outcome="blocked",
                         detail=detail,
-                        application_status="error_submit",
+                        application_status=application_status,
                     )
             if application.support_level == "auto_supported":
                 detail = "preflight ok: fluxo do LinkedIn com indicio de candidatura simplificada"
             else:
                 detail = "preflight ok: vaga interna do LinkedIn pronta para futura automacao assistida"
-            self.repository.mark_application_status(
-                application.id,
-                status="confirmed",
-                last_preflight_detail=detail,
-                last_error="",
-            )
-            _record_application_event(
-                self.repository,
-                application.id,
-                event_type="preflight_ready",
+            application_status = self.flow.record_preflight_result(
+                context,
+                outcome="ready",
                 detail=detail,
-                from_status=application.status,
-                to_status="confirmed",
+                event_type="preflight_ready",
+                status="confirmed",
+                clear_error=True,
             )
             return ApplicationPreflightResult(
                 outcome="ready",
                 detail=detail,
-                application_status="confirmed",
+                application_status=application_status,
             )
 
         detail = "preflight bloqueado: portal ainda nao possui executor suportado"
-        self.repository.mark_application_status(
-            application.id,
-            status="error_submit",
-            last_preflight_detail=detail,
-            last_error=detail,
-        )
-        _record_application_event(
-            self.repository,
-            application.id,
-            event_type="preflight_blocked",
+        application_status = self.flow.record_preflight_result(
+            context,
+            outcome="blocked",
             detail=detail,
-            from_status=application.status,
-            to_status="error_submit",
+            event_type="preflight_blocked",
+            status="error_submit",
+            clear_error=False,
         )
         return ApplicationPreflightResult(
             outcome="blocked",
             detail=detail,
-            application_status="error_submit",
+            application_status=application_status,
         )
 
 
@@ -349,19 +307,16 @@ class ApplicationSubmissionService:
     def __init__(self, repository: JobRepository, applicant: JobApplicant | None = None) -> None:
         self.repository = repository
         self.applicant = applicant
+        self.flow = ApplicationFlowCoordinator(repository)
 
     def run_for_application(self, application_id: int) -> ApplicationSubmitResult:
-        application = self.repository.get_application(application_id)
-        if not application:
-            raise ValueError(f"Application not found: {application_id}")
-        job = self.repository.get_job(application.job_id)
-        if not job:
-            raise ValueError(f"Job not found for application: {application_id}")
+        context = load_application_context(self.repository, application_id)
+        application = context.application
+        job = context.job
 
         if application.status != "authorized_submit":
             detail = "submissao real disponivel apenas para candidaturas autorizadas"
-            _record_application_event(
-                self.repository,
+            self.flow.record_event(
                 application.id,
                 event_type="submit_ignored",
                 detail=detail,
@@ -376,48 +331,34 @@ class ApplicationSubmissionService:
 
         if self.applicant is None:
             detail = "submissao real indisponivel nesta execucao"
-            self.repository.mark_application_status(
-                application.id,
-                status="authorized_submit",
-                last_submit_detail=detail,
-                last_error="",
-            )
-            _record_application_event(
-                self.repository,
-                application.id,
-                event_type="submit_ignored",
+            application_status = self.flow.record_submit_result(
+                context,
                 detail=detail,
-                from_status=application.status,
-                to_status="authorized_submit",
+                event_type="submit_ignored",
+                status="authorized_submit",
+                clear_error=True,
             )
             return ApplicationSubmitResult(
                 outcome="ignored",
                 detail=detail,
-                application_status="authorized_submit",
+                application_status=application_status,
             )
 
         try:
             result = self.applicant.submit(application, job)
         except Exception as exc:
             detail = f"submissao real falhou ao executar o applicant: {exc}"
-            self.repository.mark_application_status(
-                application.id,
-                status="error_submit",
-                last_submit_detail=detail,
-                last_error=detail,
-            )
-            _record_application_event(
-                self.repository,
-                application.id,
-                event_type="submit_error",
+            application_status = self.flow.record_submit_result(
+                context,
                 detail=detail,
-                from_status=application.status,
-                to_status="error_submit",
+                event_type="submit_error",
+                status="error_submit",
+                clear_error=False,
             )
             return ApplicationSubmitResult(
                 outcome="error",
                 detail=detail,
-                application_status="error_submit",
+                application_status=application_status,
             )
 
         detail = result.detail.strip() or "submissao real executada sem detalhe"
@@ -425,46 +366,31 @@ class ApplicationSubmissionService:
             detail = f"{detail} | referencia={result.external_reference}"
 
         if result.status == "submitted":
-            submitted_at = result.submitted_at or datetime.now().isoformat(timespec="seconds")
-            self.repository.mark_application_status(
-                application.id,
-                status="submitted",
-                last_submit_detail=detail,
-                last_error="",
-                submitted_at=submitted_at,
-            )
-            _record_application_event(
-                self.repository,
-                application.id,
-                event_type="submit_submitted",
+            application_status = self.flow.record_submit_result(
+                context,
                 detail=detail,
-                from_status=application.status,
-                to_status="submitted",
+                event_type="submit_submitted",
+                status="submitted",
+                clear_error=True,
+                submitted_at=self.flow.resolve_submitted_at(result.submitted_at),
             )
             return ApplicationSubmitResult(
                 outcome="submitted",
                 detail=detail,
-                application_status="submitted",
+                application_status=application_status,
             )
 
-        self.repository.mark_application_status(
-            application.id,
-            status="error_submit",
-            last_submit_detail=detail,
-            last_error=detail,
-        )
-        _record_application_event(
-            self.repository,
-            application.id,
-            event_type="submit_error",
+        application_status = self.flow.record_submit_result(
+            context,
             detail=detail,
-            from_status=application.status,
-            to_status="error_submit",
+            event_type="submit_error",
+            status="error_submit",
+            clear_error=False,
         )
         return ApplicationSubmitResult(
             outcome="error",
             detail=detail,
-            application_status="error_submit",
+            application_status=application_status,
         )
 
 
@@ -577,21 +503,3 @@ def _append_note(existing_notes: str, new_note: str) -> str:
     if normalized_new in existing_lines:
         return normalized_existing
     return f"{normalized_existing}\n{normalized_new}"
-
-
-def _record_application_event(
-    repository: JobRepository,
-    application_id: int,
-    *,
-    event_type: str,
-    detail: str = "",
-    from_status: Optional[str] = None,
-    to_status: Optional[str] = None,
-) -> None:
-    repository.record_application_event(
-        application_id,
-        event_type=event_type,
-        detail=detail,
-        from_status=from_status,
-        to_status=to_status,
-    )

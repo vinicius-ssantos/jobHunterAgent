@@ -91,7 +91,7 @@ Regra da fase atual:
 
 ### Separacao de responsabilidades
 
-- [ ] Extrair uma camada de orquestracao explicita para o fluxo de candidatura
+- [x] Extrair uma camada de orquestracao explicita para o fluxo de candidatura
 - [ ] Reduzir o acoplamento entre:
   - [ ] `app.py`
   - [ ] `applicant.py`
@@ -112,7 +112,7 @@ Regra da fase atual:
   - [ ] preenchimento de campos
   - [ ] decisao de submit
   - [ ] captura de artefatos
-- [ ] Reduzir o papel de `applicant.py` para servicos de caso de uso e transicao
+- [x] Reduzir o papel de `applicant.py` para servicos de caso de uso e transicao
 - [ ] Manter logs e persistencia fora de helpers de DOM quando possivel
 
 #### Open/Closed Principle
