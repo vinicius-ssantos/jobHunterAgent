@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
@@ -129,6 +130,26 @@ class SettingsTests(TestCase):
         self.assertEqual(criteria.accepted_work_modes, ("remoto", "hibrido"))
         self.assertEqual(criteria.minimum_salary_brl, 12000)
         self.assertEqual(criteria.minimum_relevance, 7)
+
+    def test_matching_policy_centralizes_exclusion_work_mode_salary_and_relevance(self) -> None:
+        policy = MatchingPolicy(
+            MatchingCriteria(
+                profile_text="Backend engineer",
+                include_keywords=("java",),
+                exclude_keywords=("junior", "php"),
+                accepted_work_modes=("remoto", "hibrido"),
+                minimum_salary_brl=10000,
+                minimum_relevance=6,
+            )
+        )
+
+        self.assertTrue(policy.contains_excluded_keywords("vaga junior com php"))
+        self.assertTrue(policy.accepts_work_mode("Remoto"))
+        self.assertFalse(policy.accepts_work_mode("Presencial"))
+        self.assertTrue(policy.accepts_salary_floor(12000))
+        self.assertFalse(policy.accepts_salary_floor(8000))
+        self.assertTrue(policy.accepts_relevance(7))
+        self.assertFalse(policy.accepts_relevance(5))
 
     def test_relaxed_matching_for_testing_can_be_tuned_by_settings(self) -> None:
         settings = Settings(

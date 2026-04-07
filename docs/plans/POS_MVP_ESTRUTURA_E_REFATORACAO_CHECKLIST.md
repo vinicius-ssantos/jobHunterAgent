@@ -276,7 +276,7 @@ Hoje existe sinal de acoplamento entre configuracao tecnica, criterios de matchi
 - [x] Avaliar extrair um objeto de dominio central para perfil e criterios de matching, separado de `Settings`
 - [ ] Avaliar manter `Settings` focado em infraestrutura, runtime e bootstrap
 - [x] Avaliar introduzir um modelo validado para perfil profissional e busca, como `CandidateProfile` ou `JobSearchProfile`
-- [ ] Avaliar introduzir uma policy central de matching para vocabulario, aliases e criterios reutilizaveis
+- [x] Avaliar introduzir uma policy central de matching para vocabulario, aliases e criterios reutilizaveis
 - [ ] Validar se a centralizacao reduz acoplamento real sem piorar a experiencia de configuracao
 
 Mapeamento consolidado do estado atual no codigo:

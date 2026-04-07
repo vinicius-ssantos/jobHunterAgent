@@ -12,7 +12,7 @@ from job_hunter_agent.core.browser_support import (
     load_playwright_storage_state,
     resolve_local_chromium,
 )
-from job_hunter_agent.core.matching import MatchingCriteria
+from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
 from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
@@ -221,9 +221,13 @@ class JobCollectionService:
         )
 
     def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
+        policy = MatchingPolicy(self.matching_criteria)
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
-        if any(keyword in combined_text for keyword in self.matching_criteria.exclude_keywords):
+        if policy.contains_excluded_keywords(combined_text):
             return "conta com termos excluidos"
+
+        if not policy.accepts_work_mode(raw_job.work_mode):
+            return "modalidade fora do perfil"
 
         work_mode = raw_job.work_mode.strip().lower()
         if work_mode and work_mode not in {"nao informado", "nÃ£o informado"}:
@@ -233,6 +237,8 @@ class JobCollectionService:
                 return "modalidade fora do perfil"
 
         salary_floor = parse_salary_floor(raw_job.salary_text)
+        if not policy.accepts_salary_floor(salary_floor):
+            return "salario abaixo do minimo"
         if salary_floor is not None and salary_floor < self.matching_criteria.minimum_salary_brl:
             return "salario abaixo do minimo"
 

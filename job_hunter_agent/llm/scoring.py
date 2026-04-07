@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from job_hunter_agent.core.browser_support import extract_json_object
-from job_hunter_agent.core.matching import MatchingCriteria
+from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
 from job_hunter_agent.core.domain import RawJob, ScoredJob
 
 
@@ -16,8 +16,9 @@ class HybridJobScorer:
         self._llm = ChatOllama(model=model_name, base_url=base_url, temperature=0.1)
 
     def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
+        policy = MatchingPolicy(criteria)
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
-        if any(keyword in combined_text for keyword in criteria.exclude_keywords):
+        if policy.contains_excluded_keywords(combined_text):
             return ScoredJob(relevance=1, rationale="Contem termos excluidos do perfil.", accepted=False)
 
         prompt = f"""
@@ -52,10 +53,10 @@ class HybridJobScorer:
 
         response = self._llm.invoke(prompt)
         response_text = response.content if hasattr(response, "content") else str(response)
-        return parse_scoring_response(response_text, criteria.minimum_relevance)
+        return parse_scoring_response(response_text, policy)
 
 
-def parse_scoring_response(response_text: str, minimum_relevance: int) -> ScoredJob:
+def parse_scoring_response(response_text: str, policy: MatchingPolicy | int) -> ScoredJob:
     payload = extract_json_object(response_text)
     if not payload:
         return ScoredJob(
@@ -71,7 +72,10 @@ def parse_scoring_response(response_text: str, minimum_relevance: int) -> Scored
 
     relevance = max(1, min(relevance, 10))
     rationale = str(payload.get("rationale", "")).strip() or "Sem justificativa do modelo."
-    accepted = relevance >= minimum_relevance
+    if isinstance(policy, int):
+        accepted = relevance >= policy
+    else:
+        accepted = policy.accepts_relevance(relevance)
     return ScoredJob(relevance=relevance, rationale=rationale, accepted=accepted)
 
 
