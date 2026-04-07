@@ -381,7 +381,25 @@ Solucao arquitetural a avaliar e implementar depois:
 - [ ] Tornar senioridade alvo um criterio configuravel de primeira classe
 - [ ] Adicionar algo equivalente a `allowed_seniority_levels`
 - [ ] Adicionar uma politica explicita para `allow_unknown_seniority`
+- [ ] Tornar configuraveis tambem outros criterios centrais da busca atual, e nao apenas senioridade
+- [ ] Permitir configurar familias de cargo alvo, por exemplo:
+  - [ ] `engenheiro de software`
+  - [ ] `software engineer`
+  - [ ] `desenvolvedor backend`
+  - [ ] `analista desenvolvedor`
+- [ ] Permitir configurar modalidades aceitas, por exemplo:
+  - [ ] `remoto`
+  - [ ] `hibrido`
+  - [ ] `presencial`
+- [ ] Permitir configurar stacks e palavras-chave prioritarias da busca atual
+- [ ] Permitir configurar localidade ou regiao alvo quando fizer sentido
+- [ ] Garantir que esses criterios facam parte do `search_profile`, e nao do `candidate_profile`
 - [ ] Aplicar o criterio de senioridade de forma consistente em:
+  - [ ] busca inicial por portal
+  - [ ] prefiltro deterministico
+  - [ ] scorer
+  - [ ] rationale operacional
+- [ ] Aplicar os demais criterios configuraveis de forma consistente em:
   - [ ] busca inicial por portal
   - [ ] prefiltro deterministico
   - [ ] scorer
