@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-import re
 from typing import Callable, TYPE_CHECKING
 
-from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.application.applicant import ApplicationSubmissionResult
 from job_hunter_agent.collectors.linkedin_application_artifacts import (
     capture_failure_artifacts,
@@ -22,6 +20,7 @@ from job_hunter_agent.collectors.linkedin_application_state import (
     describe_linkedin_easy_apply_entrypoint,
     describe_linkedin_modal_blocker,
 )
+from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.core.domain import JobPosting
 
 if TYPE_CHECKING:
@@ -316,9 +315,9 @@ class LinkedInApplicationFlowInspector:
               const resumableFields = [];
               const contactEmailVisible = hasText(modalTexts, ["email"]) || hasText(modalInputNames, ["email"]);
               const contactPhoneVisible = hasText(modalTexts, ["phone", "telefone", "celular"]) || hasText(modalInputNames, ["phone", "telefone", "celular"]);
-              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais", "código do país"]) || hasText(modalInputNames, ["country code", "codigo", "código"]);
+              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais"]) || hasText(modalInputNames, ["country code", "codigo"]);
               const workAuthorizationVisible = hasText(modalTexts, ["work authorization", "work permit", "autoriz", "visa"]) || hasText(modalInputNames, ["authorization", "permit", "visa"]);
-              const yearsOfExperienceVisible = hasText(modalTexts, ["years of work experience", "anos de experiencia", "anos de experiência"]) || hasText(modalInputNames, ["years", "experience", "experiência"]);
+              const yearsOfExperienceVisible = hasText(modalTexts, ["years of work experience", "anos de experiencia"]) || hasText(modalInputNames, ["years", "experience"]);
               if (contactEmailVisible) resumableFields.push("email");
               if (contactPhoneVisible) resumableFields.push("telefone");
               if (countryCodeVisible) resumableFields.push("codigo_pais");
@@ -330,7 +329,7 @@ class LinkedInApplicationFlowInspector:
                 submit_visible: submitVisible,
                 modal_open: !!modal,
                 modal_submit_visible: modalButtonTexts.some((text) => text.includes("submit application") || text.includes("enviar candidatura")),
-                modal_next_visible: modalButtonTexts.some((text) => text.includes("next") || text.includes("continuar") || text.includes("avancar") || text.includes("avançar")),
+                modal_next_visible: modalButtonTexts.some((text) => text.includes("next") || text.includes("continuar") || text.includes("avancar")),
                 modal_review_visible: modalButtonTexts.some((text) => text.includes("review") || text.includes("revisar")),
                 modal_file_upload: modal ? modal.querySelectorAll('input[type="file"]').length > 0 : false,
                 modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
@@ -384,7 +383,15 @@ class LinkedInApplicationFlowInspector:
     def _format_modal_interpretation_for_error(self, state: LinkedInApplicationPageState) -> str:
         return self._modal_driver.format_modal_interpretation_for_error(state)
 
-    async def _capture_failure_artifacts(self, page, *, state: LinkedInApplicationPageState, job: JobPosting, phase: str, detail: str) -> str:
+    async def _capture_failure_artifacts(
+        self,
+        page,
+        *,
+        state: LinkedInApplicationPageState,
+        job: JobPosting,
+        phase: str,
+        detail: str,
+    ) -> str:
         return await capture_failure_artifacts(
             page,
             state=state,
@@ -435,40 +442,10 @@ class LinkedInApplicationFlowInspector:
         await self._navigator.prepare_job_page_for_apply(page)
 
     async def _dismiss_interfering_dialogs(self, page) -> None:
-        if await self._handle_save_application_dialog(page):
-            return
-        candidates = [
-            page.get_by_role("button", name=re.compile(r"(dismiss|close|fechar|cancel|cancelar|not now|agora nao|agora não|skip)", re.IGNORECASE)).first,
-            page.locator('[role="dialog"] button[aria-label*="Dismiss"], [role="dialog"] button[aria-label*="Close"], [role="dialog"] button[aria-label*="Fechar"]').first,
-            page.locator('button[aria-label*="Dismiss"], button[aria-label*="Close"], button[aria-label*="Fechar"]').first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                await candidate.click(timeout=1500)
-                await page.wait_for_timeout(500)
-            except Exception:
-                continue
+        await self._navigator.dismiss_interfering_dialogs(page)
 
     async def _handle_save_application_dialog(self, page) -> bool:
-        if self._is_page_closed(page):
-            return False
-        candidates = [
-            page.locator('[role="alertdialog"] [data-control-name="discard_application_confirm_btn"]').first,
-            page.locator('[role="alertdialog"] button').filter(has_text=re.compile(r"(discard|descartar)", re.IGNORECASE)).first,
-            page.get_by_role("button", name=re.compile(r"^(discard|descartar)$", re.IGNORECASE)).first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                await candidate.click(timeout=2000, force=True)
-                await page.wait_for_timeout(900)
-                return True
-            except Exception:
-                continue
-        return False
+        return await self._navigator.handle_save_application_dialog(page)
 
     @staticmethod
     def _is_page_closed(page) -> bool:
@@ -479,217 +456,22 @@ class LinkedInApplicationFlowInspector:
         return is_closed_target_error(exc)
 
     async def _try_fill_safe_fields(self, page) -> tuple[str, ...]:
-        if await page.locator('[role="dialog"]').count() == 0:
-            return ()
-        filled = await page.evaluate(
-            """
-            ({ email, phone, countryCode }) => {
-              const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-              const modal = document.querySelector('[role="dialog"]');
-              if (!modal) return [];
-
-              const fields = Array.from(modal.querySelectorAll('input, textarea, select'));
-              const descriptorFor = (node) => {
-                const parts = [];
-                const labelId = node.getAttribute('aria-labelledby');
-                if (labelId) {
-                  labelId.split(/\\s+/).forEach((id) => {
-                    const labelNode = document.getElementById(id);
-                    if (labelNode) parts.push(labelNode.textContent || '');
-                  });
-                }
-                const closestLabel = node.closest('label');
-                if (closestLabel) parts.push(closestLabel.textContent || '');
-                const parentText = node.parentElement ? node.parentElement.textContent || '' : '';
-                parts.push(parentText);
-                parts.push(node.getAttribute('aria-label') || '');
-                parts.push(node.getAttribute('name') || '');
-                parts.push(node.id || '');
-                return normalize(parts.join(' '));
-              };
-              const findField = (patterns, tagName) => {
-                return fields.find((field) => {
-                  if (tagName && field.tagName.toLowerCase() !== tagName) return false;
-                  const descriptor = descriptorFor(field);
-                  return patterns.some((pattern) => descriptor.includes(pattern));
-                });
-              };
-              const filled = [];
-              const dispatch = (node) => {
-                node.dispatchEvent(new Event('input', { bubbles: true }));
-                node.dispatchEvent(new Event('change', { bubbles: true }));
-                node.dispatchEvent(new Event('blur', { bubbles: true }));
-              };
-
-              if (email) {
-                const field = findField(['email'], null);
-                if (field && !field.disabled && !field.readOnly) {
-                  field.focus();
-                  field.value = email;
-                  dispatch(field);
-                  filled.push('email');
-                }
-              }
-
-              if (phone) {
-                const field = findField(['phone', 'telefone', 'celular'], null);
-                if (field && !field.disabled && !field.readOnly) {
-                  field.focus();
-                  field.value = phone;
-                  dispatch(field);
-                  filled.push('telefone');
-                }
-              }
-
-              if (countryCode) {
-                const field = findField(['country code', 'codigo do pais', 'código do país', 'country/region phone number'], 'select');
-                if (field && !field.disabled) {
-                  const options = Array.from(field.options || []);
-                  const target = options.find((option) => {
-                    const label = normalize(option.label || option.textContent || '');
-                    const value = normalize(option.value || '');
-                    return label.includes(normalize(countryCode)) || value.includes(normalize(countryCode));
-                  });
-                  if (target) {
-                    field.value = target.value;
-                    dispatch(field);
-                    filled.push('codigo_pais');
-                  }
-                }
-              }
-
-              return filled;
-            }
-            """,
-            {
-                "email": self.contact_email,
-                "phone": self.phone,
-                "countryCode": self.phone_country_code,
-            },
-        )
-        return tuple(filled)
+        return await self._modal_driver.try_fill_safe_fields(page)
 
     async def _try_advance_single_step(self, page) -> bool:
-        candidates = [
-            page.get_by_role(
-                "button",
-                name=re.compile(r"(next|continuar|avancar|avançar)", re.IGNORECASE),
-            ).first,
-            page.locator('[role="dialog"] button').filter(
-                has_text=re.compile(r"(next|continuar|avancar|avançar)", re.IGNORECASE)
-            ).first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                await candidate.scroll_into_view_if_needed()
-                await candidate.click(timeout=3000, force=True)
-                await page.wait_for_timeout(1200)
-                return True
-            except Exception:
-                continue
-        return False
+        return await self._modal_driver.try_advance_single_step(page)
 
     async def _try_upload_resume(self, page) -> bool:
-        if self.resume_path is None or not self.resume_path.exists():
-            return False
-        candidates = [
-            page.locator('[role="dialog"] input[type="file"]').first,
-            page.locator('input[type="file"]').first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                await candidate.set_input_files(str(self.resume_path))
-                return True
-            except Exception:
-                continue
-        return False
+        return await self._modal_driver.try_upload_resume(page)
 
     async def _try_open_review_step(self, page) -> bool:
-        candidates = [
-            page.get_by_role(
-                "button",
-                name=re.compile(r"(review|revisar)", re.IGNORECASE),
-            ).first,
-            page.locator('[role="dialog"] button').filter(
-                has_text=re.compile(r"(review|revisar)", re.IGNORECASE)
-            ).first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                await candidate.scroll_into_view_if_needed()
-                await candidate.click(timeout=3000, force=True)
-                await page.wait_for_timeout(1200)
-                return True
-            except Exception:
-                continue
-        return False
+        return await self._modal_driver.try_open_review_step(page)
 
     async def _try_close_modal(self, page) -> None:
-        if await page.locator('[role="dialog"]').count() == 0:
-            return
-        candidates = [
-            page.get_by_role("button", name=re.compile(r"(dismiss|close|fechar|cancel|cancelar|descartar)", re.IGNORECASE)).first,
-            page.locator('[role="dialog"] button[aria-label*="Dismiss"], [role="dialog"] button[aria-label*="Close"]').first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() > 0:
-                    await candidate.click()
-                    await page.wait_for_timeout(500)
-                    return
-            except Exception:
-                continue
+        await self._modal_driver.try_close_modal(page)
 
     async def _try_submit_application(self, page) -> bool:
-        candidates = [
-            page.get_by_role(
-                "button",
-                name=re.compile(r"(submit application|enviar candidatura)", re.IGNORECASE),
-            ).first,
-            page.locator('[role="dialog"] button').filter(
-                has_text=re.compile(r"(submit application|enviar candidatura)", re.IGNORECASE)
-            ).first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                await candidate.scroll_into_view_if_needed()
-                await candidate.click(timeout=4000, force=True)
-                await page.wait_for_timeout(2500)
-                if await self._detect_submit_success(page):
-                    return True
-            except Exception:
-                continue
-        return False
+        return await self._modal_driver.try_submit_application(page)
 
     async def _detect_submit_success(self, page) -> bool:
-        try:
-            return bool(
-                await page.evaluate(
-                    """
-                    () => {
-                      const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-                      const bodyText = normalize(document.body.innerText || "");
-                      const successHints = [
-                        "application submitted",
-                        "candidatura enviada",
-                        "your application was sent",
-                        "sua candidatura foi enviada",
-                      ];
-                      if (successHints.some((hint) => bodyText.includes(hint))) {
-                        return true;
-                      }
-                      return document.querySelector('[role="dialog"]') === null;
-                    }
-                    """
-                )
-            )
-        except Exception:
-            return False
+        return await self._modal_driver.detect_submit_success(page)
