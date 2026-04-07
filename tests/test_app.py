@@ -309,6 +309,14 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.applications_command, "prepare")
         self.assertEqual(args.id, 12)
 
+    async def test_parse_args_accepts_applications_create_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "create", "--job-id", "12"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "create")
+        self.assertEqual(args.job_id, 12)
+
     async def test_parse_args_accepts_applications_artifacts_command(self) -> None:
         with patch("sys.argv", ["main.py", "applications", "artifacts", "--limit", "2"]):
             args = parse_args()
@@ -341,6 +349,85 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
 
 
 class ApplicationCliTests(IsolatedAsyncioTestCase):
+    async def test_create_application_draft_for_job_creates_draft_for_approved_job(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+            def get_application_by_job(self, job_id: int):
+                return None
+
+        class _PreparationService:
+            def __init__(self) -> None:
+                self.calls: list[tuple[list[int], str]] = []
+
+            def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = ""):
+                self.calls.append((job_ids, notes))
+                return [
+                    JobApplication(
+                        id=15,
+                        job_id=job_ids[0],
+                        status="draft",
+                        support_level="manual_review",
+                    )
+                ]
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+        app.application_preparation = _PreparationService()
+
+        rendered = app.create_application_draft_for_job(10)
+
+        self.assertIn("Rascunho criado: application_id=15 job_id=10 status=draft", rendered)
+        self.assertEqual(
+            app.application_preparation.calls,
+            [([10], "rascunho criado via cli apos aprovacao humana")],
+        )
+
+    async def test_create_application_draft_for_job_reports_existing_application(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+            def get_application_by_job(self, job_id: int):
+                return JobApplication(
+                    id=21,
+                    job_id=job_id,
+                    status="confirmed",
+                    support_level="manual_review",
+                )
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+        app.application_preparation = object()
+
+        rendered = app.create_application_draft_for_job(10)
+
+        self.assertEqual(
+            rendered,
+            "Candidatura ja existe para a vaga: application_id=21 status=confirmed job_id=10",
+        )
+
+    async def test_create_application_draft_for_job_rejects_non_approved_job(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="collected")
+
+            def get_application_by_job(self, job_id: int):
+                return None
+
+        class _PreparationService:
+            def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = ""):
+                return []
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+        app.application_preparation = _PreparationService()
+
+        rendered = app.create_application_draft_for_job(10)
+
+        self.assertEqual(rendered, "Vaga ainda nao foi aprovada para criar candidatura: id=10")
+
     async def test_list_applications_renders_existing_items(self) -> None:
         class _Repository:
             def list_applications_by_status(self, status: str):

@@ -159,6 +159,28 @@ class JobHunterApplication:
         self.repository.mark_status(job_id, next_status)
         return detail
 
+    def create_application_draft_for_job(self, job_id: int) -> str:
+        job = self.repository.get_job(job_id)
+        if job is None:
+            return f"Vaga nao encontrada: id={job_id}"
+        existing = self.repository.get_application_by_job(job_id)
+        if existing is not None:
+            return (
+                f"Candidatura ja existe para a vaga: application_id={existing.id} "
+                f"status={existing.status} job_id={job_id}"
+            )
+        drafts = self.application_preparation.create_drafts_for_approved_jobs(
+            [job_id],
+            notes="rascunho criado via cli apos aprovacao humana",
+        )
+        if not drafts:
+            return f"Vaga ainda nao foi aprovada para criar candidatura: id={job_id}"
+        draft = drafts[0]
+        return (
+            f"Rascunho criado: application_id={draft.id} job_id={job_id} "
+            f"status={draft.status} suporte={draft.support_level}"
+        )
+
     def show_application_events(self, application_id: int, *, limit: int = 10) -> str:
         application = self.repository.get_application(application_id)
         if application is None:
@@ -376,6 +398,12 @@ def parse_args() -> argparse.Namespace:
         help="Filtra por status de candidatura.",
     )
 
+    applications_create_parser = applications_subparsers.add_parser(
+        "create",
+        help="Cria um rascunho de candidatura para uma vaga aprovada.",
+    )
+    applications_create_parser.add_argument("--job-id", type=int, required=True, help="ID da vaga aprovada.")
+
     applications_show_parser = applications_subparsers.add_parser("show", help="Mostra uma candidatura.")
     applications_show_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
 
@@ -473,6 +501,9 @@ def run() -> None:
         if args.applications_command == "list":
             status = APPLICATION_STATUS_ALIASES.get(args.status, args.status)
             print(app.list_applications(status=status))
+            return
+        if args.applications_command == "create":
+            print(app.create_application_draft_for_job(args.job_id))
             return
         if args.applications_command == "show":
             print(app.show_application(args.id))

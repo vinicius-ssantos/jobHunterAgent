@@ -294,6 +294,12 @@ python main.py applications list
 python main.py applications list --status confirmed
 ```
 
+Criar um rascunho de candidatura a partir de uma vaga aprovada:
+
+```bash
+python main.py applications create --job-id 17
+```
+
 Inspecionar uma candidatura especifica:
 
 ```bash
@@ -303,10 +309,23 @@ python main.py applications show --id 2
 Rodar o fluxo operacional sem `python -c`:
 
 ```bash
+python main.py jobs approve --id 17
+python main.py applications create --job-id 17
+python main.py applications prepare --id 2
+python main.py applications confirm --id 2
 python main.py applications preflight --id 2
 python main.py applications authorize --id 2
 python main.py applications submit --id 2
+python main.py applications artifacts --limit 5
 ```
+
+Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
+
+- revisar vagas (`jobs list`, `jobs approve`, `jobs reject`)
+- criar e inspecionar rascunhos (`applications create`, `applications list`, `applications show`)
+- avancar estados (`prepare`, `confirm`, `cancel`)
+- validar e enviar (`preflight`, `authorize`, `submit`)
+- consultar falhas recentes (`artifacts`, `events`)
 
 Dry-run de limpeza controlada de jobs antigos poluidos:
 

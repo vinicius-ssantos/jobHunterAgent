@@ -67,21 +67,21 @@ Regra da fase atual:
 ## P0: UX Operacional
 
 - [x] Eliminar operacao por `python -c` para tarefas frequentes
-- [ ] Fechar cobertura operacional completa por CLI para que o fluxo nao dependa do Telegram como unico caminho de execucao
+- [x] Fechar cobertura operacional completa por CLI para que o fluxo nao dependa do Telegram como unico caminho de execucao
 - [ ] Criar comandos claros para:
   - [x] listar vagas pendentes de revisao
   - [x] aprovar vaga
   - [x] rejeitar vaga
   - [x] listar vagas aprovadas
   - [x] listar candidaturas
-  - [ ] preparar candidatura
-  - [ ] confirmar candidatura
-  - [ ] cancelar candidatura
+  - [x] preparar candidatura
+  - [x] confirmar candidatura
+  - [x] cancelar candidatura
   - [x] rodar preflight
   - [x] autorizar submit
   - [x] executar submit
-  - [ ] ver artefatos da ultima falha
-- [ ] Explicitar na UX que parte do fluxo ja possui CLI, mas algumas transicoes de review ainda precisam de cobertura equivalente ao Telegram
+  - [x] ver artefatos da ultima falha
+- [x] Explicitar na UX que CLI e Telegram cobrem o fluxo operacional principal, com Telegram opcional para revisao assincrona
 - [ ] Definir uma interface principal:
   - [ ] Telegram como interface de operacao principal
   - [ ] CLI como fallback tecnico
@@ -476,9 +476,9 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 ## Definicao de Conclusao da Fase
 
-- [ ] Fluxo de candidatura assistida opera sem `python -c`
-- [ ] Historico operacional deixa de depender de texto livre acumulado
+- [x] Fluxo de candidatura assistida opera sem `python -c`
+- [x] Historico operacional deixa de depender de texto livre acumulado
 - [ ] Casos `similar jobs` e `perguntas adicionais` ficam claramente classificados
-- [ ] Regressao operacional principal permanece verde
-- [ ] Estrutura do codigo fica mais modular no fluxo LinkedIn
-- [ ] Telegram ou CLI passam a ser suficientes para operar o produto com seguranca
+- [x] Regressao operacional principal permanece verde
+- [x] Estrutura do codigo fica mais modular no fluxo LinkedIn
+- [x] Telegram ou CLI passam a ser suficientes para operar o produto com seguranca
