@@ -94,6 +94,8 @@ class JobRepository(Protocol):
         *,
         status: str,
         notes: Optional[str] = None,
+        last_preflight_detail: Optional[str] = None,
+        last_submit_detail: Optional[str] = None,
         last_error: Optional[str] = None,
         submitted_at: Optional[str] = None,
     ) -> None:
@@ -217,6 +219,8 @@ class SqliteJobRepository:
                     support_level TEXT NOT NULL DEFAULT 'manual_review',
                     support_rationale TEXT NOT NULL DEFAULT '',
                     notes TEXT NOT NULL DEFAULT '',
+                    last_preflight_detail TEXT NOT NULL DEFAULT '',
+                    last_submit_detail TEXT NOT NULL DEFAULT '',
                     last_error TEXT NOT NULL DEFAULT '',
                     submitted_at TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -266,6 +270,14 @@ class SqliteJobRepository:
         if "support_rationale" not in columns:
             connection.execute(
                 "ALTER TABLE job_applications ADD COLUMN support_rationale TEXT NOT NULL DEFAULT ''"
+            )
+        if "last_preflight_detail" not in columns:
+            connection.execute(
+                "ALTER TABLE job_applications ADD COLUMN last_preflight_detail TEXT NOT NULL DEFAULT ''"
+            )
+        if "last_submit_detail" not in columns:
+            connection.execute(
+                "ALTER TABLE job_applications ADD COLUMN last_submit_detail TEXT NOT NULL DEFAULT ''"
             )
 
     def save_new_jobs(self, jobs: list[JobPosting]) -> list[JobPosting]:
@@ -536,7 +548,8 @@ class SqliteJobRepository:
             )
             row = connection.execute(
                 """
-                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes,
+                       last_preflight_detail, last_submit_detail, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE id = ?
                 """,
@@ -548,7 +561,8 @@ class SqliteJobRepository:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes,
+                       last_preflight_detail, last_submit_detail, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE job_id = ?
                 """,
@@ -560,7 +574,8 @@ class SqliteJobRepository:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes,
+                       last_preflight_detail, last_submit_detail, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE id = ?
                 """,
@@ -574,6 +589,8 @@ class SqliteJobRepository:
         *,
         status: str,
         notes: Optional[str] = None,
+        last_preflight_detail: Optional[str] = None,
+        last_submit_detail: Optional[str] = None,
         last_error: Optional[str] = None,
         submitted_at: Optional[str] = None,
     ) -> None:
@@ -582,7 +599,7 @@ class SqliteJobRepository:
         with self._connect() as connection:
             current = connection.execute(
                 """
-                SELECT status, notes, last_error, submitted_at
+                SELECT status, notes, last_preflight_detail, last_submit_detail, last_error, submitted_at
                 FROM job_applications
                 WHERE id = ?
                 """,
@@ -592,17 +609,21 @@ class SqliteJobRepository:
                 raise ValueError(f"Application not found: {application_id}")
             previous_status = current[0]
             resolved_notes = current[1] if notes is None else notes
-            resolved_error = current[2] if last_error is None else last_error
-            resolved_submitted_at = current[3] if submitted_at is None else submitted_at
+            resolved_preflight = current[2] if last_preflight_detail is None else last_preflight_detail
+            resolved_submit = current[3] if last_submit_detail is None else last_submit_detail
+            resolved_error = current[4] if last_error is None else last_error
+            resolved_submitted_at = current[5] if submitted_at is None else submitted_at
             connection.execute(
                 """
                 UPDATE job_applications
-                SET status = ?, notes = ?, last_error = ?, submitted_at = ?, updated_at = ?
+                SET status = ?, notes = ?, last_preflight_detail = ?, last_submit_detail = ?, last_error = ?, submitted_at = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     status,
                     resolved_notes,
+                    resolved_preflight,
+                    resolved_submit,
                     resolved_error,
                     resolved_submitted_at,
                     datetime.now().isoformat(timespec="seconds"),
@@ -621,7 +642,8 @@ class SqliteJobRepository:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, job_id, status, support_level, support_rationale, notes, last_error, created_at, updated_at, submitted_at
+                SELECT id, job_id, status, support_level, support_rationale, notes,
+                       last_preflight_detail, last_submit_detail, last_error, created_at, updated_at, submitted_at
                 FROM job_applications
                 WHERE status = ?
                 ORDER BY updated_at DESC, id DESC
@@ -803,10 +825,12 @@ class SqliteJobRepository:
             support_level=row[3],
             support_rationale=row[4],
             notes=row[5],
-            last_error=row[6],
-            created_at=row[7],
-            updated_at=row[8],
-            submitted_at=row[9],
+            last_preflight_detail=row[6],
+            last_submit_detail=row[7],
+            last_error=row[8],
+            created_at=row[9],
+            updated_at=row[10],
+            submitted_at=row[11],
         )
 
     @staticmethod

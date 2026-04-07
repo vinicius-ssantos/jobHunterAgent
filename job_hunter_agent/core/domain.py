@@ -93,6 +93,8 @@ class JobApplication:
     support_level: str = "manual_review"
     support_rationale: str = ""
     notes: str = ""
+    last_preflight_detail: str = ""
+    last_submit_detail: str = ""
     last_error: str = ""
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

@@ -333,7 +333,9 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
                     job_id=10,
                     status="confirmed",
                     support_level="manual_review",
-                    notes="preflight real ok",
+                    notes="contexto humano",
+                    last_preflight_detail="preflight real ok",
+                    last_submit_detail="submissao ainda nao executada",
                 )
 
             def get_job(self, job_id: int):
@@ -358,6 +360,8 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         rendered = app.show_application(2)
 
         self.assertIn("eventos_recentes:", rendered)
+        self.assertIn("last_preflight_detail=preflight real ok", rendered)
+        self.assertIn("last_submit_detail=submissao ainda nao executada", rendered)
         self.assertIn("preflight_ready", rendered)
         self.assertIn("CTA encontrado", rendered)
 
@@ -369,7 +373,17 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
             def get_application(self, application_id: int):
                 return JobApplication(id=application_id, job_id=5, status="confirmed")
 
-            def mark_application_status(self, application_id: int, *, status: str, notes=None, last_error=None, submitted_at=None):
+            def mark_application_status(
+                self,
+                application_id: int,
+                *,
+                status: str,
+                notes=None,
+                last_preflight_detail=None,
+                last_submit_detail=None,
+                last_error=None,
+                submitted_at=None,
+            ):
                 self.marked.append((application_id, status))
 
         app = JobHunterApplication.__new__(JobHunterApplication)

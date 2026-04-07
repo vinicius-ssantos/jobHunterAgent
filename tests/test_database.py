@@ -286,6 +286,8 @@ class SqliteJobRepositoryTests(unittest.TestCase):
 
         self.assertEqual(stored.status, "submitted")
         self.assertEqual(stored.notes, "autorizado manualmente para envio")
+        self.assertEqual(stored.last_preflight_detail, "")
+        self.assertEqual(stored.last_submit_detail, "")
         self.assertEqual(stored.submitted_at, "2026-04-04T10:00:00")
         self.assertEqual(summary["total"], 1)
         self.assertEqual(summary["authorized_submit"], 0)
@@ -582,6 +584,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.application_status, "confirmed")
         self.assertEqual(stored.status, "confirmed")
         self.assertEqual(stored.notes, "contexto humano preservado")
+        self.assertIn("preflight ok", stored.last_preflight_detail)
         self.assertEqual(stored.last_error, "")
         latest_event = self.repository.list_application_events(application.id, limit=1)[0]
         self.assertEqual(latest_event.event_type, "preflight_ready")
@@ -615,6 +618,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.outcome, "ready")
         self.assertEqual(stored.status, "confirmed")
         self.assertEqual(stored.notes, "contexto humano preservado")
+        self.assertIn("preflight real ok", stored.last_preflight_detail)
         latest_event = self.repository.list_application_events(application.id, limit=1)[0]
         self.assertEqual(latest_event.event_type, "preflight_ready")
         self.assertIn("preflight real ok", latest_event.detail)
@@ -664,6 +668,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(stored.status, "submitted")
         self.assertEqual(stored.submitted_at, "2026-04-05T10:00:00")
         self.assertEqual(stored.notes, "contexto humano preservado")
+        self.assertIn("submissao real concluida", stored.last_submit_detail)
         latest_event = self.repository.list_application_events(application.id, limit=1)[0]
         self.assertEqual(latest_event.event_type, "submit_submitted")
         self.assertIn("submissao real concluida", latest_event.detail)
@@ -693,6 +698,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.outcome, "blocked")
         self.assertEqual(result.application_status, "error_submit")
         self.assertEqual(stored.status, "error_submit")
+        self.assertIn("CTA nao encontrado", stored.last_preflight_detail)
         self.assertIn("CTA nao encontrado", stored.last_error)
 
     def test_application_preflight_moves_unsupported_to_error_submit(self) -> None:
@@ -710,4 +716,5 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.outcome, "blocked")
         self.assertEqual(result.application_status, "error_submit")
         self.assertEqual(stored.status, "error_submit")
+        self.assertIn("nao suportado", stored.last_preflight_detail)
         self.assertIn("nao suportado", stored.last_error)

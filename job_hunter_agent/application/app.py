@@ -129,6 +129,8 @@ class JobHunterApplication:
             f"empresa={job_company}",
             f"suporte={application.support_level}",
             f"url={job_url}",
+            f"last_preflight_detail={application.last_preflight_detail or '-'}",
+            f"last_submit_detail={application.last_submit_detail or '-'}",
             f"last_error={application.last_error or '-'}",
             f"submitted_at={application.submitted_at or '-'}",
             f"notes={application.notes or '-'}",

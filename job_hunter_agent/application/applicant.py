@@ -195,6 +195,7 @@ class ApplicationPreflightService:
             self.repository.mark_application_status(
                 application.id,
                 status="error_submit",
+                last_preflight_detail=detail,
                 last_error=detail,
             )
             _record_application_event(
@@ -221,6 +222,7 @@ class ApplicationPreflightService:
                     self.repository.mark_application_status(
                         application.id,
                         status="confirmed",
+                        last_preflight_detail=detail,
                         last_error="",
                     )
                     _record_application_event(
@@ -241,6 +243,7 @@ class ApplicationPreflightService:
                         self.repository.mark_application_status(
                             application.id,
                             status="confirmed",
+                            last_preflight_detail=inspection.detail,
                             last_error="",
                         )
                         _record_application_event(
@@ -260,6 +263,7 @@ class ApplicationPreflightService:
                         self.repository.mark_application_status(
                             application.id,
                             status="confirmed",
+                            last_preflight_detail=inspection.detail,
                             last_error="",
                         )
                         _record_application_event(
@@ -279,6 +283,7 @@ class ApplicationPreflightService:
                     self.repository.mark_application_status(
                         application.id,
                         status="error_submit",
+                        last_preflight_detail=detail,
                         last_error=detail,
                     )
                     _record_application_event(
@@ -301,6 +306,7 @@ class ApplicationPreflightService:
             self.repository.mark_application_status(
                 application.id,
                 status="confirmed",
+                last_preflight_detail=detail,
                 last_error="",
             )
             _record_application_event(
@@ -321,6 +327,7 @@ class ApplicationPreflightService:
         self.repository.mark_application_status(
             application.id,
             status="error_submit",
+            last_preflight_detail=detail,
             last_error=detail,
         )
         _record_application_event(
@@ -372,6 +379,7 @@ class ApplicationSubmissionService:
             self.repository.mark_application_status(
                 application.id,
                 status="authorized_submit",
+                last_submit_detail=detail,
                 last_error="",
             )
             _record_application_event(
@@ -395,6 +403,7 @@ class ApplicationSubmissionService:
             self.repository.mark_application_status(
                 application.id,
                 status="error_submit",
+                last_submit_detail=detail,
                 last_error=detail,
             )
             _record_application_event(
@@ -420,6 +429,7 @@ class ApplicationSubmissionService:
             self.repository.mark_application_status(
                 application.id,
                 status="submitted",
+                last_submit_detail=detail,
                 last_error="",
                 submitted_at=submitted_at,
             )
@@ -440,6 +450,7 @@ class ApplicationSubmissionService:
         self.repository.mark_application_status(
             application.id,
             status="error_submit",
+            last_submit_detail=detail,
             last_error=detail,
         )
         _record_application_event(
