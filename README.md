@@ -309,6 +309,8 @@ python main.py applications show --id 2
 Rodar o fluxo operacional sem `python -c`:
 
 ```bash
+python main.py status
+python main.py jobs show --id 17
 python main.py jobs approve --id 17
 python main.py applications create --job-id 17
 python main.py applications prepare --id 2
@@ -321,6 +323,7 @@ python main.py applications artifacts --limit 5
 
 Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
 
+- acompanhar a fila e o estado geral (`status`, `jobs show`, `applications show`, `applications events`)
 - revisar vagas (`jobs list`, `jobs approve`, `jobs reject`)
 - criar e inspecionar rascunhos (`applications create`, `applications list`, `applications show`)
 - avancar estados (`prepare`, `confirm`, `cancel`)

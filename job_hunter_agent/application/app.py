@@ -149,6 +149,52 @@ class JobHunterApplication:
             return f"Nenhuma vaga encontrada para status={filter_text}."
         return "\n".join([f"Vagas listadas: {total}"] + lines)
 
+    def show_job(self, job_id: int) -> str:
+        job = self.repository.get_job(job_id)
+        if job is None:
+            return f"Vaga nao encontrada: id={job_id}"
+        application = self.repository.get_application_by_job(job_id)
+        lines = [
+            f"id={job.id}",
+            f"status={job.status}",
+            f"titulo={job.title}",
+            f"empresa={job.company}",
+            f"local={job.location}",
+            f"modalidade={job.work_mode}",
+            f"salario={job.salary_text}",
+            f"relevancia={job.relevance}",
+            f"fonte={job.source_site}",
+            f"url={job.url}",
+            f"rationale={job.rationale}",
+            f"summary={job.summary}",
+            f"application_id={application.id if application is not None else '-'}",
+            f"application_status={application.status if application is not None else '-'}",
+        ]
+        return "\n".join(lines)
+
+    def show_status_overview(self) -> str:
+        job_summary = self.repository.summary()
+        application_summary = self.repository.application_summary()
+        lines = [
+            "Resumo operacional:",
+            "vagas:",
+            f"- total={job_summary['total']}",
+            f"- collected={job_summary['collected']}",
+            f"- approved={job_summary['approved']}",
+            f"- rejected={job_summary['rejected']}",
+            f"- error_collect={job_summary['error_collect']}",
+            "candidaturas:",
+            f"- total={application_summary['total']}",
+            f"- draft={application_summary['draft']}",
+            f"- ready_for_review={application_summary['ready_for_review']}",
+            f"- confirmed={application_summary['confirmed']}",
+            f"- authorized_submit={application_summary['authorized_submit']}",
+            f"- submitted={application_summary['submitted']}",
+            f"- error_submit={application_summary['error_submit']}",
+            f"- cancelled={application_summary['cancelled']}",
+        ]
+        return "\n".join(lines)
+
     def review_job(self, job_id: int, action: str) -> str:
         job = self.repository.get_job(job_id)
         if job is None:
@@ -370,6 +416,7 @@ def parse_args() -> argparse.Namespace:
         help="Abre o Chromium para exportar o storage_state autenticado do LinkedIn.",
     )
     subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("status", help="Mostra um resumo operacional de vagas e candidaturas.")
     jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
     jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", required=True)
 
@@ -386,6 +433,9 @@ def parse_args() -> argparse.Namespace:
 
     jobs_reject_parser = jobs_subparsers.add_parser("reject", help="Rejeita uma vaga coletada.")
     jobs_reject_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
+
+    jobs_show_parser = jobs_subparsers.add_parser("show", help="Mostra o detalhe de uma vaga.")
+    jobs_show_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
 
     applications_parser = subparsers.add_parser("applications", help="Operacoes de candidaturas.")
     applications_subparsers = applications_parser.add_subparsers(dest="applications_command", required=True)
@@ -484,11 +534,18 @@ def run() -> None:
         settings = load_settings()
         asyncio.run(bootstrap_linkedin_storage_state(settings))
         return
+    if args.command == "status":
+        app = JobHunterApplication(enable_telegram=not args.sem_telegram)
+        print(app.show_status_overview())
+        return
     if args.command == "jobs":
         app = JobHunterApplication(enable_telegram=not args.sem_telegram)
         if args.jobs_command == "list":
             status = JOB_STATUS_ALIASES.get(args.status, args.status)
             print(app.list_jobs(status=status))
+            return
+        if args.jobs_command == "show":
+            print(app.show_job(args.id))
             return
         if args.jobs_command == "approve":
             print(app.review_job(args.id, "approve"))

@@ -85,7 +85,7 @@ Regra da fase atual:
 - [ ] Definir uma interface principal:
   - [ ] Telegram como interface de operacao principal
   - [ ] CLI como fallback tecnico
-- [ ] Tornar o fluxo humano rastreavel sem editar estado manualmente no banco
+- [x] Tornar o fluxo humano rastreavel sem editar estado manualmente no banco
 
 ## P1: Melhorias Estruturais
 
@@ -395,8 +395,8 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 - [ ] Avaliar a necessidade de um estado consolidado equivalente a `pronta para decisao final`
 - [ ] Garantir que OpenClaw nao altere estado critico fora das interfaces publicas e controladas do sistema
 - [ ] Avaliar a necessidade de expor operacoes formais para o operador externo:
-  - [ ] listar fila
-  - [ ] detalhar vaga
+  - [x] listar fila
+  - [x] detalhar vaga
   - [ ] aprovar ou rejeitar
   - [ ] preparar candidatura
   - [ ] rodar preflight

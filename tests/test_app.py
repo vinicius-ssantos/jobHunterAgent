@@ -293,12 +293,26 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.jobs_command, "list")
         self.assertEqual(args.status, "pending")
 
+    async def test_parse_args_accepts_status_command(self) -> None:
+        with patch("sys.argv", ["main.py", "status"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "status")
+
     async def test_parse_args_accepts_jobs_approve_command(self) -> None:
         with patch("sys.argv", ["main.py", "jobs", "approve", "--id", "11"]):
             args = parse_args()
 
         self.assertEqual(args.command, "jobs")
         self.assertEqual(args.jobs_command, "approve")
+        self.assertEqual(args.id, 11)
+
+    async def test_parse_args_accepts_jobs_show_command(self) -> None:
+        with patch("sys.argv", ["main.py", "jobs", "show", "--id", "11"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "jobs")
+        self.assertEqual(args.jobs_command, "show")
         self.assertEqual(args.id, 11)
 
     async def test_parse_args_accepts_applications_prepare_command(self) -> None:
@@ -349,6 +363,39 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
 
 
 class ApplicationCliTests(IsolatedAsyncioTestCase):
+    async def test_show_status_overview_renders_job_and_application_counts(self) -> None:
+        class _Repository:
+            def summary(self):
+                return {
+                    "total": 3,
+                    "collected": 1,
+                    "approved": 1,
+                    "rejected": 1,
+                    "error_collect": 0,
+                }
+
+            def application_summary(self):
+                return {
+                    "total": 2,
+                    "draft": 1,
+                    "ready_for_review": 0,
+                    "confirmed": 1,
+                    "authorized_submit": 0,
+                    "submitted": 0,
+                    "error_submit": 0,
+                    "cancelled": 0,
+                }
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.show_status_overview()
+
+        self.assertIn("Resumo operacional:", rendered)
+        self.assertIn("- approved=1", rendered)
+        self.assertIn("- draft=1", rendered)
+        self.assertIn("- confirmed=1", rendered)
+
     async def test_create_application_draft_for_job_creates_draft_for_approved_job(self) -> None:
         class _Repository:
             def get_job(self, job_id: int):
@@ -427,6 +474,29 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         rendered = app.create_application_draft_for_job(10)
 
         self.assertEqual(rendered, "Vaga ainda nao foi aprovada para criar candidatura: id=10")
+
+    async def test_show_job_renders_job_detail_with_linked_application(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+            def get_application_by_job(self, job_id: int):
+                return JobApplication(
+                    id=4,
+                    job_id=job_id,
+                    status="confirmed",
+                    support_level="manual_review",
+                )
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.show_job(10)
+
+        self.assertIn("titulo=Backend Java", rendered)
+        self.assertIn("empresa=ACME", rendered)
+        self.assertIn("application_id=4", rendered)
+        self.assertIn("application_status=confirmed", rendered)
 
     async def test_list_applications_renders_existing_items(self) -> None:
         class _Repository:
