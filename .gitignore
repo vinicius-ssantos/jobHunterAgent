@@ -12,3 +12,7 @@ jobs.db
 .idea/
 logs/
 *.docx
+/.artifacts/
+/*.log
+/*.zip
+/*.pdf
