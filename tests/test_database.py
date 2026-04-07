@@ -569,6 +569,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
         application = self.repository.create_application_draft(
             saved.id,
+            notes="contexto humano preservado",
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
@@ -580,14 +581,17 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.outcome, "ready")
         self.assertEqual(result.application_status, "confirmed")
         self.assertEqual(stored.status, "confirmed")
-        self.assertIn("preflight ok", stored.notes)
+        self.assertEqual(stored.notes, "contexto humano preservado")
         self.assertEqual(stored.last_error, "")
-        self.assertEqual(self.repository.list_application_events(application.id, limit=1)[0].event_type, "preflight_ready")
+        latest_event = self.repository.list_application_events(application.id, limit=1)[0]
+        self.assertEqual(latest_event.event_type, "preflight_ready")
+        self.assertIn("preflight ok", latest_event.detail)
 
     def test_application_preflight_uses_real_flow_inspector_when_available(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
         application = self.repository.create_application_draft(
             saved.id,
+            notes="contexto humano preservado",
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
@@ -610,7 +614,10 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(inspector.called_with, ["https://www.linkedin.com/jobs/view/123"])
         self.assertEqual(result.outcome, "ready")
         self.assertEqual(stored.status, "confirmed")
-        self.assertIn("preflight real ok", stored.notes)
+        self.assertEqual(stored.notes, "contexto humano preservado")
+        latest_event = self.repository.list_application_events(application.id, limit=1)[0]
+        self.assertEqual(latest_event.event_type, "preflight_ready")
+        self.assertIn("preflight real ok", latest_event.detail)
 
     def test_application_submission_requires_authorized_status(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
@@ -641,6 +648,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
         application = self.repository.create_application_draft(
             saved.id,
+            notes="contexto humano preservado",
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
@@ -655,8 +663,10 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.application_status, "submitted")
         self.assertEqual(stored.status, "submitted")
         self.assertEqual(stored.submitted_at, "2026-04-05T10:00:00")
-        self.assertIn("submissao real concluida", stored.notes)
-        self.assertEqual(self.repository.list_application_events(application.id, limit=1)[0].event_type, "submit_submitted")
+        self.assertEqual(stored.notes, "contexto humano preservado")
+        latest_event = self.repository.list_application_events(application.id, limit=1)[0]
+        self.assertEqual(latest_event.event_type, "submit_submitted")
+        self.assertIn("submissao real concluida", latest_event.detail)
 
     def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
