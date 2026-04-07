@@ -12,6 +12,8 @@ from job_hunter_agent.collectors.linkedin_application_artifacts import (
     is_closed_target_error,
     is_page_closed,
 )
+from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyApplyModalDriver
+from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationInspection,
     LinkedInApplicationPageState,
@@ -51,6 +53,14 @@ class LinkedInApplicationFlowInspector:
         self.modal_interpreter = modal_interpreter
         self.save_failure_artifacts = save_failure_artifacts
         self.failure_artifacts_dir = Path(failure_artifacts_dir).resolve() if failure_artifacts_dir else None
+        self._navigator = LinkedInEasyApplyNavigator()
+        self._modal_driver = LinkedInEasyApplyModalDriver(
+            resume_path=self.resume_path,
+            contact_email=self.contact_email,
+            phone=self.phone,
+            phone_country_code=self.phone_country_code,
+            modal_interpreter=self.modal_interpreter,
+        )
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
         if "linkedin.com/jobs/" not in job.url.lower():
@@ -360,157 +370,19 @@ class LinkedInApplicationFlowInspector:
         *,
         close_modal: bool = True,
     ) -> LinkedInApplicationPageState:
-        state = initial_state
-        opened = False
-        for _ in range(2):
-            await self._try_open_easy_apply_modal(page)
-            await page.wait_for_timeout(2500)
-            state = await self._read_page_state(page)
-            if state.modal_open:
-                opened = True
-                break
-        if not opened:
-            return state
-
-        all_filled_fields: tuple[str, ...] = ()
-        progressed = False
-        uploaded_resume = False
-        reached_review_step = False
-        ready_to_submit = False
-
-        for _ in range(5):
-            filled_fields = await self._try_fill_safe_fields(page)
-            if filled_fields:
-                all_filled_fields = tuple(dict.fromkeys((*all_filled_fields, *filled_fields)))
-                await page.wait_for_timeout(1200)
-            state = await self._read_page_state(page)
-            if all_filled_fields:
-                state = LinkedInApplicationPageState(
-                    **{
-                        **state.__dict__,
-                        "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
-                    }
-                )
-
-            if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
-                ready_to_submit = True
-                break
-
-            moved = False
-            interpretation = self._interpret_modal_state(state)
-            action = interpretation.recommended_action
-            if action == "submit_if_authorized" and state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
-                ready_to_submit = True
-                break
-            if action == "upload_resume" and state.modal_open and state.modal_file_upload and not uploaded_resume:
-                uploaded_resume = await self._try_upload_resume(page)
-                if uploaded_resume:
-                    moved = True
-                    await page.wait_for_timeout(1800)
-                    state = await self._read_page_state(page)
-            elif action == "open_review" and state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
-                review_opened = await self._try_open_review_step(page)
-                if review_opened:
-                    reached_review_step = True
-                    moved = True
-                    await page.wait_for_timeout(1800)
-                    state = await self._read_page_state(page)
-            elif action == "click_next" and state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
-                next_progressed = await self._try_advance_single_step(page)
-                if next_progressed:
-                    progressed = True
-                    moved = True
-                    await page.wait_for_timeout(2200)
-                    state = await self._read_page_state(page)
-            elif state.modal_open and state.modal_file_upload and not uploaded_resume:
-                uploaded_resume = await self._try_upload_resume(page)
-                if uploaded_resume:
-                    moved = True
-                    await page.wait_for_timeout(1800)
-                    state = await self._read_page_state(page)
-            elif state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
-                review_opened = await self._try_open_review_step(page)
-                if review_opened:
-                    reached_review_step = True
-                    moved = True
-                    await page.wait_for_timeout(1800)
-                    state = await self._read_page_state(page)
-            elif state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
-                next_progressed = await self._try_advance_single_step(page)
-                if next_progressed:
-                    progressed = True
-                    moved = True
-                    await page.wait_for_timeout(2200)
-                    state = await self._read_page_state(page)
-
-            if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
-                ready_to_submit = True
-                break
-            if not moved:
-                break
-
-        if progressed:
-            state = LinkedInApplicationPageState(
-                **{
-                    **state.__dict__,
-                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
-                    "progressed_to_next_step": True,
-                }
-            )
-        elif all_filled_fields:
-            state = LinkedInApplicationPageState(
-                **{
-                    **state.__dict__,
-                    "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
-                }
-            )
-        if uploaded_resume:
-            state = LinkedInApplicationPageState(
-                **{
-                    **state.__dict__,
-                    "uploaded_resume": True,
-                }
-            )
-        if reached_review_step:
-            state = LinkedInApplicationPageState(
-                **{
-                    **state.__dict__,
-                    "reached_review_step": True,
-                }
-            )
-        if ready_to_submit:
-            state = LinkedInApplicationPageState(
-                **{
-                    **state.__dict__,
-                    "ready_to_submit": True,
-                }
-            )
-        if close_modal:
-            await self._try_close_modal(page)
-        return state
+        return await self._modal_driver.inspect_easy_apply_modal(
+            page,
+            initial_state=initial_state,
+            read_page_state=self._read_page_state,
+            try_open_easy_apply_modal=self._try_open_easy_apply_modal,
+            close_modal=close_modal,
+        )
 
     def _interpret_modal_state(self, state: LinkedInApplicationPageState):
-        if self.modal_interpreter is None:
-            from job_hunter_agent.collectors.linkedin_modal_llm import deterministic_interpret_linkedin_modal
-
-            return deterministic_interpret_linkedin_modal(state)
-        try:
-            return self.modal_interpreter(state)
-        except Exception:
-            from job_hunter_agent.collectors.linkedin_modal_llm import deterministic_interpret_linkedin_modal
-
-            return deterministic_interpret_linkedin_modal(state)
+        return self._modal_driver.interpret_modal_state(state)
 
     def _format_modal_interpretation_for_error(self, state: LinkedInApplicationPageState) -> str:
-        if not state.modal_open:
-            return ""
-        try:
-            from job_hunter_agent.collectors.linkedin_modal_llm import format_linkedin_modal_interpretation
-
-            interpretation = self._interpret_modal_state(state)
-            return f" | {format_linkedin_modal_interpretation(interpretation)}"
-        except Exception:
-            return ""
+        return self._modal_driver.format_modal_interpretation_for_error(state)
 
     async def _capture_failure_artifacts(self, page, *, state: LinkedInApplicationPageState, job: JobPosting, phase: str, detail: str) -> str:
         return await capture_failure_artifacts(
@@ -548,217 +420,19 @@ class LinkedInApplicationFlowInspector:
         )
 
     async def _try_open_easy_apply_modal(self, page) -> bool:
-        await self._dismiss_interfering_dialogs(page)
-        candidates = [
-            page.locator('.jobs-search__job-details--container a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
-            page.locator('.jobs-details-top-card a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
-            page.locator('.jobs-search__job-details--container [data-live-test-job-apply-button] button, .jobs-search__job-details--container button[data-live-test-job-apply-button]').first,
-            page.locator('.jobs-search__job-details--container [data-control-name="jobdetails_topcard_inapply"]').first,
-            page.locator('.jobs-search__job-details--container [data-control-name="topcard_inapply"]').first,
-            page.locator('.jobs-search__job-details--container [data-control-name="jobs-details-top-card-apply-button"]').first,
-            page.locator('.jobs-search__job-details--container .jobs-apply-button--top-card button').first,
-            page.locator('.jobs-search__job-details--container .jobs-s-apply button').first,
-            page.locator('.jobs-search__job-details--container button.jobs-apply-button').first,
-            page.locator('.jobs-search__job-details--container button[aria-label*="Easy Apply" i]').first,
-            page.locator('.jobs-search__job-details--container button[aria-label*="Candidatura simplificada" i]').first,
-            page.locator('.jobs-details-top-card [data-live-test-job-apply-button] button, .jobs-details-top-card button[data-live-test-job-apply-button]').first,
-            page.locator('.jobs-details-top-card [data-control-name="jobdetails_topcard_inapply"]').first,
-            page.locator('.jobs-details-top-card [data-control-name="topcard_inapply"]').first,
-            page.locator('.jobs-details-top-card [data-control-name="jobs-details-top-card-apply-button"]').first,
-            page.locator('.jobs-details-top-card .jobs-apply-button--top-card button').first,
-            page.locator('.jobs-details-top-card .jobs-s-apply button').first,
-            page.locator('.jobs-details-top-card button.jobs-apply-button').first,
-            page.locator('.jobs-details-top-card button[aria-label*="Easy Apply" i]').first,
-            page.locator('.jobs-details-top-card button[aria-label*="Candidatura simplificada" i]').first,
-            page.locator('[data-live-test-job-apply-button] button, button[data-live-test-job-apply-button]').first,
-            page.locator('[data-control-name="jobdetails_topcard_inapply"]').first,
-            page.locator('[data-control-name="topcard_inapply"]').first,
-            page.locator('[data-control-name="jobs-details-top-card-apply-button"]').first,
-            page.locator('.jobs-apply-button--top-card button').first,
-            page.locator('.jobs-s-apply button').first,
-            page.locator('button.jobs-apply-button').first,
-            page.locator('button[aria-label*="Easy Apply" i]').first,
-            page.locator('button[aria-label*="Candidatura simplificada" i]').first,
-            page.get_by_role(
-                "button",
-                name=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE),
-            ).first,
-            page.locator("button, a").filter(has_text=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE)).first,
-        ]
-        for candidate in candidates:
-            try:
-                if await candidate.count() == 0:
-                    continue
-                try:
-                    if not await candidate.is_visible(timeout=1000):
-                        continue
-                except Exception:
-                    continue
-                await candidate.scroll_into_view_if_needed()
-                await page.wait_for_timeout(400)
-                try:
-                    await candidate.hover(timeout=1500)
-                except Exception:
-                    pass
-                await candidate.click(timeout=3500)
-                if await self._wait_for_apply_flow(page):
-                    return True
-                if await self._handle_save_application_dialog(page):
-                    await page.wait_for_timeout(800)
-                    continue
-                await candidate.click(timeout=3500, force=True)
-                if await self._wait_for_apply_flow(page):
-                    return True
-                if await self._handle_save_application_dialog(page):
-                    await page.wait_for_timeout(800)
-                    continue
-                handle = await candidate.element_handle()
-                if handle is not None:
-                    await page.evaluate("(element) => element.click()", handle)
-                    if await self._wait_for_apply_flow(page):
-                        return True
-                    if await self._handle_save_application_dialog(page):
-                        await page.wait_for_timeout(800)
-                        continue
-            except Exception:
-                continue
-        direct_apply_url = await self._extract_easy_apply_href(page)
-        if direct_apply_url:
-            try:
-                await page.goto(direct_apply_url, wait_until="domcontentloaded")
-                await page.wait_for_timeout(1400)
-                if await self._wait_for_apply_flow(page):
-                    return True
-            except Exception:
-                if self._is_page_closed(page):
-                    return False
-        fallback_opened = await page.evaluate(
-            """
-            () => {
-              const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-              const roots = [
-                document.querySelector('.jobs-details-top-card'),
-                document.querySelector('.jobs-search__job-details--container'),
-                document.querySelector('.jobs-details'),
-                document.querySelector('main'),
-                document.body,
-              ].filter(Boolean);
-              const seen = new Set();
-              const candidates = [];
-              for (const root of roots) {
-                for (const element of Array.from(root.querySelectorAll('button, a'))) {
-                  if (seen.has(element)) continue;
-                  seen.add(element);
-                  candidates.push(element);
-                }
-              }
-              for (const element of candidates) {
-                const text = normalize(element.textContent);
-                const aria = normalize(element.getAttribute('aria-label') || '');
-                const control = normalize(element.getAttribute('data-control-name') || '');
-                const matchesText = text.includes('easy apply') || text.includes('candidatura simplificada');
-                const matchesAria = aria.includes('easy apply') || aria.includes('candidatura simplificada');
-                const matchesControl = control.includes('inapply') || control.includes('apply-button');
-                if (!(matchesText || matchesAria || matchesControl)) continue;
-                element.click();
-                return true;
-              }
-              return false;
-            }
-            """
-        )
-        if fallback_opened and await self._wait_for_apply_flow(page):
-            return True
-        await self._handle_save_application_dialog(page)
-        await self._dismiss_interfering_dialogs(page)
-        return False
+        return await self._navigator.try_open_easy_apply_modal(page)
 
     async def _extract_easy_apply_href(self, page) -> str:
-        try:
-            href = await page.evaluate(
-                """
-                () => {
-                  const roots = [
-                    document.querySelector('.jobs-details-top-card'),
-                    document.querySelector('.jobs-search__job-details--container'),
-                    document.querySelector('.jobs-details'),
-                    document.querySelector('main'),
-                    document.body,
-                  ].filter(Boolean);
-                  const seen = new Set();
-                  for (const root of roots) {
-                    for (const element of Array.from(root.querySelectorAll('a[href*="/apply/"]'))) {
-                      if (seen.has(element)) continue;
-                      seen.add(element);
-                      const href = element.href || '';
-                      if (!href.includes('/apply/')) continue;
-                      const aria = (element.getAttribute('aria-label') || '').toLowerCase();
-                      const text = (element.textContent || '').toLowerCase();
-                      if (
-                        href.includes('openSDUIApplyFlow=true') ||
-                        aria.includes('easy apply') ||
-                        aria.includes('candidatura simplificada') ||
-                        text.includes('easy apply') ||
-                        text.includes('candidatura simplificada')
-                      ) {
-                        return href;
-                      }
-                    }
-                  }
-                  return '';
-                }
-                """
-            )
-        except Exception:
-            return ""
-        return href if isinstance(href, str) else ""
+        return await self._navigator.extract_easy_apply_href(page)
 
     async def _wait_for_apply_flow(self, page) -> bool:
-        if await self._wait_for_modal(page):
-            return True
-        try:
-            await page.wait_for_url(re.compile(r"/apply/|openSDUIApplyFlow=true", re.IGNORECASE), timeout=4500)
-            await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(1400)
-            return True
-        except Exception:
-            return False
+        return await self._navigator.wait_for_apply_flow(page)
 
     async def _wait_for_modal(self, page) -> bool:
-        try:
-            await page.locator('[role="dialog"], .jobs-easy-apply-modal, .artdeco-modal').first.wait_for(state="visible", timeout=4500)
-            await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(1400)
-            return True
-        except Exception:
-            if self._is_page_closed(page):
-                return False
-            await self._handle_save_application_dialog(page)
-            return False
+        return await self._navigator.wait_for_modal(page)
 
     async def _prepare_job_page_for_apply(self, page) -> None:
-        try:
-            await page.locator("main").first.wait_for(state="visible", timeout=5000)
-        except Exception:
-            return
-        await page.wait_for_timeout(1200)
-        await self._dismiss_interfering_dialogs(page)
-        await page.evaluate(
-            """
-            () => {
-              const target =
-                document.querySelector('.jobs-details-top-card') ||
-                document.querySelector('.jobs-search__job-details--container [data-live-test-job-apply-button]') ||
-                document.querySelector('[data-live-test-job-apply-button]') ||
-                document.querySelector('.jobs-search__job-details--container') ||
-                document.querySelector('main');
-              if (target) {
-                target.scrollIntoView({ behavior: 'instant', block: 'center' });
-              }
-            }
-            """
-        )
-        await page.wait_for_timeout(600)
+        await self._navigator.prepare_job_page_for_apply(page)
 
     async def _dismiss_interfering_dialogs(self, page) -> None:
         if await self._handle_save_application_dialog(page):
