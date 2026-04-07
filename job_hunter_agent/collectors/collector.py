@@ -12,6 +12,7 @@ from job_hunter_agent.core.browser_support import (
     load_playwright_storage_state,
     resolve_local_chromium,
 )
+from job_hunter_agent.core.matching import MatchingCriteria
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
 from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
@@ -55,7 +56,7 @@ class SiteCollector(Protocol):
 
 
 class JobScorer(Protocol):
-    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
         raise NotImplementedError
 
 
@@ -63,11 +64,13 @@ class JobCollectionService:
     def __init__(
         self,
         settings: Settings,
+        matching_criteria: MatchingCriteria,
         repository: JobRepository,
         site_collector: SiteCollector,
         scorer: JobScorer,
     ) -> None:
         self.settings = settings
+        self.matching_criteria = matching_criteria
         self.repository = repository
         self.site_collector = site_collector
         self.scorer = scorer
@@ -172,7 +175,7 @@ class JobCollectionService:
                 continue
 
             try:
-                score = self.scorer.score(raw_job, self.settings)
+                score = self.scorer.score(raw_job, self.matching_criteria)
             except Exception as exc:
                 logger.exception(
                     standardize_error_message("erro de scoring", raw_job.source_site, str(exc)),
@@ -219,18 +222,18 @@ class JobCollectionService:
 
     def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
-        if any(keyword in combined_text for keyword in self.settings.scoring_exclude_keywords):
+        if any(keyword in combined_text for keyword in self.matching_criteria.exclude_keywords):
             return "conta com termos excluidos"
 
         work_mode = raw_job.work_mode.strip().lower()
         if work_mode and work_mode not in {"nao informado", "nÃ£o informado"}:
-            if self.settings.accepted_work_modes and not any(
-                mode in work_mode for mode in self.settings.accepted_work_modes
+            if self.matching_criteria.accepted_work_modes and not any(
+                mode in work_mode for mode in self.matching_criteria.accepted_work_modes
             ):
                 return "modalidade fora do perfil"
 
         salary_floor = parse_salary_floor(raw_job.salary_text)
-        if salary_floor is not None and salary_floor < self.settings.minimum_salary_brl:
+        if salary_floor is not None and salary_floor < self.matching_criteria.minimum_salary_brl:
             return "salario abaixo do minimo"
 
         return None

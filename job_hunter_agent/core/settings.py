@@ -6,6 +6,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from job_hunter_agent.core.domain import SiteConfig
+from job_hunter_agent.core.matching import MatchingCriteria
 
 
 class Settings(BaseSettings):
@@ -169,6 +170,17 @@ class Settings(BaseSettings):
         if not self.relaxed_matching_for_testing:
             return self.minimum_relevance
         return self.relaxed_testing_minimum_relevance
+
+    @property
+    def matching_criteria(self) -> MatchingCriteria:
+        return MatchingCriteria(
+            profile_text=self.scoring_profile_text,
+            include_keywords=self.include_keywords,
+            exclude_keywords=self.scoring_exclude_keywords,
+            accepted_work_modes=self.accepted_work_modes,
+            minimum_salary_brl=self.minimum_salary_brl,
+            minimum_relevance=self.scoring_minimum_relevance,
+        )
 
 
 def load_settings() -> Settings:

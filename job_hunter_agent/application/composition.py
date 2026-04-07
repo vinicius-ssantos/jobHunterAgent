@@ -153,6 +153,7 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
     known_job_lookup = build_known_job_lookup(repository)
     return JobCollectionService(
         settings=settings,
+        matching_criteria=settings.matching_criteria,
         repository=repository,
         site_collector=BrowserUseSiteCollector(
             model_name=settings.ollama_model,

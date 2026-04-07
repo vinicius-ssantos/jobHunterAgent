@@ -109,6 +109,27 @@ class SettingsTests(TestCase):
         self.assertIn("junior e pleno", settings.scoring_profile_text)
         self.assertEqual(settings.scoring_minimum_relevance, 4)
 
+    def test_matching_criteria_exposes_validated_business_inputs(self) -> None:
+        settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            profile_text="Backend engineer",
+            include_keywords=("java", "kotlin"),
+            exclude_keywords=("junior", "php"),
+            accepted_work_modes=("remoto", "hibrido"),
+            minimum_salary_brl=12000,
+            minimum_relevance=7,
+        )
+
+        criteria = settings.matching_criteria
+
+        self.assertEqual(criteria.profile_text, "Backend engineer")
+        self.assertEqual(criteria.include_keywords, ("java", "kotlin"))
+        self.assertEqual(criteria.exclude_keywords, ("junior", "php"))
+        self.assertEqual(criteria.accepted_work_modes, ("remoto", "hibrido"))
+        self.assertEqual(criteria.minimum_salary_brl, 12000)
+        self.assertEqual(criteria.minimum_relevance, 7)
+
     def test_relaxed_matching_for_testing_can_be_tuned_by_settings(self) -> None:
         settings = Settings(
             telegram_token="token",

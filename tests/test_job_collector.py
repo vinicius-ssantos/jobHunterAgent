@@ -42,6 +42,7 @@ from job_hunter_agent.collectors.portal_collectors import (
     IndeedCollectorAdapter,
     LinkedInCollectorAdapter,
 )
+from job_hunter_agent.core.matching import MatchingCriteria
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.llm.scoring import HybridJobScorer
 from job_hunter_agent.core.settings import Settings
@@ -107,21 +108,21 @@ class SlowSiteCollector:
 
 
 class FakeScorer:
-    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
         if "PHP" in raw_job.title:
             return ScoredJob(relevance=2, rationale="Tecnologia excluida.", accepted=False)
         return ScoredJob(relevance=8, rationale="Bom fit tecnico.", accepted=True)
 
 
 class FlakyScorer:
-    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
         if "Kotlin" in raw_job.title:
             raise RuntimeError("modelo indisponivel")
         return ScoredJob(relevance=7, rationale="Fallback valido.", accepted=True)
 
 
 class FailingIfCalledScorer:
-    def score(self, raw_job: RawJob, settings: Settings) -> ScoredJob:
+    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
         raise AssertionError("scorer nao deveria ser chamado para vaga duplicada")
 
 
@@ -170,6 +171,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_filters_and_saves_only_relevant_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -189,6 +191,12 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
                 accepted_work_modes=("remoto",),
                 sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
             ),
+            matching_criteria=Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                accepted_work_modes=("remoto",),
+                sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+            ).matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -202,6 +210,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_contains_cycle_counts(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -217,6 +226,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_discards_minimally_invalid_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=InvalidFakeSiteCollector(),
             scorer=FakeScorer(),
@@ -229,6 +239,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_tracks_portal_failures(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=FailingSiteCollector(),
             scorer=FakeScorer(),
@@ -248,6 +259,12 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
                 portal_collection_timeout_seconds=0,
                 sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
             ),
+            matching_criteria=Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                portal_collection_timeout_seconds=0,
+                sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+            ).matching_criteria,
             repository=self.repository,
             site_collector=SlowSiteCollector(),
             scorer=FakeScorer(),
@@ -268,6 +285,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_skips_scoring_errors_and_keeps_valid_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=MixedRawSiteCollector(),
             scorer=FlakyScorer(),
@@ -281,6 +299,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_logs_duplicates_in_portal_summary(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -329,6 +348,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         )
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FailingIfCalledScorer(),
@@ -341,6 +361,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_remembers_discarded_jobs_to_skip_next_cycle(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
+            matching_criteria=self.settings.matching_criteria,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
