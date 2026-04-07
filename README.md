@@ -13,7 +13,7 @@ O runtime ativo mora no pacote `job_hunter_agent/`.
 - `job_hunter_agent/llm/`
 - `main.py` apenas como entrypoint fino
 
-Os modulos diretamente em `job_hunter_agent/` foram mantidos como wrappers de compatibilidade para preservar imports antigos.
+Os modulos diretamente em `job_hunter_agent/` foram mantidos como wrappers de compatibilidade para preservar imports antigos e patching nominal em testes.
 
 O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
@@ -39,7 +39,7 @@ Candidatura automatica esta fora do caminho critico desta versao.
 
 Ja existe uma pre-fase de candidatura assistida preparada na arquitetura:
 
-- contratos em `job_hunter_agent/applicant.py`
+- contratos em `job_hunter_agent/application/applicant.py`
 - persistencia separada de candidaturas em `job_applications`
 - criacao de rascunho quando uma vaga e aprovada no Telegram
 - classificacao conservadora de suporte: `auto_supported`, `manual_review` ou `unsupported`
