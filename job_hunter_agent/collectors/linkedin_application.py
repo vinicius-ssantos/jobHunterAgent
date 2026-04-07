@@ -1,189 +1,29 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
 import re
 from typing import Callable, TYPE_CHECKING
 
 from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+from job_hunter_agent.collectors.linkedin_application_artifacts import (
+    capture_failure_artifacts,
+    is_closed_target_error,
+    is_page_closed,
+)
+from job_hunter_agent.collectors.linkedin_application_state import (
+    LinkedInApplicationInspection,
+    LinkedInApplicationPageState,
+    build_linkedin_modal_snapshot,
+    classify_linkedin_application_page_state,
+    describe_linkedin_easy_apply_entrypoint,
+    describe_linkedin_modal_blocker,
+)
 from job_hunter_agent.core.domain import JobPosting
 
 if TYPE_CHECKING:
     from job_hunter_agent.collectors.linkedin_modal_llm import LinkedInModalInterpretation
-
-
-@dataclass(frozen=True)
-class LinkedInApplicationInspection:
-    outcome: str
-    detail: str
-
-
-@dataclass(frozen=True)
-class LinkedInApplicationPageState:
-    easy_apply: bool = False
-    external_apply: bool = False
-    submit_visible: bool = False
-    modal_open: bool = False
-    modal_submit_visible: bool = False
-    modal_next_visible: bool = False
-    modal_review_visible: bool = False
-    modal_file_upload: bool = False
-    modal_questions_visible: bool = False
-    save_application_dialog_visible: bool = False
-    cta_text: str = ""
-    sample: str = ""
-    modal_sample: str = ""
-    contact_email_visible: bool = False
-    contact_phone_visible: bool = False
-    country_code_visible: bool = False
-    work_authorization_visible: bool = False
-    years_of_experience_visible: bool = False
-    resumable_fields: tuple[str, ...] = ()
-    filled_fields: tuple[str, ...] = ()
-    progressed_to_next_step: bool = False
-    uploaded_resume: bool = False
-    reached_review_step: bool = False
-    ready_to_submit: bool = False
-    modal_headings: tuple[str, ...] = ()
-    modal_buttons: tuple[str, ...] = ()
-    modal_fields: tuple[str, ...] = ()
-
-
-def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
-    parts: list[str] = []
-    if state.modal_headings:
-        parts.append(f"titulos={', '.join(state.modal_headings[:3])}")
-    if state.modal_buttons:
-        parts.append(f"botoes={', '.join(state.modal_buttons[:5])}")
-    if state.modal_fields:
-        parts.append(f"campos_detectados={', '.join(state.modal_fields[:5])}")
-    if not parts:
-        return "snapshot_modal=indisponivel"
-    return "snapshot_modal=" + " | ".join(parts)
-
-
-def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
-    blockers: list[str] = []
-    if not state.modal_open:
-        blockers.append("modal_fechado")
-    if state.easy_apply and "/apply/" in state.sample:
-        blockers.append("fluxo_apply_sem_modal")
-    if state.save_application_dialog_visible:
-        blockers.append("confirmacao_salvar_candidatura")
-    if state.modal_questions_visible:
-        blockers.append("perguntas_obrigatorias")
-    if state.modal_file_upload and not state.uploaded_resume:
-        blockers.append("upload_cv_pendente")
-    if state.modal_next_visible and not state.progressed_to_next_step:
-        blockers.append("etapa_intermediaria")
-    if state.modal_review_visible and not state.reached_review_step:
-        blockers.append("revisao_nao_alcancada")
-    if not state.modal_submit_visible:
-        blockers.append("botao_submit_ausente")
-    if state.resumable_fields and not state.filled_fields:
-        blockers.append("campos_nao_preenchidos")
-    if not blockers:
-        blockers.append("estado_modal_inconclusivo")
-    return ", ".join(blockers)
-
-
-def describe_linkedin_easy_apply_entrypoint(state: LinkedInApplicationPageState) -> str:
-    parts: list[str] = []
-    if state.cta_text:
-        parts.append(f"cta={state.cta_text}")
-    if state.sample:
-        parts.append(f"pagina={state.sample[:180]}")
-    if not parts:
-        return "entrada_easy_apply=indisponivel"
-    return " | ".join(parts)
-
-
-def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
-    if state.modal_open:
-        detail_parts: list[str] = ["preflight real"]
-        if state.resumable_fields:
-            detail_parts.append(f"campos={', '.join(state.resumable_fields)}")
-        if state.filled_fields:
-            detail_parts.append(f"preenchidos={', '.join(state.filled_fields)}")
-        if state.progressed_to_next_step:
-            detail_parts.append("avancou_proxima_etapa=sim")
-        if state.uploaded_resume:
-            detail_parts.append("curriculo_carregado=sim")
-        if state.reached_review_step:
-            detail_parts.append("revisao_final_alcancada=sim")
-        if state.ready_to_submit:
-            detail_parts.append("pronto_para_envio=sim")
-        if state.ready_to_submit or (
-            state.modal_submit_visible and not (
-                state.modal_next_visible
-                or state.modal_review_visible
-                or state.modal_file_upload
-                or state.modal_questions_visible
-            )
-        ):
-            detail_parts.append("ok: fluxo pronto para submissao assistida no LinkedIn")
-            if state.cta_text:
-                detail_parts.append(f"cta={state.cta_text}")
-            if state.modal_sample:
-                detail_parts.append(f"modal={state.modal_sample}")
-            detail_parts.append(build_linkedin_modal_snapshot(state))
-            return LinkedInApplicationInspection(
-                outcome="ready",
-                detail=" | ".join(detail_parts),
-            )
-
-        if state.modal_submit_visible and not (
-            state.modal_next_visible
-            or state.modal_review_visible
-            or state.modal_file_upload
-            or state.modal_questions_visible
-        ):
-            detail_parts.append("ok: fluxo simplificado aberto no LinkedIn")
-
-        detail_parts.append("inconclusivo: fluxo do LinkedIn exige revisao manual")
-        if state.modal_next_visible:
-            detail_parts.append("passos_adicionais=sim")
-        if state.modal_review_visible:
-            detail_parts.append("revisao_final=sim")
-        if state.modal_file_upload:
-            detail_parts.append("upload_cv=sim")
-        if state.modal_questions_visible:
-            detail_parts.append("perguntas=sim")
-        if state.cta_text:
-            detail_parts.append(f"cta={state.cta_text}")
-        if state.modal_sample:
-            detail_parts.append(f"modal={state.modal_sample}")
-        detail_parts.append(build_linkedin_modal_snapshot(state))
-        return LinkedInApplicationInspection(
-            outcome="manual_review",
-            detail=" | ".join(detail_parts),
-        )
-
-    if state.easy_apply:
-        return LinkedInApplicationInspection(
-            outcome="manual_review",
-            detail=(
-                "preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu"
-                f" | {describe_linkedin_easy_apply_entrypoint(state)}"
-            ),
-        )
-    if state.external_apply:
-        return LinkedInApplicationInspection(
-            outcome="blocked",
-            detail="preflight real bloqueado: vaga redireciona para candidatura externa",
-        )
-    if state.submit_visible:
-        return LinkedInApplicationInspection(
-            outcome="manual_review",
-            detail="preflight real inconclusivo: pagina interna com CTA de envio sem fluxo simples claro",
-        )
-    return LinkedInApplicationInspection(
-        outcome="blocked",
-        detail="preflight real bloqueado: CTA de candidatura nao encontrado na pagina do LinkedIn",
-    )
 
 
 class LinkedInApplicationFlowInspector:
@@ -673,70 +513,15 @@ class LinkedInApplicationFlowInspector:
             return ""
 
     async def _capture_failure_artifacts(self, page, *, state: LinkedInApplicationPageState, job: JobPosting, phase: str, detail: str) -> str:
-        if not self.save_failure_artifacts or self.failure_artifacts_dir is None:
-            return ""
-        try:
-            self.failure_artifacts_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            stem = f"{timestamp}_{phase}_job-{job.id}"
-            html_path = self.failure_artifacts_dir / f"{stem}_page.html"
-            screenshot_path = self.failure_artifacts_dir / f"{stem}_shot.png"
-            meta_path = self.failure_artifacts_dir / f"{stem}_meta.json"
-            page_closed = self._is_page_closed(page)
-            html_saved = False
-            screenshot_saved = False
-
-            if not page_closed:
-                try:
-                    html = await page.content()
-                    html_path.write_text(html, encoding="utf-8")
-                    html_saved = True
-                except Exception as exc:
-                    if self._is_closed_target_error(exc):
-                        page_closed = True
-            try:
-                if not page_closed:
-                    await page.screenshot(path=str(screenshot_path), full_page=True)
-                    screenshot_saved = True
-            except Exception as exc:
-                if self._is_closed_target_error(exc):
-                    page_closed = True
-
-            payload = {
-                "job_id": job.id,
-                "job_title": job.title,
-                "job_url": job.url,
-                "phase": phase,
-                "detail": detail,
-                "captured_at": datetime.now().isoformat(timespec="seconds"),
-                "state": {
-                    "easy_apply": state.easy_apply,
-                    "modal_open": state.modal_open,
-                    "modal_submit_visible": state.modal_submit_visible,
-                    "modal_next_visible": state.modal_next_visible,
-                    "modal_review_visible": state.modal_review_visible,
-                    "modal_file_upload": state.modal_file_upload,
-                    "modal_questions_visible": state.modal_questions_visible,
-                    "save_application_dialog_visible": state.save_application_dialog_visible,
-                    "cta_text": state.cta_text,
-                    "sample": state.sample,
-                    "modal_sample": state.modal_sample,
-                    "modal_headings": list(state.modal_headings),
-                    "modal_buttons": list(state.modal_buttons),
-                    "modal_fields": list(state.modal_fields),
-                    "resumable_fields": list(state.resumable_fields),
-                    "filled_fields": list(state.filled_fields),
-                },
-                "page_closed": page_closed,
-                "files": {
-                    "html": str(html_path) if html_saved else "",
-                    "screenshot": str(screenshot_path) if screenshot_saved else "",
-                },
-            }
-            meta_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
-            return f" | artefatos={meta_path.name}"
-        except Exception:
-            return ""
+        return await capture_failure_artifacts(
+            page,
+            state=state,
+            job=job,
+            phase=phase,
+            detail=detail,
+            enabled=self.save_failure_artifacts,
+            artifacts_dir=self.failure_artifacts_dir,
+        )
 
     async def _build_submit_exception_result(
         self,
@@ -1013,15 +798,11 @@ class LinkedInApplicationFlowInspector:
 
     @staticmethod
     def _is_page_closed(page) -> bool:
-        try:
-            return bool(page.is_closed())
-        except Exception:
-            return True
+        return is_page_closed(page)
 
     @staticmethod
     def _is_closed_target_error(exc: Exception) -> bool:
-        text = str(exc).lower()
-        return "target page, context or browser has been closed" in text
+        return is_closed_target_error(exc)
 
     async def _try_fill_safe_fields(self, page) -> tuple[str, ...]:
         if await page.locator('[role="dialog"]').count() == 0:
