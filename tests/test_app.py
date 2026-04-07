@@ -11,6 +11,7 @@ from job_hunter_agent.application.composition import (
     create_linkedin_modal_interpretation_formatter,
     create_notifier,
 )
+from job_hunter_agent.core.domain import JobApplication
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationPageState
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.infrastructure.notifier import NullNotifier
@@ -274,6 +275,86 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.ciclos, 3)
         self.assertEqual(args.intervalo_ciclos_segundos, 10)
         self.assertFalse(args.agora)
+
+    async def test_parse_args_accepts_applications_list_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "list", "--status", "confirmed"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "list")
+        self.assertEqual(args.status, "confirmed")
+
+    async def test_parse_args_accepts_applications_submit_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "submit", "--id", "7"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "submit")
+        self.assertEqual(args.id, 7)
+
+    async def test_parse_args_rejects_operational_command_with_agora(self) -> None:
+        with patch("sys.argv", ["main.py", "--agora", "applications", "list"]):
+            with self.assertRaises(SystemExit):
+                parse_args()
+
+
+class ApplicationCliTests(IsolatedAsyncioTestCase):
+    async def test_list_applications_renders_existing_items(self) -> None:
+        class _Repository:
+            def list_applications_by_status(self, status: str):
+                if status == "confirmed":
+                    return [
+                        JobApplication(
+                            id=2,
+                            job_id=10,
+                            status="confirmed",
+                            support_level="manual_review",
+                        )
+                    ]
+                return []
+
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.list_applications(status="confirmed")
+
+        self.assertIn("Candidaturas listadas: 1", rendered)
+        self.assertIn("2: confirmed", rendered)
+        self.assertIn("Backend Java | ACME", rendered)
+
+    async def test_authorize_application_updates_status_when_transition_is_valid(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.marked: list[tuple[int, str]] = []
+
+            def get_application(self, application_id: int):
+                return JobApplication(id=application_id, job_id=5, status="confirmed")
+
+            def mark_application_status(self, application_id: int, *, status: str, notes=None, last_error=None, submitted_at=None):
+                self.marked.append((application_id, status))
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        detail = app.authorize_application(9)
+
+        self.assertEqual(detail, "Candidatura autorizada para envio: id=9")
+        self.assertEqual(app.repository.marked, [(9, "authorized_submit")])
+
+    async def test_authorize_application_reports_invalid_transition(self) -> None:
+        class _Repository:
+            def get_application(self, application_id: int):
+                return JobApplication(id=application_id, job_id=5, status="draft")
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        detail = app.authorize_application(4)
+
+        self.assertEqual(detail, "Candidatura ainda nao foi preparada para envio: id=4")
 
 
 class CompositionTests(IsolatedAsyncioTestCase):

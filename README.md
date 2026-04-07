@@ -289,6 +289,27 @@ Exportar a sessao autenticada do LinkedIn para `storage_state`:
 python main.py --bootstrap-linkedin-session
 ```
 
+Listar candidaturas pelo terminal:
+
+```bash
+python main.py applications list
+python main.py applications list --status confirmed
+```
+
+Inspecionar uma candidatura especifica:
+
+```bash
+python main.py applications show --id 2
+```
+
+Rodar o fluxo operacional sem `python -c`:
+
+```bash
+python main.py applications preflight --id 2
+python main.py applications authorize --id 2
+python main.py applications submit --id 2
+```
+
 Dry-run de limpeza controlada de jobs antigos poluidos:
 
 ```bash

@@ -5,6 +5,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
+from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES
 from job_hunter_agent.collectors.collector import JobCollectionService
 from job_hunter_agent.application.composition import (
     create_application_preflight_service,
@@ -15,6 +16,7 @@ from job_hunter_agent.application.composition import (
     create_repository,
     create_runtime_guard,
 )
+from job_hunter_agent.application.review_workflow import resolve_application_action
 from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.infrastructure.repository import JobRepository
@@ -24,6 +26,15 @@ from job_hunter_agent.core.runtime import RuntimeGuard
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+APPLICATION_STATUS_ORDER = (
+    "draft",
+    "ready_for_review",
+    "confirmed",
+    "authorized_submit",
+    "submitted",
+    "error_submit",
+    "cancelled",
+)
 
 
 class JobHunterApplication:
@@ -75,6 +86,64 @@ class JobHunterApplication:
             result.application_status,
         )
         return f"Submissao: {result.detail} (status={result.application_status})"
+
+    def list_applications(self, *, status: str | None = None) -> str:
+        requested_statuses = (
+            (status,)
+            if status is not None
+            else tuple(current for current in APPLICATION_STATUS_ORDER if current in VALID_APPLICATION_STATUSES)
+        )
+        lines: list[str] = []
+        total = 0
+        for current_status in requested_statuses:
+            applications = self.repository.list_applications_by_status(current_status)
+            for application in applications:
+                job = self.repository.get_job(application.job_id)
+                job_label = (
+                    f"{job.title} | {job.company}"
+                    if job is not None
+                    else f"job_id={application.job_id}"
+                )
+                lines.append(
+                    f"{application.id}: {application.status} | {job_label} | suporte={application.support_level}"
+                )
+                total += 1
+        if not lines:
+            filter_text = status if status is not None else "todos"
+            return f"Nenhuma candidatura encontrada para status={filter_text}."
+        return "\n".join([f"Candidaturas listadas: {total}"] + lines)
+
+    def show_application(self, application_id: int) -> str:
+        application = self.repository.get_application(application_id)
+        if application is None:
+            return f"Candidatura nao encontrada: id={application_id}"
+        job = self.repository.get_job(application.job_id)
+        job_title = job.title if job is not None else "vaga nao encontrada"
+        job_company = job.company if job is not None else "-"
+        job_url = job.url if job is not None else "-"
+        lines = [
+            f"id={application.id}",
+            f"status={application.status}",
+            f"job_id={application.job_id}",
+            f"vaga={job_title}",
+            f"empresa={job_company}",
+            f"suporte={application.support_level}",
+            f"url={job_url}",
+            f"last_error={application.last_error or '-'}",
+            f"submitted_at={application.submitted_at or '-'}",
+            f"notes={application.notes or '-'}",
+        ]
+        return "\n".join(lines)
+
+    def authorize_application(self, application_id: int) -> str:
+        application = self.repository.get_application(application_id)
+        if application is None:
+            return f"Candidatura nao encontrada: id={application_id}"
+        next_status, detail = resolve_application_action(application, "app_authorize")
+        if next_status is None:
+            return detail
+        self.repository.mark_application_status(application_id, status=next_status)
+        return detail
 
     async def run_collection_cycle(self) -> bool:
         run = self.repository.start_collection_run()
@@ -185,6 +254,39 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Abre o Chromium para exportar o storage_state autenticado do LinkedIn.",
     )
+    subparsers = parser.add_subparsers(dest="command")
+    applications_parser = subparsers.add_parser("applications", help="Operacoes de candidaturas.")
+    applications_subparsers = applications_parser.add_subparsers(dest="applications_command", required=True)
+
+    applications_list_parser = applications_subparsers.add_parser("list", help="Lista candidaturas.")
+    applications_list_parser.add_argument(
+        "--status",
+        choices=["all", *sorted(VALID_APPLICATION_STATUSES)],
+        default="all",
+        help="Filtra por status de candidatura.",
+    )
+
+    applications_show_parser = applications_subparsers.add_parser("show", help="Mostra uma candidatura.")
+    applications_show_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_preflight_parser = applications_subparsers.add_parser(
+        "preflight",
+        help="Roda o preflight de uma candidatura confirmada.",
+    )
+    applications_preflight_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_authorize_parser = applications_subparsers.add_parser(
+        "authorize",
+        help="Autoriza uma candidatura confirmada para envio real.",
+    )
+    applications_authorize_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
+    applications_submit_parser = applications_subparsers.add_parser(
+        "submit",
+        help="Executa o envio real de uma candidatura autorizada.",
+    )
+    applications_submit_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
     args = parser.parse_args()
     if args.ciclos is not None and args.ciclos <= 0:
         parser.error("--ciclos deve ser maior que zero")
@@ -192,6 +294,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--intervalo-ciclos-segundos nao pode ser negativo")
     if args.agora and args.ciclos is not None:
         parser.error("use --agora ou --ciclos, nao ambos")
+    if args.command is not None and (args.agora or args.ciclos is not None):
+        parser.error("comandos operacionais nao podem ser combinados com --agora ou --ciclos")
     return args
 
 
@@ -201,6 +305,24 @@ def run() -> None:
         settings = load_settings()
         asyncio.run(bootstrap_linkedin_storage_state(settings))
         return
+    if args.command == "applications":
+        app = JobHunterApplication(enable_telegram=not args.sem_telegram)
+        if args.applications_command == "list":
+            status = None if args.status == "all" else args.status
+            print(app.list_applications(status=status))
+            return
+        if args.applications_command == "show":
+            print(app.show_application(args.id))
+            return
+        if args.applications_command == "authorize":
+            print(app.authorize_application(args.id))
+            return
+        if args.applications_command == "preflight":
+            print(asyncio.run(app.handle_application_preflight(args.id)))
+            return
+        if args.applications_command == "submit":
+            print(asyncio.run(app.handle_application_submit(args.id)))
+            return
     asyncio.run(
         JobHunterApplication(enable_telegram=not args.sem_telegram).run(
             run_once=args.agora,
