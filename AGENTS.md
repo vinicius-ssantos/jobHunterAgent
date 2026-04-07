@@ -25,11 +25,15 @@ Out of scope by default:
 
 Branching and commit policy comes first. Respect it before starting implementation work.
 
-Rule:
+GitFlow rule:
 
+- follow GitFlow strictly for day-to-day work in this repository
+- `master` is the stable integration branch and must not be used to start new implementation work
 - every new feature must be started and developed in its own branch
-- do not start new feature work directly on `master`
+- every fix that is more than trivial should be isolated in its own branch
+- every architectural refactor should be isolated in its own branch
 - if the task introduces new product capability, new configurable behavior, new portal behavior, new operational flow, or architectural refactor, create the branch first
+- branch first, implement second
 
 Recommended branch naming:
 
@@ -55,8 +59,11 @@ Commit rules:
 Operational expectation:
 
 - new features always start on a feature branch
-- broad refactors should start on a refactor branch
-- direct work on `master` is acceptable only for narrow fixes, test-only changes, or documentation-only changes with low runtime risk
+- broad refactors always start on a refactor branch
+- fixes should prefer a dedicated fix branch unless they are narrowly scoped and obviously low risk
+- documentation-only work should prefer a docs branch when it is part of a broader line of work
+- direct work on `master` should be treated as the exception, not the default
+- merge back only after the branch is coherent, validated, and intentionally reviewed
 
 ## Product Constraints
 
@@ -318,6 +325,7 @@ Rule of thumb:
 
 - if the work can destabilize `coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`, use a dedicated branch
 - if the work is a new feature, use a dedicated branch even if the implementation seems small
+- if there is any doubt, create the branch
 
 ## Anti-Patterns
 
