@@ -208,6 +208,41 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         finally:
             pass
 
+    def test_extract_easy_apply_href_returns_detected_apply_link(self) -> None:
+        class _Page:
+            async def evaluate(self, script):
+                return "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true"
+
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        import asyncio
+
+        href = asyncio.run(inspector._extract_easy_apply_href(_Page()))
+
+        self.assertEqual(
+            href,
+            "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true",
+        )
+
+    def test_extract_easy_apply_href_returns_empty_when_evaluation_fails(self) -> None:
+        class _Page:
+            async def evaluate(self, script):
+                raise RuntimeError("playwright error")
+
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        import asyncio
+
+        href = asyncio.run(inspector._extract_easy_apply_href(_Page()))
+
+        self.assertEqual(href, "")
+
     def test_is_closed_target_error_detects_playwright_message(self) -> None:
         inspector = LinkedInApplicationFlowInspector(
             storage_state_path="linkedin_state.json",

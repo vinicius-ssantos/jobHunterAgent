@@ -837,6 +837,16 @@ class LinkedInApplicationFlowInspector:
                         continue
             except Exception:
                 continue
+        direct_apply_url = await self._extract_easy_apply_href(page)
+        if direct_apply_url:
+            try:
+                await page.goto(direct_apply_url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(1400)
+                if await self._wait_for_apply_flow(page):
+                    return True
+            except Exception:
+                if self._is_page_closed(page):
+                    return False
         fallback_opened = await page.evaluate(
             """
             () => {
@@ -877,6 +887,46 @@ class LinkedInApplicationFlowInspector:
         await self._handle_save_application_dialog(page)
         await self._dismiss_interfering_dialogs(page)
         return False
+
+    async def _extract_easy_apply_href(self, page) -> str:
+        try:
+            href = await page.evaluate(
+                """
+                () => {
+                  const roots = [
+                    document.querySelector('.jobs-details-top-card'),
+                    document.querySelector('.jobs-search__job-details--container'),
+                    document.querySelector('.jobs-details'),
+                    document.querySelector('main'),
+                    document.body,
+                  ].filter(Boolean);
+                  const seen = new Set();
+                  for (const root of roots) {
+                    for (const element of Array.from(root.querySelectorAll('a[href*="/apply/"]'))) {
+                      if (seen.has(element)) continue;
+                      seen.add(element);
+                      const href = element.href || '';
+                      if (!href.includes('/apply/')) continue;
+                      const aria = (element.getAttribute('aria-label') || '').toLowerCase();
+                      const text = (element.textContent || '').toLowerCase();
+                      if (
+                        href.includes('openSDUIApplyFlow=true') ||
+                        aria.includes('easy apply') ||
+                        aria.includes('candidatura simplificada') ||
+                        text.includes('easy apply') ||
+                        text.includes('candidatura simplificada')
+                      ) {
+                        return href;
+                      }
+                    }
+                  }
+                  return '';
+                }
+                """
+            )
+        except Exception:
+            return ""
+        return href if isinstance(href, str) else ""
 
     async def _wait_for_apply_flow(self, page) -> bool:
         if await self._wait_for_modal(page):
