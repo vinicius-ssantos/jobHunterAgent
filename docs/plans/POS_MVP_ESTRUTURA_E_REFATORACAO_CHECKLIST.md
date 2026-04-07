@@ -272,66 +272,78 @@ As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ai
 Descricao:
 Hoje existe sinal de acoplamento entre configuracao tecnica, criterios de matching e heuristicas de inferencia. Essa frente parece promissora para reduzir duplicacao e melhorar manutencao, mas ainda precisa de analise de viabilidade e recorte para evitar excesso de generalizacao. A avaliacao deve preservar o foco do produto, respeitar SOLID e impedir que a configuracao vire uma plataforma generica de regras.
 
-- [ ] Mapear tudo o que hoje representa politica de triagem ou inferencia e esta espalhado entre configuracao, prompts e heuristicas
+- [x] Mapear tudo o que hoje representa politica de triagem ou inferencia e esta espalhado entre configuracao, prompts e heuristicas
 - [ ] Avaliar extrair um objeto de dominio central para perfil e criterios de matching, separado de `Settings`
 - [ ] Avaliar manter `Settings` focado em infraestrutura, runtime e bootstrap
 - [ ] Avaliar introduzir um modelo validado para perfil profissional e busca, como `CandidateProfile` ou `JobSearchProfile`
 - [ ] Avaliar introduzir uma policy central de matching para vocabulario, aliases e criterios reutilizaveis
 - [ ] Validar se a centralizacao reduz acoplamento real sem piorar a experiencia de configuracao
 
-Mapeamento inicial dos pontos acoplados identificados no codigo:
+Mapeamento consolidado do estado atual no codigo:
 
-- [ ] Perfil textual principal acoplado em configuracao:
-  - [ ] `profile_text`
-  - [ ] `relaxed_testing_profile_hint`
-- [ ] Keywords de inclusao e exclusao acopladas em configuracao:
-  - [ ] `include_keywords`
-  - [ ] `exclude_keywords`
-  - [ ] `relaxed_testing_remove_exclude_keywords`
-- [ ] Regras de corte operacional acopladas em configuracao:
-  - [ ] `accepted_work_modes`
-  - [ ] `minimum_salary_brl`
-  - [ ] `minimum_relevance`
-  - [ ] `relaxed_testing_minimum_relevance`
-- [ ] Perfil de busca inicial acoplado em `sites.search_url`, com termos de cargo e stack embutidos
-- [ ] Prompt de scoring acoplado diretamente a criterios de perfil e keywords
-- [ ] Prefiltro deterministico de scoring acoplado diretamente a keywords excluidas
-- [ ] Taxonomia de senioridade acoplada em heuristica deterministica:
-  - [ ] `junior`
-  - [ ] `pleno`
-  - [ ] `senior`
-  - [ ] `especialista`
-  - [ ] `lideranca`
-- [ ] Taxonomia de ingles acoplada em heuristica e parsing:
-  - [ ] `nao_informado`
-  - [ ] `basico`
-  - [ ] `intermediario`
-  - [ ] `avancado`
-  - [ ] `fluente`
-- [ ] Vocabulos de stack principal acoplados em heuristica:
-  - [ ] `java`
-  - [ ] `kotlin`
-  - [ ] `spring`
-  - [ ] `spring boot`
-  - [ ] `angular`
-  - [ ] `react`
-- [ ] Vocabulos de stack secundaria acoplados em heuristica:
-  - [ ] `aws`
-  - [ ] `azure`
-  - [ ] `docker`
-  - [ ] `kubernetes`
-  - [ ] `postgresql`
-  - [ ] `sql`
-  - [ ] `microservices`
-- [ ] Sinais de lideranca acoplados em heuristica:
-  - [ ] `lideranca`
-  - [ ] `liderar`
-  - [ ] `tech lead`
-  - [ ] `mentoria`
-  - [ ] `coordenar`
-  - [ ] `ownership`
-- [ ] Exemplos de saida esperada dos prompts acoplados a tecnologias e senioridade especificas
-- [ ] Parsing e normalizacao acoplados a enums textuais repetidos em mais de um modulo
+- [x] `core/settings.py` concentra hoje tanto infraestrutura quanto politica de triagem:
+  - [x] `profile_text`
+  - [x] `relaxed_testing_profile_hint`
+  - [x] `include_keywords`
+  - [x] `exclude_keywords`
+  - [x] `relaxed_testing_remove_exclude_keywords`
+  - [x] `accepted_work_modes`
+  - [x] `minimum_salary_brl`
+  - [x] `minimum_relevance`
+  - [x] `relaxed_testing_minimum_relevance`
+  - [x] `sites.search_url` com termos de cargo/stack embutidos
+- [x] `collectors/collector.py` concentra o prefiltro deterministico antes do scorer:
+  - [x] corte por `exclude_keywords`
+  - [x] corte por `accepted_work_modes`
+  - [x] corte por `minimum_salary_brl`
+  - [x] fallback de aceitacao baseado no `minimum_relevance`
+- [x] `llm/scoring.py` repete politica de matching dentro do prompt e no parsing:
+  - [x] usa `scoring_profile_text`
+  - [x] usa `include_keywords`
+  - [x] usa `scoring_exclude_keywords`
+  - [x] usa `accepted_work_modes`
+  - [x] usa `minimum_salary_brl`
+  - [x] converte `minimum_relevance` em gate de aceitacao
+- [x] `llm/job_requirements.py` centraliza hoje uma taxonomia hardcoded reutilizada por heuristica, prompt e parsing:
+  - [x] senioridade: `junior`, `pleno`, `senior`, `especialista`, `lideranca`
+  - [x] ingles: `nao_informado`, `basico`, `intermediario`, `avancado`, `fluente`
+  - [x] stack principal: `java`, `kotlin`, `spring`, `spring boot`, `angular`, `react`
+  - [x] stack secundaria: `aws`, `azure`, `docker`, `kubernetes`, `postgresql`, `sql`, `microservices`
+  - [x] sinais de lideranca: `lideranca`, `liderar`, `tech lead`, `mentoria`, `coordenar`, `ownership`
+- [x] `llm/application_priority.py` embute hoje uma politica derivada de prioridade:
+  - [x] `alta` quando `relevance >= 8` com `remoto/hibrido`
+  - [x] `media` quando `relevance >= 6`
+  - [x] `baixa` no restante
+- [x] `application/applicant.py` mistura regra estrutural de suporte com heuristica por portal:
+  - [x] `LinkedIn + easy apply/candidatura simplificada -> auto_supported`
+  - [x] `LinkedIn sem evidencia suficiente -> manual_review`
+  - [x] `Gupy -> unsupported`
+  - [x] `Indeed -> manual_review`
+  - [x] `demais portais -> unsupported`
+- [x] Parsing e normalizacao ainda dependem de enums textuais repetidos em mais de um modulo:
+  - [x] `remoto`, `hibrido`, `hybrid`
+  - [x] `alta`, `media`, `baixa`
+  - [x] `auto_supported`, `manual_review`, `unsupported`
+
+Decisao de recorte apos o mapeamento:
+
+- [x] Parametrizavel sem risco de virar plataforma generica:
+  - [x] vocabulos de inclusao/exclusao
+  - [x] modalidades aceitas
+  - [x] salario minimo
+  - [x] limiar minimo de relevancia
+  - [x] hint de relaxed matching para testes
+  - [x] termos da busca inicial por portal
+- [x] Deve permanecer estrutural e fora da futura parametrizacao ampla:
+  - [x] estados do dominio
+  - [x] gates humanos (`confirmed`, `authorized_submit`)
+  - [x] classificacao conservadora de suporte por portal
+  - [x] fallback seguro quando LLM falha
+  - [x] regras de submit real no LinkedIn
+- [x] Proximo alvo tecnico recomendado para implementacao:
+  - [x] extrair um objeto validado de criterios de matching separado de `Settings`
+  - [x] manter `Settings` focado em runtime, infraestrutura e bootstrap
+  - [x] introduzir uma policy central reutilizavel por prefiltro, scorer e extracao estruturada
 
 Possivel alvo de centralizacao a avaliar:
 
