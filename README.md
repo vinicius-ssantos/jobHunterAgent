@@ -367,6 +367,7 @@ python main.py candidate-profile suggest
 Atalhos PowerShell para o fluxo de candidatura:
 
 ```powershell
+.\scripts\authorize_application.ps1 8
 .\scripts\preflight_application.ps1 8
 .\scripts\submit_application.ps1 8
 ```
@@ -374,8 +375,21 @@ Atalhos PowerShell para o fluxo de candidatura:
 Se quiser manter o Telegram ativo nesses atalhos:
 
 ```powershell
+.\scripts\authorize_application.ps1 8 -ComTelegram
 .\scripts\preflight_application.ps1 8 -ComTelegram
 .\scripts\submit_application.ps1 8 -ComTelegram
+```
+
+Atalho PowerShell para gerar sugestoes do perfil do candidato:
+
+```powershell
+.\scripts\suggest_candidate_profile.ps1
+```
+
+Opcionalmente, voce pode informar caminhos explicitos:
+
+```powershell
+.\scripts\suggest_candidate_profile.ps1 -ResumePath .\curriculo_vinicius_desenvolvedor_v6_pt.pdf -Output .\candidate_profile.json
 ```
 
 Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
