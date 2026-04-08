@@ -77,6 +77,14 @@ O objetivo e:
 - [x] Portais sem suporte falham com mensagem operacional estreita
 - [x] O fluxo deixa de depender de condicionais espalhadas e implicitas
 
+### Fase 9 - Perguntas obrigatorias seguras
+
+- [x] Separar campos obrigatorios de contato de perguntas adicionais reais
+- [x] Registrar perguntas adicionais estruturadas no snapshot e nos artefatos de falha
+- [ ] Responder automaticamente apenas perguntas seguras baseadas em politica local explicita
+- [ ] Bloquear perguntas ambiguas ou sensiveis em `manual_review` com motivo curto
+- [ ] Validar submit real fim a fim em uma vaga `Easy Apply` ainda aberta
+
 ## Regras
 
 - nao remover os guardrails atuais do submit
@@ -97,6 +105,7 @@ O objetivo e:
 - [x] Fase 6 concluida
 - [x] Fase 7 concluida
 - [x] Fase 8 concluida
+- [ ] Fase 9 concluida
 - [x] README atualizado se o fluxo operacional mudar
 - [x] AGENTS reavaliado ao fim desta trilha
 

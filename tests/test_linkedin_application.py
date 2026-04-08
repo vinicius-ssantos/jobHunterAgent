@@ -125,12 +125,14 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
                 modal_headings=("informacoes de contato", "curriculo"),
                 modal_buttons=("next", "review", "submit application"),
                 modal_fields=("email", "phone", "country code"),
+                modal_questions=("autorizacao para trabalho",),
             )
         )
 
         self.assertIn("titulos=informacoes de contato, curriculo", snapshot)
         self.assertIn("botoes=next, review, submit application", snapshot)
         self.assertIn("campos_detectados=email, phone, country code", snapshot)
+        self.assertIn("perguntas=autorizacao para trabalho", snapshot)
 
     def test_describe_linkedin_easy_apply_entrypoint_uses_cta_and_page_sample(self) -> None:
         detail = describe_linkedin_easy_apply_entrypoint(

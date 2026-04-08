@@ -62,6 +62,7 @@ def build_linkedin_modal_snapshot_payload(state: LinkedInApplicationPageState) -
         "headings": list(state.modal_headings),
         "buttons": list(state.modal_buttons),
         "fields": list(state.modal_fields),
+        "questions": list(state.modal_questions),
         "resumable_fields": list(state.resumable_fields),
         "filled_fields": list(state.filled_fields),
         "signals": {

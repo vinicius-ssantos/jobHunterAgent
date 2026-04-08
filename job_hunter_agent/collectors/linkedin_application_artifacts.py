@@ -81,6 +81,7 @@ async def capture_failure_artifacts(
                 "modal_headings": list(state.modal_headings),
                 "modal_buttons": list(state.modal_buttons),
                 "modal_fields": list(state.modal_fields),
+                "modal_questions": list(state.modal_questions),
                 "resumable_fields": list(state.resumable_fields),
                 "filled_fields": list(state.filled_fields),
             },

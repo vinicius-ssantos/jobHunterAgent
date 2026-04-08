@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 import re
@@ -272,8 +272,12 @@ class LinkedInEasyApplyModalDriver:
               }
 
               if (countryCode) {
-                const field = findField(['country code', 'codigo do pais', 'cÃ³digo do paÃ­s', 'country/region phone number'], 'select');
+                const field = findField(['country code', 'codigo do pais', 'código do país', 'cÃƒÂ³digo do paÃƒÂ­s', 'country/region phone number'], 'select');
                 fillSelect(field, countryCode, 'codigo_pais');
+                if (!filled.includes('codigo_pais')) {
+                  const accentedField = findField(['código do país'], 'select');
+                  fillSelect(accentedField, countryCode, 'codigo_pais');
+                }
               }
 
               return filled;
@@ -291,10 +295,10 @@ class LinkedInEasyApplyModalDriver:
         candidates = [
             page.get_by_role(
                 "button",
-                name=re.compile(r"(next|continuar|avancar|avanÃ§ar)", re.IGNORECASE),
+                name=re.compile(r"(next|continuar|avancar|avançar|avanÃƒÂ§ar)", re.IGNORECASE),
             ).first,
             page.locator('[role="dialog"] button').filter(
-                has_text=re.compile(r"(next|continuar|avancar|avanÃ§ar)", re.IGNORECASE)
+                has_text=re.compile(r"(next|continuar|avancar|avançar|avanÃƒÂ§ar)", re.IGNORECASE)
             ).first,
         ]
         for candidate in candidates:
@@ -411,3 +415,5 @@ class LinkedInEasyApplyModalDriver:
             )
         except Exception:
             return False
+
+

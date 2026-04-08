@@ -397,11 +397,46 @@ class LinkedInApplicationFlowInspector:
                     .map((node) => normalize(node.textContent))
                     .filter(Boolean)
                 : [];
+              const fieldDescriptor = (field) => {
+                if (!field) return "";
+                const parts = [];
+                const fieldId = field.getAttribute("id");
+                if (fieldId) {
+                  const explicitLabel = modal.querySelector(`label[for="${fieldId}"]`);
+                  if (explicitLabel) parts.push(explicitLabel.textContent || "");
+                }
+                const labelledBy = field.getAttribute("aria-labelledby");
+                if (labelledBy) {
+                  labelledBy.split(/\\s+/).forEach((id) => {
+                    const labelNode = document.getElementById(id);
+                    if (labelNode) parts.push(labelNode.textContent || "");
+                  });
+                }
+                const describedBy = field.getAttribute("aria-describedby");
+                if (describedBy) {
+                  describedBy.split(/\\s+/).forEach((id) => {
+                    const describedNode = document.getElementById(id);
+                    if (describedNode) parts.push(describedNode.textContent || "");
+                  });
+                }
+                const closestLabel = field.closest("label");
+                if (closestLabel) parts.push(closestLabel.textContent || "");
+                const formElement = field.closest("[data-test-form-element]") || field.closest(".fb-dash-form-element");
+                if (formElement) {
+                  const legend = formElement.querySelector("legend");
+                  const title = formElement.querySelector("[data-test-text-entity-list-form-title]");
+                  if (legend) parts.push(legend.textContent || "");
+                  if (title) parts.push(title.textContent || "");
+                }
+                parts.push(field.getAttribute("name") || "");
+                parts.push(field.getAttribute("aria-label") || "");
+                return normalize(parts.join(" "));
+              };
               const hasText = (items, parts) => parts.some((part) => items.some((value) => value.includes(part)));
               const resumableFields = [];
               const contactEmailVisible = hasText(modalTexts, ["email", "e-mail"]) || hasText(modalInputNames, ["email"]);
               const contactPhoneVisible = hasText(modalTexts, ["phone", "telefone", "celular"]) || hasText(modalInputNames, ["phone", "telefone", "celular"]);
-              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais", "código do país"]) || hasText(modalInputNames, ["country code", "codigo"]);
+              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais", "código do país"]) || hasText(modalInputNames, ["country code", "codigo", "código"]);
               const workAuthorizationVisible = hasText(modalTexts, ["work authorization", "work permit", "autoriz", "visa"]) || hasText(modalInputNames, ["authorization", "permit", "visa"]);
               const yearsOfExperienceVisible = hasText(modalTexts, ["years of work experience", "anos de experiencia"]) || hasText(modalInputNames, ["years", "experience"]);
               if (contactEmailVisible) resumableFields.push("email");
@@ -409,6 +444,24 @@ class LinkedInApplicationFlowInspector:
               if (countryCodeVisible) resumableFields.push("codigo_pais");
               if (workAuthorizationVisible) resumableFields.push("autorizacao_trabalho");
               if (yearsOfExperienceVisible) resumableFields.push("anos_experiencia");
+              const requiredFields = modal
+                ? Array.from(modal.querySelectorAll('input[required], textarea[required], select[required]'))
+                    .map((field) => fieldDescriptor(field))
+                    .filter(Boolean)
+                : [];
+              const modalQuestions = requiredFields.filter((descriptor) => !(
+                descriptor.includes("email")
+                || descriptor.includes("e-mail")
+                || descriptor.includes("phone")
+                || descriptor.includes("telefone")
+                || descriptor.includes("celular")
+                || descriptor.includes("country code")
+                || descriptor.includes("codigo do pais")
+                || descriptor.includes("código do país")
+                || descriptor.includes("cÃ³digo do paÃ­s")
+                || descriptor.includes("resume")
+                || descriptor.includes("curriculo")
+              ));
                 return {
                 current_url: currentUrl,
                 easy_apply: easyApplyTexts.length > 0 || applyHrefVisible || applyFlowActive || hiddenEasyApply,
@@ -419,7 +472,7 @@ class LinkedInApplicationFlowInspector:
                 modal_next_visible: modalButtonTexts.some((text) => text.includes("next") || text.includes("continuar") || text.includes("avancar") || text.includes("avançar")),
                 modal_review_visible: modalButtonTexts.some((text) => text.includes("review") || text.includes("revisar")),
                 modal_file_upload: modal ? modal.querySelectorAll('input[type="file"]').length > 0 : false,
-                modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
+                modal_questions_visible: modalQuestions.length > 0,
                 save_application_dialog_visible: saveApplicationDialogVisible,
                 cta_text: easyApplyTexts[0] || (hiddenEasyApply ? "candidatura simplificada" : ""),
                 sample: `${currentPath} | ${joined}`.slice(0, 400),
@@ -438,6 +491,7 @@ class LinkedInApplicationFlowInspector:
                 modal_headings: modalHeadings.slice(0, 6),
                 modal_buttons: modalButtonTexts.slice(0, 8),
                 modal_fields: modalInputNames.slice(0, 8),
+                modal_questions: modalQuestions.slice(0, 6),
               };
             }
             """
@@ -447,6 +501,7 @@ class LinkedInApplicationFlowInspector:
         raw_state["modal_headings"] = tuple(raw_state.get("modal_headings", ()))
         raw_state["modal_buttons"] = tuple(raw_state.get("modal_buttons", ()))
         raw_state["modal_fields"] = tuple(raw_state.get("modal_fields", ()))
+        raw_state["modal_questions"] = tuple(raw_state.get("modal_questions", ()))
         return LinkedInApplicationPageState(**raw_state)
 
     def _assess_job_page_readiness(

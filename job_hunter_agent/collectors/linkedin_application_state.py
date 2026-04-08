@@ -46,6 +46,7 @@ class LinkedInApplicationPageState:
     modal_headings: tuple[str, ...] = ()
     modal_buttons: tuple[str, ...] = ()
     modal_fields: tuple[str, ...] = ()
+    modal_questions: tuple[str, ...] = ()
 
 
 def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
@@ -56,6 +57,8 @@ def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
         parts.append(f"botoes={', '.join(state.modal_buttons[:5])}")
     if state.modal_fields:
         parts.append(f"campos_detectados={', '.join(state.modal_fields[:5])}")
+    if state.modal_questions:
+        parts.append(f"perguntas={', '.join(state.modal_questions[:4])}")
     if not parts:
         return "snapshot_modal=indisponivel"
     return "snapshot_modal=" + " | ".join(parts)
