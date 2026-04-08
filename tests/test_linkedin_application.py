@@ -210,8 +210,21 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
             pass
 
     def test_extract_easy_apply_href_returns_detected_apply_link(self) -> None:
+        class _Locator:
+            def __init__(self):
+                self.first = self
+
+            async def count(self):
+                return 1
+
+            async def is_visible(self, timeout=1000):
+                return True
+
         class _Page:
-            async def evaluate(self, script):
+            def locator(self, selector):
+                return _Locator()
+
+            async def evaluate(self, script, *args):
                 return "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true"
 
         inspector = LinkedInApplicationFlowInspector(
@@ -229,8 +242,21 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         )
 
     def test_extract_easy_apply_href_returns_empty_when_evaluation_fails(self) -> None:
+        class _Locator:
+            def __init__(self):
+                self.first = self
+
+            async def count(self):
+                return 1
+
+            async def is_visible(self, timeout=1000):
+                return True
+
         class _Page:
-            async def evaluate(self, script):
+            def locator(self, selector):
+                return _Locator()
+
+            async def evaluate(self, script, *args):
                 raise RuntimeError("playwright error")
 
         inspector = LinkedInApplicationFlowInspector(
@@ -316,6 +342,24 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
         self.assertEqual(readiness.result, "no_apply_cta")
         self.assertIn("cta", readiness.reason)
+
+    def test_assess_job_page_readiness_marks_external_only_apply_as_no_apply_cta(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        readiness = inspector._assess_job_page_readiness(
+            type("Job", (), {"url": "https://www.linkedin.com/jobs/view/4390058075/"})(),
+            LinkedInApplicationPageState(
+                current_url="https://www.linkedin.com/jobs/view/4390058075/",
+                external_apply=True,
+                sample="https://www.linkedin.com/jobs/view/4390058075/ | candidatar-se no site da empresa",
+            ),
+        )
+
+        self.assertEqual(readiness.result, "no_apply_cta")
+        self.assertIn("candidatura externa", readiness.reason)
 
     def test_describe_linkedin_job_page_readiness_formats_output(self) -> None:
         detail = describe_linkedin_job_page_readiness(

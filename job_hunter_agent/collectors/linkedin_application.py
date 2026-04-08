@@ -278,6 +278,9 @@ class LinkedInApplicationFlowInspector:
             """
             () => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+              const isExcludedNode = (node) => !!node?.closest(
+                '[componentkey^="JobDetailsSimilarJobsSlot_"], [data-sdui-component*="similarJobs"]'
+              );
               const currentUrl = window.location.href || "";
               const main = document.querySelector('main') || document.body;
               const detailPanel =
@@ -298,19 +301,25 @@ class LinkedInApplicationFlowInspector:
                 '.jobs-s-apply button',
               ];
               const prioritizedNodes = prioritizedSelectors.flatMap((selector) =>
-                Array.from(topCard.querySelectorAll(selector))
+                Array.from(topCard.querySelectorAll(selector)).filter((node) => !isExcludedNode(node))
               );
               const prioritizedTexts = prioritizedNodes
                 .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
                 .filter(Boolean);
-              const texts = Array.from(detailPanel.querySelectorAll("button, a"))
+              const texts = Array.from(topCard.querySelectorAll("button, a"))
+                .filter((node) => !isExcludedNode(node))
                 .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
                 .filter(Boolean);
-              const joined = normalize(detailPanel.innerText || "").slice(0, 400);
+              const joined = normalize(topCard.innerText || "").slice(0, 400);
               const easyApplyTexts = (prioritizedTexts.length ? prioritizedTexts : texts)
                 .filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
               const applyFlowActive = currentUrl.includes("/apply/") || currentUrl.includes("openSDUIApplyFlow=true");
-              const externalApply = texts.some((text) => text.includes("candidate-se") || text.includes("apply on company website"));
+              const externalApply = texts.some((text) =>
+                text.includes("candidate-se")
+                || text.includes("candidatar-se")
+                || text.includes("apply on company website")
+                || text.includes("site da empresa")
+              );
               const submitVisible = texts.some((text) => text.includes("enviar candidatura") || text.includes("submit application"));
 
               const confirmationDialog = document.querySelector('[role="alertdialog"]');
@@ -438,10 +447,16 @@ class LinkedInApplicationFlowInspector:
                 reason="a vaga parece encerrada ou indisponivel",
                 sample=state.sample,
             )
-        if state.easy_apply or state.external_apply or state.submit_visible:
+        if state.easy_apply or state.submit_visible:
             return LinkedInJobPageReadiness(
                 result="ready",
                 reason="cta de candidatura detectado na pagina alvo",
+                sample=state.sample,
+            )
+        if state.external_apply:
+            return LinkedInJobPageReadiness(
+                result="no_apply_cta",
+                reason="a vaga so oferece candidatura externa no site da empresa",
                 sample=state.sample,
             )
         if "/apply/" in normalized_url:
