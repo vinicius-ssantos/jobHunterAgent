@@ -243,6 +243,45 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
         self.assertEqual(href, "")
 
+    def test_needs_canonical_job_navigation_on_similar_jobs_page(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        self.assertTrue(
+            inspector._needs_canonical_job_navigation(
+                "https://www.linkedin.com/jobs/collections/similar-jobs/?currentJobId=4391593841&referenceJobId=4390058075",
+                "https://www.linkedin.com/jobs/view/4390058075/",
+            )
+        )
+
+    def test_needs_canonical_job_navigation_is_false_for_apply_flow_of_same_job(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        self.assertFalse(
+            inspector._needs_canonical_job_navigation(
+                "https://www.linkedin.com/jobs/view/4390058075/apply/?openSDUIApplyFlow=true",
+                "https://www.linkedin.com/jobs/view/4390058075/",
+            )
+        )
+
+    def test_canonical_linkedin_job_url_removes_tracking_query(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        self.assertEqual(
+            inspector._canonical_linkedin_job_url(
+                "https://www.linkedin.com/jobs/view/4390058075/?refId=abc&trackingId=def"
+            ),
+            "https://www.linkedin.com/jobs/view/4390058075/",
+        )
+
     def test_is_closed_target_error_detects_playwright_message(self) -> None:
         inspector = LinkedInApplicationFlowInspector(
             storage_state_path="linkedin_state.json",

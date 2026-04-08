@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Callable, TYPE_CHECKING
+from urllib.parse import parse_qs, urlparse
 
 from job_hunter_agent.application.applicant import ApplicationSubmissionResult
 from job_hunter_agent.collectors.linkedin_application_artifacts import (
@@ -116,6 +118,7 @@ class LinkedInApplicationFlowInspector:
             page = await context.new_page()
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
+                await self._ensure_target_job_page(page, job)
                 await page.wait_for_timeout(2500)
                 await self._prepare_job_page_for_apply(page)
                 state = await self._read_page_state(page)
@@ -175,6 +178,7 @@ class LinkedInApplicationFlowInspector:
             state = LinkedInApplicationPageState()
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
+                await self._ensure_target_job_page(page, job)
                 await page.wait_for_timeout(2500)
                 await self._prepare_job_page_for_apply(page)
                 state = await self._read_page_state(page)
@@ -323,7 +327,8 @@ class LinkedInApplicationFlowInspector:
               if (countryCodeVisible) resumableFields.push("codigo_pais");
               if (workAuthorizationVisible) resumableFields.push("autorizacao_trabalho");
               if (yearsOfExperienceVisible) resumableFields.push("anos_experiencia");
-              return {
+                return {
+                current_url: currentUrl,
                 easy_apply: easyApplyTexts.length > 0 || applyFlowActive,
                 external_apply: externalApply,
                 submit_visible: submitVisible,
@@ -361,6 +366,62 @@ class LinkedInApplicationFlowInspector:
         raw_state["modal_buttons"] = tuple(raw_state.get("modal_buttons", ()))
         raw_state["modal_fields"] = tuple(raw_state.get("modal_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
+
+    async def _ensure_target_job_page(self, page, job: JobPosting) -> None:
+        current_url = ""
+        try:
+            current_url = page.url or ""
+        except Exception:
+            return
+        canonical_url = self._canonical_linkedin_job_url(job.url)
+        if not canonical_url:
+            return
+        if not self._needs_canonical_job_navigation(current_url, job.url):
+            return
+        try:
+            await page.goto(canonical_url, wait_until="domcontentloaded")
+        except Exception:
+            return
+
+    @staticmethod
+    def _canonical_linkedin_job_url(url: str) -> str:
+        match = re.search(r"/jobs/view/(\d+)", url, re.IGNORECASE)
+        if not match:
+            return ""
+        return f"https://www.linkedin.com/jobs/view/{match.group(1)}/"
+
+    @classmethod
+    def _needs_canonical_job_navigation(cls, current_url: str, target_url: str) -> bool:
+        target_job_id = cls._extract_linkedin_job_id(target_url)
+        if not target_job_id:
+            return False
+        normalized_current_url = current_url.lower()
+        if "/jobs/collections/" in normalized_current_url:
+            return True
+        if "/apply/" in normalized_current_url:
+            return False
+        current_job_id = cls._extract_linkedin_job_id(current_url)
+        if current_job_id and current_job_id != target_job_id:
+            return True
+        return False
+
+    @staticmethod
+    def _extract_linkedin_job_id(url: str) -> str:
+        match = re.search(r"/jobs/view/(\d+)", url, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        try:
+            parsed = urlparse(url)
+            query = parse_qs(parsed.query)
+        except Exception:
+            return ""
+        current_job_id = query.get("currentJobId", [""])
+        if current_job_id and current_job_id[0].isdigit():
+            return current_job_id[0]
+        reference_job_id = query.get("referenceJobId", [""])
+        if reference_job_id and reference_job_id[0].isdigit():
+            return reference_job_id[0]
+        return ""
 
     async def _inspect_easy_apply_modal(
         self,

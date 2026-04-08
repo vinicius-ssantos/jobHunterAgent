@@ -11,6 +11,7 @@ class LinkedInApplicationInspection:
 
 @dataclass(frozen=True)
 class LinkedInApplicationPageState:
+    current_url: str = ""
     easy_apply: bool = False
     external_apply: bool = False
     submit_visible: bool = False
