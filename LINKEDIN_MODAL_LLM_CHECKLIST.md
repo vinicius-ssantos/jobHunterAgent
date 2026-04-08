@@ -81,8 +81,8 @@ O objetivo e:
 
 - [x] Separar campos obrigatorios de contato de perguntas adicionais reais
 - [x] Registrar perguntas adicionais estruturadas no snapshot e nos artefatos de falha
-- [ ] Responder automaticamente apenas perguntas seguras baseadas em politica local explicita
-- [ ] Bloquear perguntas ambiguas ou sensiveis em `manual_review` com motivo curto
+- [x] Responder automaticamente apenas perguntas seguras baseadas em politica local explicita
+- [x] Bloquear perguntas ambiguas ou sensiveis em `manual_review` com motivo curto
 - [ ] Validar submit real fim a fim em uma vaga `Easy Apply` ainda aberta
 
 ## Regras

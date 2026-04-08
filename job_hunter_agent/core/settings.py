@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     application_phone: str = ""
     application_phone_country_code: str = ""
     resume_path: Path = Path("./curriculo.pdf")
+    candidate_profile_path: Path = Path("./candidate_profile.json")
     database_path: Path = Path("./jobs.db")
     browser_use_config_dir: Path = Path("./.browseruse")
     linkedin_persistent_profile_dir: Path = Path("./.browseruse/profiles/linkedin-bootstrap")

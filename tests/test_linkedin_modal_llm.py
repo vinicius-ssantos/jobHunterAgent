@@ -28,6 +28,8 @@ class LinkedInModalInterpreterTests(unittest.TestCase):
         self.assertEqual(payload["headings"], ["informacoes de contato"])
         self.assertEqual(payload["buttons"], ["next", "review"])
         self.assertEqual(payload["fields"], ["email", "phone"])
+        self.assertEqual(payload["answered_questions"], [])
+        self.assertEqual(payload["unanswered_questions"], [])
 
     def test_deterministic_interpreter_detects_review_final(self) -> None:
         interpretation = deterministic_interpret_linkedin_modal(
@@ -52,6 +54,19 @@ class LinkedInModalInterpreterTests(unittest.TestCase):
 
         self.assertEqual(interpretation.step_type, "resume_upload")
         self.assertEqual(interpretation.recommended_action, "upload_resume")
+
+    def test_deterministic_interpreter_blocks_unanswered_questions(self) -> None:
+        interpretation = deterministic_interpret_linkedin_modal(
+            LinkedInApplicationPageState(
+                modal_open=True,
+                modal_questions_visible=True,
+                unanswered_questions=("ha quantos anos voce usa ejb?",),
+            )
+        )
+
+        self.assertEqual(interpretation.step_type, "screening_questions")
+        self.assertEqual(interpretation.recommended_action, "manual_review")
+        self.assertIn("sem resposta confirmada", interpretation.rationale)
 
     def test_parse_linkedin_modal_interpretation_response_accepts_valid_json(self) -> None:
         interpretation = parse_linkedin_modal_interpretation_response(

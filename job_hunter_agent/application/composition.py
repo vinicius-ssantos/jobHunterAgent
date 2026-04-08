@@ -11,6 +11,7 @@ from job_hunter_agent.application.applicant import (
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
 from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
+from job_hunter_agent.core.candidate_profile import load_candidate_profile
 from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.core.matching import build_matching_criteria
 from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
@@ -98,6 +99,7 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
             contact_email=settings.application_contact_email,
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
+            candidate_profile=load_candidate_profile(settings.candidate_profile_path),
             modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
             save_failure_artifacts=settings.save_failure_artifacts,
             failure_artifacts_dir=settings.failure_artifacts_dir,
@@ -115,6 +117,7 @@ def create_application_submission_service(repository: JobRepository, settings: S
             contact_email=settings.application_contact_email,
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
+            candidate_profile=load_candidate_profile(settings.candidate_profile_path),
             modal_interpreter=create_linkedin_modal_interpreter(settings),
             save_failure_artifacts=settings.save_failure_artifacts,
             failure_artifacts_dir=settings.failure_artifacts_dir,

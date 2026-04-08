@@ -98,11 +98,13 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
                 modal_next_visible=True,
                 modal_file_upload=True,
                 modal_questions_visible=True,
+                unanswered_questions=("ha quantos anos voce usa java?",),
                 resumable_fields=("telefone",),
             )
         )
 
         self.assertIn("perguntas_obrigatorias", blocker)
+        self.assertIn("perguntas_nao_mapeadas", blocker)
         self.assertIn("upload_cv_pendente", blocker)
         self.assertIn("etapa_intermediaria", blocker)
         self.assertIn("botao_submit_ausente", blocker)
@@ -126,6 +128,8 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
                 modal_buttons=("next", "review", "submit application"),
                 modal_fields=("email", "phone", "country code"),
                 modal_questions=("autorizacao para trabalho",),
+                answered_questions=("quantos anos java",),
+                unanswered_questions=("quantos anos ejb",),
             )
         )
 
@@ -133,6 +137,8 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertIn("botoes=next, review, submit application", snapshot)
         self.assertIn("campos_detectados=email, phone, country code", snapshot)
         self.assertIn("perguntas=autorizacao para trabalho", snapshot)
+        self.assertIn("respondidas=quantos anos java", snapshot)
+        self.assertIn("pendentes=quantos anos ejb", snapshot)
 
     def test_describe_linkedin_easy_apply_entrypoint_uses_cta_and_page_sample(self) -> None:
         detail = describe_linkedin_easy_apply_entrypoint(

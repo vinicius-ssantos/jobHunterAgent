@@ -29,6 +29,7 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.application_contact_email, "")
         self.assertEqual(settings.application_phone, "")
         self.assertEqual(settings.application_phone_country_code, "")
+        self.assertEqual(str(settings.candidate_profile_path), "candidate_profile.json")
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)

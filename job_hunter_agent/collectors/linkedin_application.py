@@ -25,6 +25,7 @@ from job_hunter_agent.collectors.linkedin_application_state import (
     describe_linkedin_modal_blocker,
 )
 from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
+from job_hunter_agent.core.candidate_profile import CandidateProfile
 from job_hunter_agent.core.domain import JobPosting
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ class LinkedInApplicationFlowInspector:
         contact_email: str = "",
         phone: str = "",
         phone_country_code: str = "",
+        candidate_profile: CandidateProfile | None = None,
         modal_interpretation_formatter: Callable[[LinkedInApplicationPageState], str] | None = None,
         modal_interpreter: Callable[[LinkedInApplicationPageState], "LinkedInModalInterpretation"] | None = None,
         save_failure_artifacts: bool = False,
@@ -52,6 +54,7 @@ class LinkedInApplicationFlowInspector:
         self.contact_email = contact_email.strip()
         self.phone = phone.strip()
         self.phone_country_code = phone_country_code.strip()
+        self.candidate_profile = candidate_profile
         self.modal_interpretation_formatter = modal_interpretation_formatter
         self.modal_interpreter = modal_interpreter
         self.save_failure_artifacts = save_failure_artifacts
@@ -62,6 +65,7 @@ class LinkedInApplicationFlowInspector:
             contact_email=self.contact_email,
             phone=self.phone,
             phone_country_code=self.phone_country_code,
+            candidate_profile=self.candidate_profile,
             modal_interpreter=self.modal_interpreter,
         )
 
@@ -223,6 +227,11 @@ class LinkedInApplicationFlowInspector:
                     state = await self._try_open_easy_apply_via_direct_url(page, close_modal=False)
                 if not state.modal_open or not state.modal_submit_visible:
                     interpretation_detail = self._format_modal_interpretation_for_error(state)
+                    snapshot_detail = (
+                        f" | {build_linkedin_modal_snapshot(state)}"
+                        if state.modal_open
+                        else ""
+                    )
                     artifact_detail = await self._capture_failure_artifacts(
                         page,
                         state=state,
@@ -241,6 +250,7 @@ class LinkedInApplicationFlowInspector:
                             f" | modal={state.modal_sample or 'nao_informado'}"
                             f" | {describe_linkedin_easy_apply_entrypoint(state)}"
                             f"{interpretation_detail}"
+                            f"{snapshot_detail}"
                             f"{artifact_detail}"
                         ),
                     )

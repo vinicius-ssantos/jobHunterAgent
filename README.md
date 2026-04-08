@@ -100,6 +100,7 @@ Variaveis principais:
 - `JOB_HUNTER_APPLICATION_CONTACT_EMAIL`
 - `JOB_HUNTER_APPLICATION_PHONE`
 - `JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE`
+- `JOB_HUNTER_CANDIDATE_PROFILE_PATH`
 - `JOB_HUNTER_COLLECTION_TIME`
 - `JOB_HUNTER_DATABASE_PATH`
 - `JOB_HUNTER_BROWSER_USE_CONFIG_DIR`
@@ -234,6 +235,14 @@ Antes do submit real, o sistema tambem executa checks locais de prontidao operac
 - email, telefone e codigo do pais preenchidos
 
 Se algum desses itens faltar, o submit e bloqueado antes de abrir o applicant e a candidatura permanece em `authorized_submit`.
+
+Perguntas adicionais do `Easy Apply` agora tambem podem usar um perfil estruturado local do candidato:
+
+- `JOB_HUNTER_CANDIDATE_PROFILE_PATH=./candidate_profile.json`
+- existe um exemplo versionado em `candidate_profile.example.json`
+- hoje o fluxo usa automaticamente apenas valores `confirmed`
+- perguntas de experiencia numerica por stack, como `Java`, `Angular` e `EJB`, podem ser respondidas automaticamente quando houver valor confirmado no arquivo
+- perguntas novas, ambiguas ou sem valor confirmado continuam bloqueadas e sao reportadas nos artefatos e no erro operacional
 
 As capacidades do portal tambem ficaram explicitas no codigo:
 

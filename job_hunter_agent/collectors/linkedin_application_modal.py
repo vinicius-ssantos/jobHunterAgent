@@ -4,6 +4,10 @@ from pathlib import Path
 import re
 from typing import Callable
 
+from job_hunter_agent.core.candidate_profile import (
+    CandidateProfile,
+    extract_supported_experience_answers,
+)
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 
 
@@ -15,12 +19,14 @@ class LinkedInEasyApplyModalDriver:
         contact_email: str,
         phone: str,
         phone_country_code: str,
+        candidate_profile: CandidateProfile | None = None,
         modal_interpreter: Callable[[LinkedInApplicationPageState], object] | None = None,
     ) -> None:
         self.resume_path = resume_path
         self.contact_email = contact_email
         self.phone = phone
         self.phone_country_code = phone_country_code
+        self.candidate_profile = candidate_profile
         self.modal_interpreter = modal_interpreter
 
     async def inspect_easy_apply_modal(
@@ -45,6 +51,8 @@ class LinkedInEasyApplyModalDriver:
             return state
 
         all_filled_fields: tuple[str, ...] = ()
+        all_answered_questions: tuple[str, ...] = ()
+        all_unanswered_questions: tuple[str, ...] = ()
         progressed = False
         uploaded_resume = False
         reached_review_step = False
@@ -56,11 +64,26 @@ class LinkedInEasyApplyModalDriver:
                 all_filled_fields = tuple(dict.fromkeys((*all_filled_fields, *filled_fields)))
                 await page.wait_for_timeout(1200)
             state = await read_page_state(page)
+            answered_questions, unanswered_questions = await self.try_fill_supported_profile_answers(page, state)
+            if answered_questions:
+                all_answered_questions = tuple(dict.fromkeys((*all_answered_questions, *answered_questions)))
+                await page.wait_for_timeout(1200)
+                state = await read_page_state(page)
+            if unanswered_questions:
+                all_unanswered_questions = tuple(dict.fromkeys((*all_unanswered_questions, *unanswered_questions)))
             if all_filled_fields:
                 state = LinkedInApplicationPageState(
                     **{
                         **state.__dict__,
                         "filled_fields": tuple(dict.fromkeys((*state.filled_fields, *all_filled_fields))),
+                    }
+                )
+            if all_answered_questions or all_unanswered_questions:
+                state = LinkedInApplicationPageState(
+                    **{
+                        **state.__dict__,
+                        "answered_questions": tuple(dict.fromkeys((*state.answered_questions, *all_answered_questions))),
+                        "unanswered_questions": tuple(dict.fromkeys((*state.unanswered_questions, *all_unanswered_questions))),
                     }
                 )
 
@@ -290,6 +313,122 @@ class LinkedInEasyApplyModalDriver:
             },
         )
         return tuple(filled)
+
+    async def try_fill_supported_profile_answers(
+        self,
+        page,
+        state: LinkedInApplicationPageState,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        answers, unresolved_questions = extract_supported_experience_answers(
+            state.modal_questions,
+            self.candidate_profile,
+        )
+        if not answers:
+            return (), unresolved_questions
+        answered_questions = await page.evaluate(
+            """
+            (answers) => {
+              const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+              const modal = document.querySelector('[role="dialog"]');
+              if (!modal) return [];
+              const fields = Array.from(modal.querySelectorAll('input[required], textarea[required], select[required]'));
+              const descriptorFor = (field) => {
+                const parts = [];
+                const fieldId = field.getAttribute('id');
+                if (fieldId) {
+                  const explicitLabel = modal.querySelector(`label[for="${fieldId}"]`);
+                  if (explicitLabel) parts.push(explicitLabel.textContent || '');
+                }
+                const labelledBy = field.getAttribute('aria-labelledby');
+                if (labelledBy) {
+                  labelledBy.split(/\\s+/).forEach((id) => {
+                    const node = document.getElementById(id);
+                    if (node) parts.push(node.textContent || '');
+                  });
+                }
+                const describedBy = field.getAttribute('aria-describedby');
+                if (describedBy) {
+                  describedBy.split(/\\s+/).forEach((id) => {
+                    const node = document.getElementById(id);
+                    if (node) parts.push(node.textContent || '');
+                  });
+                }
+                const closestLabel = field.closest('label');
+                if (closestLabel) parts.push(closestLabel.textContent || '');
+                const formElement = field.closest('[data-test-form-element]') || field.closest('.fb-dash-form-element');
+                if (formElement) {
+                  const legend = formElement.querySelector('legend');
+                  const title = formElement.querySelector('[data-test-text-entity-list-form-title]');
+                  if (legend) parts.push(legend.textContent || '');
+                  if (title) parts.push(title.textContent || '');
+                }
+                parts.push(field.getAttribute('name') || '');
+                parts.push(field.getAttribute('aria-label') || '');
+                return normalize(parts.join(' '));
+              };
+              const dispatch = (node) => {
+                node.dispatchEvent(new Event('input', { bubbles: true }));
+                node.dispatchEvent(new Event('change', { bubbles: true }));
+                node.dispatchEvent(new Event('blur', { bubbles: true }));
+              };
+              const filled = [];
+              for (const answer of answers) {
+                const normalizedQuestion = normalize(answer.question || '');
+                const aliases = (answer.aliases || []).map((alias) => normalize(alias));
+                const field = fields.find((candidate) => {
+                  const descriptor = descriptorFor(candidate);
+                  return (
+                    (!!normalizedQuestion && descriptor.includes(normalizedQuestion))
+                    || aliases.some((alias) => alias && descriptor.includes(alias))
+                  );
+                });
+                if (!field || field.disabled || field.readOnly) {
+                  continue;
+                }
+                const tagName = field.tagName.toLowerCase();
+                if (tagName === 'select') {
+                  const targetValue = String(answer.years);
+                  const target = Array.from(field.options || []).find((option) => {
+                    const label = normalize(option.label || option.textContent || '');
+                    const value = normalize(option.value || '');
+                    return label === targetValue || value === targetValue;
+                  });
+                  if (!target) {
+                    continue;
+                  }
+                  field.value = target.value;
+                  dispatch(field);
+                  filled.push(answer.question);
+                  continue;
+                }
+                if (tagName === 'input' || tagName === 'textarea') {
+                  field.focus();
+                  field.value = String(answer.years);
+                  dispatch(field);
+                  filled.push(answer.question);
+                }
+              }
+              return filled;
+            }
+            """,
+            [
+                {
+                    "question": answer.question,
+                    "years": answer.years,
+                    "aliases": list(answer.aliases),
+                }
+                for answer in answers
+            ],
+        )
+        answered_questions = tuple(answered_questions)
+        unanswered_remaining = tuple(
+            question for question in unresolved_questions if question not in answered_questions
+        )
+        unanswered_from_answers = tuple(
+            answer.question for answer in answers if answer.question not in answered_questions
+        )
+        unresolved = tuple(dict.fromkeys((*unanswered_remaining, *unanswered_from_answers)))
+        return answered_questions, unresolved
 
     async def try_advance_single_step(self, page) -> bool:
         candidates = [
