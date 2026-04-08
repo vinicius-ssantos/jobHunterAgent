@@ -35,6 +35,40 @@ class CandidateProfileTests(TestCase):
         self.assertEqual(profile.years_for_skill("ejb"), 2)
         self.assertIsNone(profile.years_for_skill("angular"))
 
+    def test_load_candidate_profile_uses_confirmed_question_entries_for_supported_skills(self) -> None:
+        tmp_dir = prepare_workspace_tmp_dir("candidate-profile-questions")
+        path = Path(tmp_dir) / "candidate_profile.json"
+        path.write_text(
+            """
+            {
+              "experience_years": {
+                "java": {"suggested": 7, "confirmed": 8}
+              },
+              "questions": {
+                "angular_question": {
+                  "question": "Há quantos anos você já usa Angular (framework) no trabalho?",
+                  "type": "experience_years",
+                  "skill": "angular",
+                  "confirmed": 4
+                },
+                "ejb_question": {
+                  "question": "Há quantos anos você já usa EJB no trabalho?",
+                  "type": "experience_years",
+                  "skill": "ejb",
+                  "confirmed": 1
+                }
+              }
+            }
+            """,
+            encoding="utf-8",
+        )
+
+        profile = load_candidate_profile(path)
+
+        self.assertEqual(profile.years_for_skill("java"), 8)
+        self.assertEqual(profile.years_for_skill("angular"), 4)
+        self.assertEqual(profile.years_for_skill("ejb"), 1)
+
     def test_extract_skill_key_from_experience_question_maps_supported_stack(self) -> None:
         self.assertEqual(
             extract_skill_key_from_experience_question("Há quantos anos você já usa Angular (framework) no trabalho?"),

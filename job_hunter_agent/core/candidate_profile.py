@@ -52,6 +52,23 @@ def load_candidate_profile(path: str | Path) -> CandidateProfile:
         if years is None:
             continue
         confirmed[skill_key] = years
+    question_entries = payload.get("questions", {})
+    if isinstance(question_entries, dict):
+        for raw_value in question_entries.values():
+            if not isinstance(raw_value, dict):
+                continue
+            if raw_value.get("type") != "experience_years":
+                continue
+            skill_key = normalize_skill_key(str(raw_value.get("skill") or ""))
+            if not skill_key:
+                question_text = str(raw_value.get("question") or "")
+                skill_key = extract_skill_key_from_experience_question(question_text) or ""
+            if not skill_key:
+                continue
+            years = _extract_confirmed_years(raw_value)
+            if years is None:
+                continue
+            confirmed[skill_key] = years
     return CandidateProfile(confirmed_experience_years=confirmed)
 
 
