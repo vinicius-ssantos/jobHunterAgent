@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from job_hunter_agent.core.application_insights import classify_application_operational_insight
 from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
 from job_hunter_agent.collectors.collector import JobCollectionService
 from job_hunter_agent.application.composition import (
@@ -150,7 +151,8 @@ class JobHunterApplication:
                     else f"job_id={application.job_id}"
                 )
                 lines.append(
-                    f"{application.id}: {application.status} | {job_label} | suporte={application.support_level}"
+                    f"{application.id}: {application.status} | {job_label} | suporte={application.support_level} "
+                    f"| op={classify_application_operational_insight(application).reason_code}"
                 )
                 total += 1
         if not lines:
@@ -214,6 +216,8 @@ class JobHunterApplication:
     def show_status_overview(self) -> str:
         job_summary = self.repository.summary()
         application_summary = self.repository.application_summary()
+        tracked_applications = self._list_tracked_applications()
+        operational_counts = self._summarize_operational_counts(tracked_applications)
         lines = [
             "Resumo operacional:",
             "vagas:",
@@ -232,6 +236,20 @@ class JobHunterApplication:
             f"- error_submit={application_summary['error_submit']}",
             f"- cancelled={application_summary['cancelled']}",
         ]
+        if operational_counts:
+            lines.append("operacao:")
+            for key in (
+                "pronto_para_envio",
+                "perguntas_adicionais",
+                "similar_jobs",
+                "candidatura_externa",
+                "vaga_expirada",
+                "no_apply_cta",
+                "fluxo_inconclusivo",
+                "bloqueio_funcional",
+            ):
+                if key in operational_counts:
+                    lines.append(f"- {key}={operational_counts[key]}")
         return "\n".join(lines)
 
     def review_job(self, job_id: int, action: str) -> str:
@@ -297,6 +315,9 @@ class JobHunterApplication:
             f"vaga={job_title}",
             f"empresa={job_company}",
             f"suporte={application.support_level}",
+            "classificacao_operacional="
+            f"{classify_application_operational_insight(application).classification}"
+            f" | motivo={classify_application_operational_insight(application).reason_code}",
             f"url={job_url}",
             f"last_preflight_detail={application.last_preflight_detail or '-'}",
             f"last_submit_detail={application.last_submit_detail or '-'}",
@@ -375,6 +396,22 @@ class JobHunterApplication:
             return False
         await self.notifier.notify_jobs_for_review(jobs)
         return True
+
+    def _list_tracked_applications(self) -> list:
+        tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit", "submitted")
+        applications: list = []
+        for status in tracked_statuses:
+            applications.extend(self.repository.list_applications_by_status(status))
+        return applications
+
+    def _summarize_operational_counts(self, applications: list) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for application in applications:
+            reason_code = classify_application_operational_insight(application).reason_code
+            if reason_code in {"sem_detalhe_operacional", "nao_classificado"}:
+                continue
+            counts[reason_code] = counts.get(reason_code, 0) + 1
+        return counts
 
     async def wait_for_review_window(self) -> None:
         if not self.enable_telegram:

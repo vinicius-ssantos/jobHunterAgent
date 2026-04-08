@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from job_hunter_agent.llm.application_priority import extract_application_priority_level
+from job_hunter_agent.core.application_insights import classify_application_operational_insight
 from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.llm.job_requirements import (
     extract_job_requirement_signals,
@@ -80,8 +81,10 @@ def build_application_queue_message(repository: JobRepository) -> str:
     summary = repository.application_summary()
     tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit")
     preview_lines: list[str] = []
+    tracked_applications: list[JobApplication] = []
     for status in tracked_statuses:
         applications = _sort_applications_by_priority(repository.list_applications_by_status(status))
+        tracked_applications.extend(applications)
         for application in applications[:3]:
             preview_lines.append(build_application_preview_line(repository, application))
     lines = [
@@ -95,6 +98,11 @@ def build_application_queue_message(repository: JobRepository) -> str:
         f"Com erro: {summary['error_submit']}",
         f"Canceladas: {summary['cancelled']}",
     ]
+    operational_summary = summarize_operational_classifications(tracked_applications)
+    if operational_summary:
+        lines.append("")
+        lines.append("Classificacao operacional:")
+        lines.extend(operational_summary)
     if preview_lines:
         lines.append("")
         lines.append("Fila atual:")
@@ -108,11 +116,15 @@ def build_application_queue_message(repository: JobRepository) -> str:
 def build_application_preview_line(repository: JobRepository, application: JobApplication) -> str:
     job = repository.get_job(application.job_id)
     priority = extract_application_priority_level(application.notes)
+    operational = classify_application_operational_insight(application)
     if not job:
-        return f"{application.job_id}: vaga ausente [{application.status} | prioridade {priority}]"
+        return (
+            f"{application.job_id}: vaga ausente "
+            f"[{application.status} | prioridade {priority} | op={operational.reason_code}]"
+        )
     return (
         f"{job.id}: {job.title} - {job.company} "
-        f"[{application.status} | {application.support_level} | prioridade {priority}]"
+        f"[{application.status} | {application.support_level} | prioridade {priority} | op={operational.reason_code}]"
     )
 
 
@@ -122,6 +134,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
     requirement_summary = format_job_requirement_summary(extract_job_requirement_signals(application.notes))
     summarized_notes = summarize_application_notes(application.notes or "")
     operation_summary = summarize_application_operation(application)
+    operational = classify_application_operational_insight(application)
     if not job:
         return (
             f"Candidatura {application.id}\n"
@@ -129,6 +142,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
             f"Status: {application.status}\n"
             f"Suporte: {application.support_level}\n"
             f"Prioridade: {priority}\n"
+            f"Classificacao operacional: {operational.classification} | {operational.summary}\n"
             f"Sinais: {requirement_summary}\n"
             f"Racional: {application.support_rationale or 'Nao informado'}\n"
             f"Contexto: {summarized_notes}\n"
@@ -141,6 +155,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
         f"Status: {application.status}\n"
         f"Suporte: {application.support_level}\n"
         f"Prioridade: {priority}\n"
+        f"Classificacao operacional: {operational.classification} | {operational.summary}\n"
         f"Sinais: {requirement_summary}\n"
         f"Racional: {application.support_rationale or 'Nao informado'}\n"
         f"Contexto: {summarized_notes}\n"
@@ -197,3 +212,36 @@ def _sort_applications_by_priority(applications: list[JobApplication]) -> list[J
         key=lambda application: (priority_order.get(extract_application_priority_level(application.notes), 3), application.id),
     )
 
+
+def summarize_operational_classifications(applications: list[JobApplication]) -> list[str]:
+    if not applications:
+        return []
+    counts: dict[str, int] = {}
+    for application in applications:
+        insight = classify_application_operational_insight(application)
+        if insight.reason_code in {"sem_detalhe_operacional", "nao_classificado"}:
+            continue
+        counts[insight.reason_code] = counts.get(insight.reason_code, 0) + 1
+    if not counts:
+        return []
+    ordered_labels = (
+        ("pronto_para_envio", "pronto_para_envio"),
+        ("perguntas_adicionais", "perguntas_adicionais"),
+        ("similar_jobs", "similar_jobs"),
+        ("candidatura_externa", "candidatura_externa"),
+        ("vaga_expirada", "vaga_expirada"),
+        ("no_apply_cta", "no_apply_cta"),
+        ("fluxo_inconclusivo", "fluxo_inconclusivo"),
+        ("bloqueio_funcional", "bloqueio_funcional"),
+        ("submitted", "submitted"),
+    )
+    lines: list[str] = []
+    emitted: set[str] = set()
+    for key, label in ordered_labels:
+        if key in counts:
+            lines.append(f"- {label}={counts[key]}")
+            emitted.add(key)
+    for key in sorted(counts):
+        if key not in emitted:
+            lines.append(f"- {key}={counts[key]}")
+    return lines

@@ -403,6 +403,29 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
                     "cancelled": 0,
                 }
 
+            def list_applications_by_status(self, status: str):
+                if status == "authorized_submit":
+                    return [
+                        JobApplication(
+                            id=1,
+                            job_id=10,
+                            status="authorized_submit",
+                            support_level="manual_review",
+                            last_preflight_detail="preflight real | pronto_para_envio=sim | ok: fluxo pronto para submissao assistida no LinkedIn",
+                        )
+                    ]
+                if status == "error_submit":
+                    return [
+                        JobApplication(
+                            id=2,
+                            job_id=11,
+                            status="error_submit",
+                            support_level="manual_review",
+                            last_error="readiness=listing_redirect | motivo=a navegacao caiu em listagem ou colecao do LinkedIn | pagina=https://www.linkedin.com/jobs/collections/similar-jobs/",
+                        )
+                    ]
+                return []
+
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
 
@@ -412,6 +435,9 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("- approved=1", rendered)
         self.assertIn("- draft=1", rendered)
         self.assertIn("- confirmed=1", rendered)
+        self.assertIn("operacao:", rendered)
+        self.assertIn("- pronto_para_envio=1", rendered)
+        self.assertIn("- similar_jobs=1", rendered)
 
     async def test_create_application_draft_for_job_creates_draft_for_approved_job(self) -> None:
         class _Repository:
@@ -560,6 +586,7 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
                             job_id=10,
                             status="confirmed",
                             support_level="manual_review",
+                            last_preflight_detail="preflight real inconclusivo | perguntas_pendentes=ha quantos anos voce usa java?",
                         )
                     ]
                 return []
@@ -575,6 +602,7 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("Candidaturas listadas: 1", rendered)
         self.assertIn("2: confirmed", rendered)
         self.assertIn("Backend Java | ACME", rendered)
+        self.assertIn("op=perguntas_adicionais", rendered)
 
     async def test_list_applications_supports_ready_alias_from_cli_mapping(self) -> None:
         class _Repository:

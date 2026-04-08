@@ -1,7 +1,7 @@
 import shutil
 from unittest import TestCase
 
-from job_hunter_agent.core.domain import JobPosting
+from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.infrastructure.notifier import (
     NullNotifier,
     build_application_action_rows,
@@ -19,6 +19,7 @@ from job_hunter_agent.infrastructure.notifier import (
 from job_hunter_agent.infrastructure.notifier_rendering import (
     summarize_application_notes,
     summarize_application_operation,
+    summarize_operational_classifications,
 )
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.llm.review_rationale import (
@@ -119,7 +120,7 @@ class ReviewActionTests(TestCase):
             line = build_application_preview_line(repository, draft)
 
             self.assertIn("Senior Kotlin Engineer", line)
-            self.assertIn("[draft | manual_review | prioridade alta]", line)
+            self.assertIn("[draft | manual_review | prioridade alta | op=sem_detalhe_operacional]", line)
             self.assertIn("manual_review", line)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -302,7 +303,7 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Candidaturas:", message)
         self.assertIn("Autorizadas para envio: 1", message)
         self.assertIn("Com erro: 1", message)
-        self.assertIn("Senior Kotlin Engineer - ACME [authorized_submit | manual_review | prioridade alta]", message)
+        self.assertIn("Senior Kotlin Engineer - ACME [authorized_submit | manual_review | prioridade alta | op=sem_detalhe_operacional]", message)
 
     def test_build_application_queue_message_orders_by_priority(self) -> None:
         first_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
@@ -371,10 +372,39 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Candidatura", message)
         self.assertIn("Vaga: Senior Kotlin Engineer", message)
         self.assertIn("Suporte: manual_review", message)
+        self.assertIn("Classificacao operacional: manual_review | cta detectado; validar fluxo", message)
         self.assertIn("Prioridade: media", message)
         self.assertIn("Sinais: senioridade=senior | stack=java, spring | ingles=avancado | lideranca=sim", message)
         self.assertIn("Contexto: rascunho criado apos aprovacao humana", message)
         self.assertIn("Operacao: Preflight: preflight real ok: CTA encontrado", message)
+
+    def test_summarize_operational_classifications_counts_known_variants(self) -> None:
+        summary = summarize_operational_classifications(
+            [
+                JobApplication(
+                    id=1,
+                    job_id=1,
+                    status="authorized_submit",
+                    last_preflight_detail="preflight real | pronto_para_envio=sim | ok: fluxo pronto para submissao assistida no LinkedIn",
+                ),
+                JobApplication(
+                    id=2,
+                    job_id=2,
+                    status="error_submit",
+                    last_error="readiness=listing_redirect | motivo=a navegacao caiu em listagem ou colecao do LinkedIn | pagina=https://www.linkedin.com/jobs/collections/similar-jobs/",
+                ),
+                JobApplication(
+                    id=3,
+                    job_id=3,
+                    status="error_submit",
+                    last_error="submissao real bloqueada | bloqueio=perguntas_obrigatorias | perguntas_pendentes=ha quantos anos voce usa java?",
+                ),
+            ]
+        )
+
+        self.assertIn("- pronto_para_envio=1", summary)
+        self.assertIn("- similar_jobs=1", summary)
+        self.assertIn("- perguntas_adicionais=1", summary)
 
     def test_summarize_application_notes_prefers_human_context_lines(self) -> None:
         notes = (

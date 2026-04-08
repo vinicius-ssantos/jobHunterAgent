@@ -27,15 +27,15 @@ Regra da fase atual:
 
 - [ ] Repetir validacao real em mais amostras de vagas Easy Apply
 - [ ] Catalogar variacoes reais do LinkedIn que ainda aparecem:
-  - [ ] redirecionamento para `similar jobs`
-  - [ ] perguntas adicionais obrigatorias
+  - [x] redirecionamento para `similar jobs`
+  - [x] perguntas adicionais obrigatorias
   - [ ] checkboxes opcionais
   - [ ] vagas com curriculo reaproveitado
   - [ ] vagas com etapa final sem modal classico
 - [ ] Criar criterios objetivos para classificar:
-  - [ ] `ready`
-  - [ ] `manual_review`
-  - [ ] `blocked`
+  - [x] `ready`
+  - [x] `manual_review`
+  - [x] `blocked`
 
 ### Higiene de estado
 
@@ -467,8 +467,8 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 - [ ] Tornar o Telegram suficiente para operar o fluxo completo com seguranca
 - [ ] Exibir melhor o motivo de `manual_review`
-- [ ] Exibir quando a vaga parece cair em `similar jobs`
-- [ ] Exibir quando a vaga exige perguntas adicionais
+- [x] Exibir quando a vaga parece cair em `similar jobs`
+- [x] Exibir quando a vaga exige perguntas adicionais
 
 ### Priorizacao
 
@@ -530,7 +530,7 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 - [x] Fluxo de candidatura assistida opera sem `python -c`
 - [x] Historico operacional deixa de depender de texto livre acumulado
-- [ ] Casos `similar jobs` e `perguntas adicionais` ficam claramente classificados
+- [x] Casos `similar jobs` e `perguntas adicionais` ficam claramente classificados
 - [x] Regressao operacional principal permanece verde
 - [x] Estrutura do codigo fica mais modular no fluxo LinkedIn
 - [x] Telegram ou CLI passam a ser suficientes para operar o produto com seguranca
