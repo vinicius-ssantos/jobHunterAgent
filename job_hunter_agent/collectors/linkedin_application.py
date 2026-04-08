@@ -141,6 +141,8 @@ class LinkedInApplicationFlowInspector:
                 if state.easy_apply:
                     state = await self._inspect_easy_apply_modal(page, state)
                     if state.easy_apply and not state.modal_open:
+                        state = await self._try_open_easy_apply_via_direct_url(page, close_modal=True)
+                    if state.easy_apply and not state.modal_open:
                         artifact_detail = await self._capture_failure_artifacts(
                             page,
                             state=state,
@@ -223,6 +225,8 @@ class LinkedInApplicationFlowInspector:
                     state = await self._read_page_state(page)
                     if state.modal_open:
                         state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
+                if not state.modal_open and state.easy_apply:
+                    state = await self._try_open_easy_apply_via_direct_url(page, close_modal=False)
                 if not state.modal_open or not state.modal_submit_visible:
                     interpretation_detail = self._format_modal_interpretation_for_error(state)
                     artifact_detail = await self._capture_failure_artifacts(
@@ -611,6 +615,28 @@ class LinkedInApplicationFlowInspector:
 
     async def _handle_save_application_dialog(self, page) -> bool:
         return await self._navigator.handle_save_application_dialog(page)
+
+    async def _try_open_easy_apply_via_direct_url(
+        self,
+        page,
+        *,
+        close_modal: bool,
+    ) -> LinkedInApplicationPageState:
+        direct_apply_url = await self._extract_easy_apply_href(page)
+        if not direct_apply_url:
+            return await self._read_page_state(page)
+        try:
+            await page.goto(direct_apply_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(1800)
+            await self._prepare_job_page_for_apply(page)
+            state = await self._read_page_state(page)
+            if state.modal_open:
+                return await self._inspect_easy_apply_modal(page, state, close_modal=close_modal)
+            return state
+        except Exception:
+            if self._is_page_closed(page):
+                raise
+            return await self._read_page_state(page)
 
     @staticmethod
     def _is_page_closed(page) -> bool:

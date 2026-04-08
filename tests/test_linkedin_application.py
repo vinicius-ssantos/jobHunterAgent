@@ -270,6 +270,96 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
 
         self.assertEqual(href, "")
 
+    def test_try_open_easy_apply_via_direct_url_reads_apply_route_when_modal_does_not_open(self) -> None:
+        class _Page:
+            def __init__(self):
+                self.navigated_to = ""
+
+            async def goto(self, url, wait_until="domcontentloaded"):
+                self.navigated_to = url
+
+            async def wait_for_timeout(self, timeout):
+                return None
+
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        async def fake_extract(page):
+            return "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true"
+
+        async def fake_prepare(page):
+            return None
+
+        async def fake_read(page):
+            return LinkedInApplicationPageState(
+                current_url="https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true",
+                easy_apply=True,
+                modal_open=False,
+                sample="https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true | fluxo apply",
+            )
+
+        inspector._extract_easy_apply_href = fake_extract
+        inspector._prepare_job_page_for_apply = fake_prepare
+        inspector._read_page_state = fake_read
+
+        import asyncio
+
+        page = _Page()
+        state = asyncio.run(inspector._try_open_easy_apply_via_direct_url(page, close_modal=False))
+
+        self.assertEqual(page.navigated_to, "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true")
+        self.assertEqual(state.current_url, "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true")
+        self.assertTrue(state.easy_apply)
+
+    def test_try_open_easy_apply_via_direct_url_inspects_modal_when_route_opens_dialog(self) -> None:
+        class _Page:
+            async def goto(self, url, wait_until="domcontentloaded"):
+                return None
+
+            async def wait_for_timeout(self, timeout):
+                return None
+
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        async def fake_extract(page):
+            return "https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true"
+
+        async def fake_prepare(page):
+            return None
+
+        async def fake_read(page):
+            return LinkedInApplicationPageState(
+                current_url="https://www.linkedin.com/jobs/view/123/apply/?openSDUIApplyFlow=true",
+                easy_apply=True,
+                modal_open=True,
+                modal_submit_visible=True,
+            )
+
+        async def fake_inspect(page, initial_state, close_modal=True):
+            return LinkedInApplicationPageState(
+                **{
+                    **initial_state.__dict__,
+                    "ready_to_submit": True,
+                }
+            )
+
+        inspector._extract_easy_apply_href = fake_extract
+        inspector._prepare_job_page_for_apply = fake_prepare
+        inspector._read_page_state = fake_read
+        inspector._inspect_easy_apply_modal = fake_inspect
+
+        import asyncio
+
+        state = asyncio.run(inspector._try_open_easy_apply_via_direct_url(_Page(), close_modal=False))
+
+        self.assertTrue(state.modal_open)
+        self.assertTrue(state.ready_to_submit)
+
     def test_needs_canonical_job_navigation_on_similar_jobs_page(self) -> None:
         inspector = LinkedInApplicationFlowInspector(
             storage_state_path="linkedin_state.json",
