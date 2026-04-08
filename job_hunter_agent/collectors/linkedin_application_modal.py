@@ -226,10 +226,34 @@ class LinkedInEasyApplyModalDriver:
                 node.dispatchEvent(new Event('change', { bubbles: true }));
                 node.dispatchEvent(new Event('blur', { bubbles: true }));
               };
+              const fillSelect = (field, targetValue, fieldName) => {
+                if (!field || field.tagName.toLowerCase() !== 'select' || field.disabled || !targetValue) return false;
+                const targetNormalized = normalize(targetValue);
+                const targetDialCode = ((targetValue || '').match(/\\+\\d+/) || [''])[0];
+                const options = Array.from(field.options || []);
+                const target = options.find((option) => {
+                  const label = normalize(option.label || option.textContent || '');
+                  const value = normalize(option.value || '');
+                  return (
+                    label === targetNormalized
+                    || value === targetNormalized
+                    || label.includes(targetNormalized)
+                    || value.includes(targetNormalized)
+                    || (!!targetDialCode && (label.includes(targetDialCode) || value.includes(targetDialCode)))
+                  );
+                });
+                if (!target) return false;
+                field.value = target.value;
+                dispatch(field);
+                filled.push(fieldName);
+                return true;
+              };
 
               if (email) {
-                const field = findField(['email'], null);
-                if (field && !field.disabled && !field.readOnly) {
+                const field = findField(['email', 'e-mail'], null);
+                if (fillSelect(field, email, 'email')) {
+                  // select preenchido
+                } else if (field && !field.disabled && !field.readOnly) {
                   field.focus();
                   field.value = email;
                   dispatch(field);
@@ -249,19 +273,7 @@ class LinkedInEasyApplyModalDriver:
 
               if (countryCode) {
                 const field = findField(['country code', 'codigo do pais', 'cÃ³digo do paÃ­s', 'country/region phone number'], 'select');
-                if (field && !field.disabled) {
-                  const options = Array.from(field.options || []);
-                  const target = options.find((option) => {
-                    const label = normalize(option.label || option.textContent || '');
-                    const value = normalize(option.value || '');
-                    return label.includes(normalize(countryCode)) || value.includes(normalize(countryCode));
-                  });
-                  if (target) {
-                    field.value = target.value;
-                    dispatch(field);
-                    filled.push('codigo_pais');
-                  }
-                }
+                fillSelect(field, countryCode, 'codigo_pais');
               }
 
               return filled;

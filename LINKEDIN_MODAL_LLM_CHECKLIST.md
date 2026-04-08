@@ -21,89 +21,61 @@ O objetivo e:
 - respostas da LLM devem ser estruturadas e validadas antes de uso
 - se a LLM falhar, o fluxo volta para comportamento conservador
 
-## Fases
+## Checklist por fase
 
 ### Fase 1 - Snapshot estruturado do modal
 
-Objetivo:
-- registrar um snapshot textual e estrutural da etapa atual do modal
-
-Definicao de pronto:
-- o inspetor gera um payload com campos, botoes, texto principal e sinais de etapa
-- o snapshot pode ser usado sem depender do DOM bruto inteiro
+- [x] Registrar um snapshot textual e estrutural da etapa atual do modal
+- [x] O inspetor gera payload com campos, botoes, texto principal e sinais de etapa
+- [x] O snapshot pode ser usado sem depender do DOM bruto inteiro
 
 ### Fase 2 - Classificacao assistida da etapa
 
-Objetivo:
-- usar a LLM local para classificar a etapa atual do modal
-
-Definicao de pronto:
-- a LLM retorna apenas JSON
-- a resposta inclui pelo menos:
-  - `step_type`
-  - `recommended_action`
-  - `confidence`
-  - `rationale`
-- existe fallback deterministico quando a resposta for invalida
+- [x] Usar a LLM local para classificar a etapa atual do modal
+- [x] A LLM retorna apenas JSON
+- [x] A resposta inclui pelo menos `step_type`, `recommended_action`, `confidence` e `rationale`
+- [x] Existe fallback deterministico quando a resposta for invalida
 
 ### Fase 3 - Guardrails de execucao
 
-Objetivo:
-- garantir que a sugestao da LLM so influencie o fluxo quando passar em regras duras
-
-Definicao de pronto:
-- a execucao so aceita acoes coerentes com os sinais reais do modal
-- a LLM nao pode forcar submit sem botao final visivel
-- a LLM nao pode preencher campos ambiguos sem validacao adicional
+- [x] Garantir que a sugestao da LLM so influencie o fluxo quando passar em regras duras
+- [x] A execucao so aceita acoes coerentes com os sinais reais do modal
+- [x] A LLM nao pode forcar submit sem botao final visivel
+- [x] A LLM nao pode preencher campos ambiguos sem validacao adicional
 
 ### Fase 4 - Integracao no preflight
 
-Objetivo:
-- anexar a interpretacao assistida da LLM ao preflight real do LinkedIn
-
-Definicao de pronto:
-- o detalhe do preflight inclui a classificacao da etapa quando disponivel
-- falhas da LLM nao quebram o preflight
+- [x] Anexar a interpretacao assistida da LLM ao preflight real do LinkedIn
+- [x] O detalhe do preflight inclui a classificacao da etapa quando disponivel
+- [x] Falhas da LLM nao quebram o preflight
 
 ### Fase 5 - Integracao no submit real
 
-Objetivo:
-- usar a interpretacao assistida para decidir o proximo passo quando o modal variar entre vagas
-
-Definicao de pronto:
-- o submit real consulta a interpretacao da etapa antes de desistir
-- a execucao continua deterministica e auditavel
-- o bloqueio final fica mais explicito quando a LLM nao ajudar
+- [x] Usar a interpretacao assistida para decidir o proximo passo quando o modal variar entre vagas
+- [x] O submit real consulta a interpretacao da etapa antes de desistir
+- [x] A execucao continua deterministica e auditavel
+- [x] O bloqueio final fica mais explicito quando a LLM nao ajudar
 
 ### Fase 6 - Liveness e prontidao da vaga
 
-Objetivo:
-- validar que a pagina aberta realmente corresponde a vaga autorizada e ainda esta apta para candidatura
-
-Definicao de pronto:
-- o fluxo distingue vaga-alvo, listagem/colecao, vaga expirada e ausencia de CTA
-- preflight e submit falham cedo com motivo explicito quando a pagina estiver errada
-- artefatos locais ajudam a diagnosticar o estado da pagina errada
+- [x] Validar que a pagina aberta realmente corresponde a vaga autorizada e ainda esta apta para candidatura
+- [x] O fluxo distingue vaga-alvo, listagem/colecao, vaga expirada e ausencia de CTA
+- [x] Preflight e submit falham cedo com motivo explicito quando a pagina estiver errada
+- [x] Artefatos locais ajudam a diagnosticar o estado da pagina errada
 
 ### Fase 7 - Prontidao operacional antes do submit
 
-Objetivo:
-- bloquear o envio real quando faltarem prerequisitos locais do candidato
-
-Definicao de pronto:
-- submit verifica storage state, curriculo e dados de contato antes de abrir o applicant
-- falhas de configuracao nao degradam a candidatura para `error_submit`
-- o Telegram recebe um bloqueio curto e rastreavel
+- [x] Bloquear o envio real quando faltarem prerequisitos locais do candidato
+- [x] O submit verifica storage state, curriculo e dados de contato antes de abrir o applicant
+- [x] Falhas de configuracao nao degradam a candidatura para `error_submit`
+- [x] O Telegram recebe um bloqueio curto e rastreavel
 
 ### Fase 8 - Capacidades explicitas do LinkedIn
 
-Objetivo:
-- tornar explicito no codigo o que o portal suporta em coleta, preflight, submit e artefatos
-
-Definicao de pronto:
-- preflight e submit consultam capacidades do portal
-- portais sem suporte falham com mensagem operacional estreita
-- o fluxo deixa de depender de condicionais espalhadas e implicitas
+- [x] Tornar explicito no codigo o que o portal suporta em coleta, preflight, submit e artefatos
+- [x] Preflight e submit consultam capacidades do portal
+- [x] Portais sem suporte falham com mensagem operacional estreita
+- [x] O fluxo deixa de depender de condicionais espalhadas e implicitas
 
 ## Regras
 

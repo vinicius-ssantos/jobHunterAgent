@@ -121,10 +121,7 @@ class LinkedInApplicationFlowInspector:
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
                 await self._ensure_target_job_page(page, job)
-                await page.wait_for_timeout(2500)
-                await self._prepare_job_page_for_apply(page)
-                state = await self._read_page_state(page)
-                readiness = self._assess_job_page_readiness(job, state)
+                state, readiness = await self._read_state_with_hydration(page, job)
                 if readiness.result != "ready":
                     artifact_detail = await self._capture_failure_artifacts(
                         page,
@@ -197,10 +194,7 @@ class LinkedInApplicationFlowInspector:
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
                 await self._ensure_target_job_page(page, job)
-                await page.wait_for_timeout(2500)
-                await self._prepare_job_page_for_apply(page)
-                state = await self._read_page_state(page)
-                readiness = self._assess_job_page_readiness(job, state)
+                state, readiness = await self._read_state_with_hydration(page, job)
                 if readiness.result != "ready":
                     artifact_detail = await self._capture_failure_artifacts(
                         page,
@@ -286,11 +280,26 @@ class LinkedInApplicationFlowInspector:
                 '[componentkey^="JobDetailsSimilarJobsSlot_"], [data-sdui-component*="similarJobs"]'
               );
               const currentUrl = window.location.href || "";
+              const currentPath = `${window.location.origin || ''}${window.location.pathname || ''}`;
+              const hiddenPayload = Array.from(document.querySelectorAll('code, script[type="application/ld+json"]'))
+                .map((node) => normalize(node.textContent || ''))
+                .join(' | ')
+                .slice(0, 4000);
               const main = document.querySelector('main') || document.body;
+              const detailCandidates = [
+                '.jobs-search__job-details--container .jobs-details-top-card',
+                '.jobs-details-top-card',
+                '.jobs-search__job-details--container',
+                '.jobs-details',
+                'div[role="main"][data-sdui-screen*="JobDetails"]',
+                '#workspace',
+                'main',
+              ];
               const detailPanel =
-                document.querySelector('.jobs-search__job-details--container') ||
-                document.querySelector('.jobs-details') ||
-                main;
+                detailCandidates
+                  .map((selector) => document.querySelector(selector))
+                  .find((node) => !!node)
+                || main;
               const topCard =
                 detailPanel.querySelector('.jobs-details-top-card') ||
                 detailPanel.querySelector('[data-live-test-job-apply-button]') ||
@@ -307,17 +316,48 @@ class LinkedInApplicationFlowInspector:
               const prioritizedNodes = prioritizedSelectors.flatMap((selector) =>
                 Array.from(topCard.querySelectorAll(selector)).filter((node) => !isExcludedNode(node))
               );
+              const globalApplyNodes = Array.from(main.querySelectorAll("button, a"))
+                .filter((node) => !isExcludedNode(node))
+                .filter((node) => {
+                  if (node.closest('header, footer, nav')) return false;
+                  const href = (node.getAttribute('href') || '').toLowerCase();
+                  const text = normalize(node.textContent || node.getAttribute('aria-label') || '');
+                  const control = normalize(node.getAttribute('data-control-name') || '');
+                  return (
+                    text.includes("easy apply")
+                    || text.includes("candidatura simplificada")
+                    || href.includes("/apply/")
+                    || control.includes("inapply")
+                    || control.includes("apply-button")
+                  );
+                });
               const prioritizedTexts = prioritizedNodes
                 .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
                 .filter(Boolean);
-              const texts = Array.from(topCard.querySelectorAll("button, a"))
+              const globalApplyTexts = globalApplyNodes
+                .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
+                .filter(Boolean);
+              const texts = Array.from(detailPanel.querySelectorAll("button, a"))
                 .filter((node) => !isExcludedNode(node))
                 .map((node) => normalize(node.textContent || node.getAttribute('aria-label') || ''))
                 .filter(Boolean);
-              const joined = normalize(topCard.innerText || "").slice(0, 400);
-              const easyApplyTexts = (prioritizedTexts.length ? prioritizedTexts : texts)
+              const applyContext = globalApplyNodes[0]?.closest('section, article, div');
+              const joined = normalize(
+                applyContext?.innerText
+                || detailPanel.innerText
+                || topCard.innerText
+                || main.innerText
+                || ""
+              ).slice(0, 400);
+              const easyApplyTexts = (prioritizedTexts.length ? prioritizedTexts : (globalApplyTexts.length ? globalApplyTexts : texts))
                 .filter((text) => text.includes("easy apply") || text.includes("candidatura simplificada"));
+              const applyHrefVisible = globalApplyNodes.some((node) =>
+                ((node.getAttribute('href') || '').toLowerCase().includes('/apply/'))
+              );
               const applyFlowActive = currentUrl.includes("/apply/") || currentUrl.includes("openSDUIApplyFlow=true");
+              const hiddenEasyApply = hiddenPayload.includes('onsiteapply')
+                || hiddenPayload.includes('applyctatext')
+                || hiddenPayload.includes('candidatura simplificada');
               const externalApply = texts.some((text) =>
                 text.includes("candidate-se")
                 || text.includes("candidatar-se")
@@ -359,9 +399,9 @@ class LinkedInApplicationFlowInspector:
                 : [];
               const hasText = (items, parts) => parts.some((part) => items.some((value) => value.includes(part)));
               const resumableFields = [];
-              const contactEmailVisible = hasText(modalTexts, ["email"]) || hasText(modalInputNames, ["email"]);
+              const contactEmailVisible = hasText(modalTexts, ["email", "e-mail"]) || hasText(modalInputNames, ["email"]);
               const contactPhoneVisible = hasText(modalTexts, ["phone", "telefone", "celular"]) || hasText(modalInputNames, ["phone", "telefone", "celular"]);
-              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais"]) || hasText(modalInputNames, ["country code", "codigo"]);
+              const countryCodeVisible = hasText(modalTexts, ["country code", "codigo do pais", "código do país"]) || hasText(modalInputNames, ["country code", "codigo"]);
               const workAuthorizationVisible = hasText(modalTexts, ["work authorization", "work permit", "autoriz", "visa"]) || hasText(modalInputNames, ["authorization", "permit", "visa"]);
               const yearsOfExperienceVisible = hasText(modalTexts, ["years of work experience", "anos de experiencia"]) || hasText(modalInputNames, ["years", "experience"]);
               if (contactEmailVisible) resumableFields.push("email");
@@ -371,18 +411,18 @@ class LinkedInApplicationFlowInspector:
               if (yearsOfExperienceVisible) resumableFields.push("anos_experiencia");
                 return {
                 current_url: currentUrl,
-                easy_apply: easyApplyTexts.length > 0 || applyFlowActive,
+                easy_apply: easyApplyTexts.length > 0 || applyHrefVisible || applyFlowActive || hiddenEasyApply,
                 external_apply: externalApply,
                 submit_visible: submitVisible,
                 modal_open: !!modal,
                 modal_submit_visible: modalButtonTexts.some((text) => text.includes("submit application") || text.includes("enviar candidatura")),
-                modal_next_visible: modalButtonTexts.some((text) => text.includes("next") || text.includes("continuar") || text.includes("avancar")),
+                modal_next_visible: modalButtonTexts.some((text) => text.includes("next") || text.includes("continuar") || text.includes("avancar") || text.includes("avançar")),
                 modal_review_visible: modalButtonTexts.some((text) => text.includes("review") || text.includes("revisar")),
                 modal_file_upload: modal ? modal.querySelectorAll('input[type="file"]').length > 0 : false,
                 modal_questions_visible: modalTexts.some((text) => text.includes("required") || text.includes("obrigat") || text.includes("question")),
                 save_application_dialog_visible: saveApplicationDialogVisible,
-                cta_text: easyApplyTexts[0] || "",
-                sample: `${currentUrl} | ${joined}`.slice(0, 400),
+                cta_text: easyApplyTexts[0] || (hiddenEasyApply ? "candidatura simplificada" : ""),
+                sample: `${currentPath} | ${joined}`.slice(0, 400),
                 modal_sample: (modalTexts.join(" | ") || confirmationJoined).slice(0, 400),
                 contact_email_visible: contactEmailVisible,
                 contact_phone_visible: contactPhoneVisible,
@@ -431,6 +471,9 @@ class LinkedInApplicationFlowInspector:
             r"pagina que voce esta procurando nao existe",
             r"vaga (nao|não) esta mais disponivel",
             r"vaga encerrada",
+            r"n(a|ã|Ã£)o aceita mais candidaturas",
+            r"não aceita mais candidaturas",
+            r"no longer accepting applications",
         )
 
         if "/jobs/collections/" in normalized_url or "/jobs/search/" in normalized_url:
@@ -615,6 +658,64 @@ class LinkedInApplicationFlowInspector:
 
     async def _handle_save_application_dialog(self, page) -> bool:
         return await self._navigator.handle_save_application_dialog(page)
+
+    async def _read_state_with_hydration(
+        self,
+        page,
+        job: JobPosting,
+    ) -> tuple[LinkedInApplicationPageState, LinkedInJobPageReadiness]:
+        await page.wait_for_timeout(2500)
+        await self._prepare_job_page_for_apply(page)
+        state = await self._read_page_state(page)
+        readiness = self._assess_job_page_readiness(job, state)
+        if readiness.result != "no_apply_cta":
+            return state, readiness
+        for delay_ms in (1800, 2800):
+            try:
+                await page.wait_for_load_state("domcontentloaded")
+            except Exception:
+                pass
+            await page.wait_for_timeout(delay_ms)
+            await self._prepare_job_page_for_apply(page)
+            state = await self._read_page_state(page)
+            readiness = self._assess_job_page_readiness(job, state)
+            if readiness.result != "no_apply_cta":
+                return state, readiness
+        recovered = await self._recover_easy_apply_from_page_html(page, job)
+        if recovered:
+            await self._prepare_job_page_for_apply(page)
+            state = await self._read_page_state(page)
+            readiness = self._assess_job_page_readiness(job, state)
+        return state, readiness
+
+    async def _recover_easy_apply_from_page_html(self, page, job: JobPosting) -> bool:
+        try:
+            content = await page.content()
+        except Exception:
+            return False
+        if not content:
+            return False
+        lowered = content.lower()
+        target_job_id = self._extract_linkedin_job_id(job.url)
+        if not target_job_id:
+            return False
+        has_internal_apply = (
+            f"https://www.linkedin.com/job-apply/{target_job_id}".lower() in lowered
+            or f"/jobs/view/{target_job_id}/apply/".lower() in lowered
+            or (
+                "applyctatext" in lowered
+                and ("candidatura simplificada" in lowered or "easy apply" in lowered)
+            )
+        )
+        if not has_internal_apply:
+            return False
+        apply_url = f"https://www.linkedin.com/jobs/view/{target_job_id}/apply/?openSDUIApplyFlow=true"
+        try:
+            await page.goto(apply_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(1800)
+            return True
+        except Exception:
+            return False
 
     async def _try_open_easy_apply_via_direct_url(
         self,

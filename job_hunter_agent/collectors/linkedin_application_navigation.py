@@ -151,6 +151,7 @@ class LinkedInEasyApplyNavigator:
                   const isExcludedNode = (node) => !!node?.closest(
                     '[componentkey^="JobDetailsSimilarJobsSlot_"], [data-sdui-component*="similarJobs"]'
                   );
+                  const currentUrl = window.location.href || '';
                   const root = document.querySelector(rootSelector);
                   if (!root) return '';
                   for (const element of Array.from(root.querySelectorAll('a[href*="/apply/"]'))) {
@@ -168,6 +169,16 @@ class LinkedInEasyApplyNavigator:
                     ) {
                       return href;
                     }
+                  }
+                  const hiddenPayload = Array.from(document.querySelectorAll('code, script[type="application/ld+json"]'))
+                    .map((node) => (node.textContent || '').toLowerCase())
+                    .join(' | ')
+                    .slice(0, 6000);
+                  const viewMatch = currentUrl.match(/\\/jobs\\/view\\/(\\d+)/i);
+                  const jobId = viewMatch ? viewMatch[1] : '';
+                  if (!jobId) return '';
+                  if (hiddenPayload.includes(`https://www.linkedin.com/job-apply/${jobId}`) || hiddenPayload.includes('"onsiteapply":true')) {
+                    return `https://www.linkedin.com/jobs/view/${jobId}/apply/?openSDUIApplyFlow=true`;
                   }
                   return '';
                 }

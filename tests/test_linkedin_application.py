@@ -360,6 +360,97 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertTrue(state.modal_open)
         self.assertTrue(state.ready_to_submit)
 
+    def test_recover_easy_apply_from_page_html_uses_hidden_internal_apply_metadata(self) -> None:
+        class _Page:
+            def __init__(self):
+                self.navigated_to = ""
+
+            async def content(self):
+                return """
+                <html><body>
+                <code>{"onsiteApply":true,"applyCtaText":{"text":"Candidatura simplificada"},"companyApplyUrl":"https://www.linkedin.com/job-apply/4389607214"}</code>
+                </body></html>
+                """
+
+            async def goto(self, url, wait_until="domcontentloaded"):
+                self.navigated_to = url
+
+            async def wait_for_timeout(self, timeout):
+                return None
+
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        import asyncio
+
+        page = _Page()
+        recovered = asyncio.run(
+            inspector._recover_easy_apply_from_page_html(
+                page,
+                type("Job", (), {"url": "https://www.linkedin.com/jobs/view/4389607214/"})(),
+            )
+        )
+
+        self.assertTrue(recovered)
+        self.assertEqual(
+            page.navigated_to,
+            "https://www.linkedin.com/jobs/view/4389607214/apply/?openSDUIApplyFlow=true",
+        )
+
+    def test_read_state_with_hydration_retries_before_declaring_no_apply_cta(self) -> None:
+        class _Page:
+            async def wait_for_timeout(self, timeout):
+                return None
+
+            async def wait_for_load_state(self, state):
+                return None
+
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        calls = {"count": 0}
+
+        async def fake_prepare(page):
+            return None
+
+        async def fake_recover(page, job):
+            return False
+
+        async def fake_read(page):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return LinkedInApplicationPageState(
+                    current_url="https://www.linkedin.com/jobs/view/4389607214/",
+                    sample="pagina inicial sem cta",
+                )
+            return LinkedInApplicationPageState(
+                current_url="https://www.linkedin.com/jobs/view/4389607214/",
+                easy_apply=True,
+                cta_text="candidatura simplificada",
+                sample="pagina hidratada com candidatura simplificada",
+            )
+
+        inspector._prepare_job_page_for_apply = fake_prepare
+        inspector._recover_easy_apply_from_page_html = fake_recover
+        inspector._read_page_state = fake_read
+
+        import asyncio
+
+        state, readiness = asyncio.run(
+            inspector._read_state_with_hydration(
+                _Page(),
+                type("Job", (), {"url": "https://www.linkedin.com/jobs/view/4389607214/"})(),
+            )
+        )
+
+        self.assertEqual(calls["count"], 2)
+        self.assertTrue(state.easy_apply)
+        self.assertEqual(readiness.result, "ready")
+
     def test_needs_canonical_job_navigation_on_similar_jobs_page(self) -> None:
         inspector = LinkedInApplicationFlowInspector(
             storage_state_path="linkedin_state.json",
