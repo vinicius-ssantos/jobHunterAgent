@@ -8,6 +8,7 @@ from job_hunter_agent.application.applicant import (
     ApplicationSubmissionService,
     OllamaApplicationSupportAssessor,
 )
+from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
 from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
@@ -117,6 +118,13 @@ def create_application_submission_service(repository: JobRepository, settings: S
             modal_interpreter=create_linkedin_modal_interpreter(settings),
             save_failure_artifacts=settings.save_failure_artifacts,
             failure_artifacts_dir=settings.failure_artifacts_dir,
+        ),
+        readiness_checker=ApplicationReadinessCheckService(
+            linkedin_storage_state_path=settings.linkedin_storage_state_path,
+            resume_path=settings.resume_path,
+            contact_email=settings.application_contact_email,
+            phone=settings.application_phone,
+            phone_country_code=settings.application_phone_country_code,
         ),
     )
 

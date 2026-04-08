@@ -10,6 +10,13 @@ class LinkedInApplicationInspection:
 
 
 @dataclass(frozen=True)
+class LinkedInJobPageReadiness:
+    result: str
+    reason: str
+    sample: str
+
+
+@dataclass(frozen=True)
 class LinkedInApplicationPageState:
     current_url: str = ""
     easy_apply: bool = False
@@ -88,6 +95,13 @@ def describe_linkedin_easy_apply_entrypoint(state: LinkedInApplicationPageState)
     if not parts:
         return "entrada_easy_apply=indisponivel"
     return " | ".join(parts)
+
+
+def describe_linkedin_job_page_readiness(readiness: LinkedInJobPageReadiness) -> str:
+    detail = f"readiness={readiness.result} | motivo={readiness.reason}"
+    if readiness.sample:
+        detail = f"{detail} | pagina={readiness.sample[:180]}"
+    return detail
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:

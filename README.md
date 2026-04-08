@@ -191,6 +191,7 @@ O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e 
 - quando o modal exigir curriculo, o inspetor tambem pode carregar o arquivo configurado em `resume_path` em dry-run
 - se a etapa `Review/Revisar` aparecer, o inspetor tambem tenta alcanca-la e registrar quando o fluxo fica pronto para um submit humano
 - se `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o detalhe do preflight tambem inclui a interpretacao assistida da etapa atual do modal
+- antes de abrir o modal, o fluxo tambem valida se a pagina ainda e a vaga alvo certa, se nao caiu em `similar-jobs/collections` e se ainda existe CTA de candidatura
 - nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
@@ -225,6 +226,19 @@ Quando habilitada, falhas de submit real do LinkedIn salvam:
 - HTML da pagina no momento do erro
 - screenshot em PNG
 - metadata JSON com estado do modal e contexto da vaga
+
+Antes do submit real, o sistema tambem executa checks locais de prontidao operacional:
+
+- sessao autenticada do LinkedIn presente no `storage_state`
+- curriculo configurado e existente em disco
+- email, telefone e codigo do pais preenchidos
+
+Se algum desses itens faltar, o submit e bloqueado antes de abrir o applicant e a candidatura permanece em `authorized_submit`.
+
+As capacidades do portal tambem ficaram explicitas no codigo:
+
+- `LinkedIn` suporta coleta, preflight real, submit real e artefatos locais
+- portais sem suporte real de preflight/submit falham cedo com mensagem operacional curta
 
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:

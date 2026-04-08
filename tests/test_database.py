@@ -9,6 +9,7 @@ from job_hunter_agent.application.applicant import (
     classify_job_application_support,
     parse_application_support_response,
 )
+from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
 from job_hunter_agent.llm.application_priority import (
     DeterministicApplicationPriorityAssessor,
     extract_application_priority_level,
@@ -699,6 +700,40 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(latest_event.event_type, "submit_submitted")
         self.assertIn("submissao real concluida", latest_event.detail)
 
+    def test_application_submission_keeps_authorized_when_readiness_is_incomplete(self) -> None:
+        class _Applicant:
+            def submit(self, application, job):
+                raise AssertionError("submit nao deveria ser chamado sem prontidao")
+
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="authorized_submit")
+
+        readiness = ApplicationReadinessCheckService(
+            linkedin_storage_state_path="./.nao-existe/linkedin-storage-state.json",
+            resume_path="./curriculo-inexistente.pdf",
+            contact_email="",
+            phone="",
+            phone_country_code="",
+        )
+
+        result = ApplicationSubmissionService(
+            self.repository,
+            applicant=_Applicant(),
+            readiness_checker=readiness,
+        ).run_for_application(application.id)
+        stored = self.repository.get_application(application.id)
+
+        self.assertEqual(result.outcome, "ignored")
+        self.assertEqual(result.application_status, "authorized_submit")
+        self.assertEqual(stored.status, "authorized_submit")
+        self.assertIn("prontidao operacional incompleta", result.detail)
+        self.assertIn("faltando=", result.detail)
+
     def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
         application = self.repository.create_application_draft(
@@ -726,6 +761,25 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(stored.status, "error_submit")
         self.assertIn("CTA nao encontrado", stored.last_preflight_detail)
         self.assertIn("CTA nao encontrado", stored.last_error)
+
+    def test_application_preflight_blocks_for_portal_without_preflight_support(self) -> None:
+        gupy_job = sample_job("https://empresa.gupy.io/job/123", "key-1")
+        gupy_job = JobPosting(**{**gupy_job.__dict__, "source_site": "Gupy"})
+        saved = self.repository.save_new_jobs([gupy_job])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="portal externo ainda exige revisao manual",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        result = ApplicationPreflightService(self.repository).run_for_application(application.id)
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.application_status, "error_submit")
+        self.assertEqual(stored.status, "error_submit")
+        self.assertIn("portal Gupy ainda nao possui preflight suportado", stored.last_error)
 
     def test_application_preflight_moves_unsupported_to_error_submit(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://empresa.gupy.io/job/123", "key-1")])[0]

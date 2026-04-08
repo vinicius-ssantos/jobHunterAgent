@@ -17,9 +17,11 @@ from job_hunter_agent.collectors.linkedin_application_navigation import LinkedIn
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationInspection,
     LinkedInApplicationPageState,
+    LinkedInJobPageReadiness,
     build_linkedin_modal_snapshot,
     classify_linkedin_application_page_state,
     describe_linkedin_easy_apply_entrypoint,
+    describe_linkedin_job_page_readiness,
     describe_linkedin_modal_blocker,
 )
 from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
@@ -122,6 +124,20 @@ class LinkedInApplicationFlowInspector:
                 await page.wait_for_timeout(2500)
                 await self._prepare_job_page_for_apply(page)
                 state = await self._read_page_state(page)
+                readiness = self._assess_job_page_readiness(job, state)
+                if readiness.result != "ready":
+                    artifact_detail = await self._capture_failure_artifacts(
+                        page,
+                        state=state,
+                        job=job,
+                        phase="preflight",
+                        detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}",
+                    )
+                    inspection = LinkedInApplicationInspection(
+                        outcome="blocked",
+                        detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
+                    )
+                    return inspection
                 if state.easy_apply:
                     state = await self._inspect_easy_apply_modal(page, state)
                     if state.easy_apply and not state.modal_open:
@@ -182,6 +198,19 @@ class LinkedInApplicationFlowInspector:
                 await page.wait_for_timeout(2500)
                 await self._prepare_job_page_for_apply(page)
                 state = await self._read_page_state(page)
+                readiness = self._assess_job_page_readiness(job, state)
+                if readiness.result != "ready":
+                    artifact_detail = await self._capture_failure_artifacts(
+                        page,
+                        state=state,
+                        job=job,
+                        phase="submit",
+                        detail=f"submissao real bloqueada: {describe_linkedin_job_page_readiness(readiness)}",
+                    )
+                    return ApplicationSubmissionResult(
+                        status="error_submit",
+                        detail=f"submissao real bloqueada: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
+                    )
                 if not state.easy_apply:
                     return ApplicationSubmissionResult(
                         status="error_submit",
@@ -366,6 +395,66 @@ class LinkedInApplicationFlowInspector:
         raw_state["modal_buttons"] = tuple(raw_state.get("modal_buttons", ()))
         raw_state["modal_fields"] = tuple(raw_state.get("modal_fields", ()))
         return LinkedInApplicationPageState(**raw_state)
+
+    def _assess_job_page_readiness(
+        self,
+        job: JobPosting,
+        state: LinkedInApplicationPageState,
+    ) -> LinkedInJobPageReadiness:
+        current_url = state.current_url or ""
+        current_job_id = self._extract_linkedin_job_id(current_url)
+        target_job_id = self._extract_linkedin_job_id(job.url)
+        normalized_url = current_url.lower()
+        normalized_sample = state.sample.lower()
+
+        expired_patterns = (
+            r"job (is )?no longer available",
+            r"job.*no longer open",
+            r"this job has expired",
+            r"job posting has expired",
+            r"this (position|role|job) (is )?no longer",
+            r"this job (listing )?is closed",
+            r"job (listing )?not found",
+            r"pagina que voce esta procurando nao existe",
+            r"vaga (nao|não) esta mais disponivel",
+            r"vaga encerrada",
+        )
+
+        if "/jobs/collections/" in normalized_url or "/jobs/search/" in normalized_url:
+            return LinkedInJobPageReadiness(
+                result="listing_redirect",
+                reason="a navegacao caiu em listagem ou colecao do LinkedIn",
+                sample=state.sample,
+            )
+        if current_job_id and target_job_id and current_job_id != target_job_id:
+            return LinkedInJobPageReadiness(
+                result="wrong_page",
+                reason="a pagina aberta nao corresponde a vaga autorizada",
+                sample=state.sample,
+            )
+        if any(re.search(pattern, normalized_sample, re.IGNORECASE) for pattern in expired_patterns):
+            return LinkedInJobPageReadiness(
+                result="expired",
+                reason="a vaga parece encerrada ou indisponivel",
+                sample=state.sample,
+            )
+        if state.easy_apply or state.external_apply or state.submit_visible:
+            return LinkedInJobPageReadiness(
+                result="ready",
+                reason="cta de candidatura detectado na pagina alvo",
+                sample=state.sample,
+            )
+        if "/apply/" in normalized_url:
+            return LinkedInJobPageReadiness(
+                result="ready",
+                reason="fluxo de candidatura do LinkedIn ja esta aberto na vaga alvo",
+                sample=state.sample,
+            )
+        return LinkedInJobPageReadiness(
+            result="no_apply_cta",
+            reason="nenhum cta de candidatura foi encontrado na pagina alvo",
+            sample=state.sample,
+        )
 
     async def _ensure_target_job_page(self, page, job: JobPosting) -> None:
         current_url = ""

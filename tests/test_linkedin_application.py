@@ -5,6 +5,7 @@ import json
 from job_hunter_agent.collectors.linkedin_application import (
     build_linkedin_modal_snapshot,
     describe_linkedin_easy_apply_entrypoint,
+    describe_linkedin_job_page_readiness,
     LinkedInApplicationPageState,
     classify_linkedin_application_page_state,
     describe_linkedin_modal_blocker,
@@ -281,6 +282,48 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
             ),
             "https://www.linkedin.com/jobs/view/4390058075/",
         )
+
+    def test_assess_job_page_readiness_marks_similar_jobs_as_listing_redirect(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        readiness = inspector._assess_job_page_readiness(
+            type("Job", (), {"url": "https://www.linkedin.com/jobs/view/4390058075/"})(),
+            LinkedInApplicationPageState(
+                current_url="https://www.linkedin.com/jobs/collections/similar-jobs/?currentJobId=4391593841&referenceJobId=4390058075",
+                sample="https://www.linkedin.com/jobs/collections/similar-jobs/?currentJobId=4391593841 | vaga parecida",
+            ),
+        )
+
+        self.assertEqual(readiness.result, "listing_redirect")
+        self.assertIn("colecao", readiness.reason)
+
+    def test_assess_job_page_readiness_marks_missing_cta(self) -> None:
+        inspector = LinkedInApplicationFlowInspector(
+            storage_state_path="linkedin_state.json",
+            headless=True,
+        )
+
+        readiness = inspector._assess_job_page_readiness(
+            type("Job", (), {"url": "https://www.linkedin.com/jobs/view/4390058075/"})(),
+            LinkedInApplicationPageState(
+                current_url="https://www.linkedin.com/jobs/view/4390058075/",
+                sample="https://www.linkedin.com/jobs/view/4390058075/ | pagina de vaga sem botoes de candidatura",
+            ),
+        )
+
+        self.assertEqual(readiness.result, "no_apply_cta")
+        self.assertIn("cta", readiness.reason)
+
+    def test_describe_linkedin_job_page_readiness_formats_output(self) -> None:
+        detail = describe_linkedin_job_page_readiness(
+            type("Readiness", (), {"result": "listing_redirect", "reason": "a navegacao caiu em listagem ou colecao do LinkedIn", "sample": "https://www.linkedin.com/jobs/collections/similar-jobs/"})()
+        )
+
+        self.assertIn("readiness=listing_redirect", detail)
+        self.assertIn("motivo=a navegacao caiu em listagem ou colecao do LinkedIn", detail)
 
     def test_is_closed_target_error_detects_playwright_message(self) -> None:
         inspector = LinkedInApplicationFlowInspector(
