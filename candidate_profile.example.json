@@ -1,0 +1,16 @@
+{
+  "experience_years": {
+    "java": {
+      "suggested": 8,
+      "confirmed": 8
+    },
+    "angular": {
+      "suggested": 4,
+      "confirmed": 4
+    },
+    "ejb": {
+      "suggested": 2,
+      "confirmed": null
+    }
+  }
+}

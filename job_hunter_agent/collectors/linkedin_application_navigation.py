@@ -6,43 +6,50 @@ from job_hunter_agent.collectors.linkedin_application_artifacts import is_page_c
 
 
 class LinkedInEasyApplyNavigator:
+    async def _job_detail_root_selector(self, page) -> str:
+        selectors = (
+            ".jobs-search__job-details--container .jobs-details-top-card",
+            ".jobs-details-top-card",
+            ".jobs-search__job-details--container",
+            ".jobs-details",
+            'div[role="main"][data-sdui-screen*="JobDetails"]',
+            "#workspace",
+            "main",
+        )
+        for selector in selectors:
+            try:
+                locator = page.locator(selector).first
+                if await locator.count() == 0:
+                    continue
+                if await locator.is_visible(timeout=1000):
+                    return selector
+            except Exception:
+                continue
+        return ""
+
     async def try_open_easy_apply_modal(self, page) -> bool:
         await self.dismiss_interfering_dialogs(page)
+        root_selector = await self._job_detail_root_selector(page)
+        if not root_selector:
+            return False
         candidates = [
-            page.locator('.jobs-search__job-details--container a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
-            page.locator('.jobs-details-top-card a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
-            page.locator('.jobs-search__job-details--container [data-live-test-job-apply-button] button, .jobs-search__job-details--container button[data-live-test-job-apply-button]').first,
-            page.locator('.jobs-search__job-details--container [data-control-name="jobdetails_topcard_inapply"]').first,
-            page.locator('.jobs-search__job-details--container [data-control-name="topcard_inapply"]').first,
-            page.locator('.jobs-search__job-details--container [data-control-name="jobs-details-top-card-apply-button"]').first,
-            page.locator('.jobs-search__job-details--container .jobs-apply-button--top-card button').first,
-            page.locator('.jobs-search__job-details--container .jobs-s-apply button').first,
-            page.locator('.jobs-search__job-details--container button.jobs-apply-button').first,
-            page.locator('.jobs-search__job-details--container button[aria-label*="Easy Apply" i]').first,
-            page.locator('.jobs-search__job-details--container button[aria-label*="Candidatura simplificada" i]').first,
-            page.locator('.jobs-details-top-card [data-live-test-job-apply-button] button, .jobs-details-top-card button[data-live-test-job-apply-button]').first,
-            page.locator('.jobs-details-top-card [data-control-name="jobdetails_topcard_inapply"]').first,
-            page.locator('.jobs-details-top-card [data-control-name="topcard_inapply"]').first,
-            page.locator('.jobs-details-top-card [data-control-name="jobs-details-top-card-apply-button"]').first,
-            page.locator('.jobs-details-top-card .jobs-apply-button--top-card button').first,
-            page.locator('.jobs-details-top-card .jobs-s-apply button').first,
-            page.locator('.jobs-details-top-card button.jobs-apply-button').first,
-            page.locator('.jobs-details-top-card button[aria-label*="Easy Apply" i]').first,
-            page.locator('.jobs-details-top-card button[aria-label*="Candidatura simplificada" i]').first,
-            page.locator('[data-live-test-job-apply-button] button, button[data-live-test-job-apply-button]').first,
-            page.locator('[data-control-name="jobdetails_topcard_inapply"]').first,
-            page.locator('[data-control-name="topcard_inapply"]').first,
-            page.locator('[data-control-name="jobs-details-top-card-apply-button"]').first,
-            page.locator('.jobs-apply-button--top-card button').first,
-            page.locator('.jobs-s-apply button').first,
-            page.locator('button.jobs-apply-button').first,
-            page.locator('button[aria-label*="Easy Apply" i]').first,
-            page.locator('button[aria-label*="Candidatura simplificada" i]').first,
-            page.get_by_role(
+            page.locator(f'{root_selector} a[href*="/apply/"][href*="openSDUIApplyFlow=true"]').first,
+            page.locator(f'{root_selector} [data-live-test-job-apply-button] button, {root_selector} button[data-live-test-job-apply-button]').first,
+            page.locator(f'{root_selector} [data-control-name="jobdetails_topcard_inapply"]').first,
+            page.locator(f'{root_selector} [data-control-name="topcard_inapply"]').first,
+            page.locator(f'{root_selector} [data-control-name="jobs-details-top-card-apply-button"]').first,
+            page.locator(f'{root_selector} .jobs-apply-button--top-card button').first,
+            page.locator(f'{root_selector} .jobs-s-apply button').first,
+            page.locator(f'{root_selector} button.jobs-apply-button').first,
+            page.locator(f'{root_selector} button[aria-label*="Easy Apply" i]').first,
+            page.locator(f'{root_selector} button[aria-label*="Candidatura simplificada" i]').first,
+            page.locator(f"{root_selector}").get_by_role(
                 "button",
                 name=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE),
             ).first,
-            page.locator("button, a").filter(has_text=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE)).first,
+            page.locator(f"{root_selector} button").filter(
+                has_text=re.compile(r"(easy apply|candidatura simplificada)", re.IGNORECASE)
+            ).first,
         ]
         for candidate in candidates:
             try:
@@ -93,38 +100,39 @@ class LinkedInEasyApplyNavigator:
                     return False
         fallback_opened = await page.evaluate(
             """
-            () => {
+            (rootSelector) => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
-              const roots = [
-                document.querySelector('.jobs-details-top-card'),
-                document.querySelector('.jobs-search__job-details--container'),
-                document.querySelector('.jobs-details'),
-                document.querySelector('main'),
-                document.body,
-              ].filter(Boolean);
+              const isExcludedNode = (node) => !!node?.closest(
+                '[componentkey^="JobDetailsSimilarJobsSlot_"], [data-sdui-component*="similarJobs"]'
+              );
+              const root = document.querySelector(rootSelector);
+              if (!root) return false;
               const seen = new Set();
               const candidates = [];
-              for (const root of roots) {
-                for (const element of Array.from(root.querySelectorAll('button, a'))) {
-                  if (seen.has(element)) continue;
-                  seen.add(element);
-                  candidates.push(element);
-                }
+              for (const element of Array.from(root.querySelectorAll('button, a'))) {
+                if (isExcludedNode(element)) continue;
+                if (seen.has(element)) continue;
+                seen.add(element);
+                candidates.push(element);
               }
               for (const element of candidates) {
+                const href = (element.getAttribute('href') || '').toLowerCase();
                 const text = normalize(element.textContent);
                 const aria = normalize(element.getAttribute('aria-label') || '');
                 const control = normalize(element.getAttribute('data-control-name') || '');
                 const matchesText = text.includes('easy apply') || text.includes('candidatura simplificada');
                 const matchesAria = aria.includes('easy apply') || aria.includes('candidatura simplificada');
                 const matchesControl = control.includes('inapply') || control.includes('apply-button');
+                if (href.includes('/jobs/collections/similar-jobs/')) continue;
+                if (element.tagName === 'A' && !href.includes('/apply/')) continue;
                 if (!(matchesText || matchesAria || matchesControl)) continue;
                 element.click();
                 return true;
               }
               return false;
             }
-            """
+            """,
+            root_selector,
         )
         if fallback_opened and await self.wait_for_apply_flow(page):
             return True
@@ -133,40 +141,49 @@ class LinkedInEasyApplyNavigator:
         return False
 
     async def extract_easy_apply_href(self, page) -> str:
+        root_selector = await self._job_detail_root_selector(page)
+        if not root_selector:
+            return ""
         try:
             href = await page.evaluate(
                 """
-                () => {
-                  const roots = [
-                    document.querySelector('.jobs-details-top-card'),
-                    document.querySelector('.jobs-search__job-details--container'),
-                    document.querySelector('.jobs-details'),
-                    document.querySelector('main'),
-                    document.body,
-                  ].filter(Boolean);
-                  const seen = new Set();
-                  for (const root of roots) {
-                    for (const element of Array.from(root.querySelectorAll('a[href*="/apply/"]'))) {
-                      if (seen.has(element)) continue;
-                      seen.add(element);
-                      const href = element.href || '';
-                      if (!href.includes('/apply/')) continue;
-                      const aria = (element.getAttribute('aria-label') || '').toLowerCase();
-                      const text = (element.textContent || '').toLowerCase();
-                      if (
-                        href.includes('openSDUIApplyFlow=true') ||
-                        aria.includes('easy apply') ||
-                        aria.includes('candidatura simplificada') ||
-                        text.includes('easy apply') ||
-                        text.includes('candidatura simplificada')
-                      ) {
-                        return href;
-                      }
+                (rootSelector) => {
+                  const isExcludedNode = (node) => !!node?.closest(
+                    '[componentkey^="JobDetailsSimilarJobsSlot_"], [data-sdui-component*="similarJobs"]'
+                  );
+                  const currentUrl = window.location.href || '';
+                  const root = document.querySelector(rootSelector);
+                  if (!root) return '';
+                  for (const element of Array.from(root.querySelectorAll('a[href*="/apply/"]'))) {
+                    if (isExcludedNode(element)) continue;
+                    const href = element.href || '';
+                    if (!href.includes('/apply/')) continue;
+                    const aria = (element.getAttribute('aria-label') || '').toLowerCase();
+                    const text = (element.textContent || '').toLowerCase();
+                    if (
+                      href.includes('openSDUIApplyFlow=true') ||
+                      aria.includes('easy apply') ||
+                      aria.includes('candidatura simplificada') ||
+                      text.includes('easy apply') ||
+                      text.includes('candidatura simplificada')
+                    ) {
+                      return href;
                     }
+                  }
+                  const hiddenPayload = Array.from(document.querySelectorAll('code, script[type="application/ld+json"]'))
+                    .map((node) => (node.textContent || '').toLowerCase())
+                    .join(' | ')
+                    .slice(0, 6000);
+                  const viewMatch = currentUrl.match(/\\/jobs\\/view\\/(\\d+)/i);
+                  const jobId = viewMatch ? viewMatch[1] : '';
+                  if (!jobId) return '';
+                  if (hiddenPayload.includes(`https://www.linkedin.com/job-apply/${jobId}`) || hiddenPayload.includes('"onsiteapply":true')) {
+                    return `https://www.linkedin.com/jobs/view/${jobId}/apply/?openSDUIApplyFlow=true`;
                   }
                   return '';
                 }
-                """
+                """,
+                root_selector,
             )
         except Exception:
             return ""

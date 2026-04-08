@@ -27,6 +27,22 @@ Regras:
 - commits devem ser em português
 - prefira commits pequenos e coerentes
 
+## Higiene De Branch
+
+Para evitar branches defasadas e regressões por rebase:
+
+- se uma branch for continuar viva por mais de uma linha de trabalho, rebaseie em `master` antes de seguir implementando
+- antes de mergear ou retomar uma branch antiga, compare `ahead/behind` contra `master`
+- apague branch local sem trabalho exclusivo assim que ela for absorvida por `master`
+- não preserve branch só por inércia; ou ela segue viva com escopo claro, ou deve ser encerrada
+
+Quando houver rebase, cherry-pick ou porte manual de commit:
+
+- nunca reintroduza arquivos em caminhos antigos só porque existiam no commit original
+- sempre porte a mudança para a arquitetura atual do projeto
+- se um commit antigo tocar módulos que já mudaram de camada, adapte a mudança em vez de restaurar a estrutura anterior
+- após resolver conflito, rode os testes focados da área portada antes de continuar
+
 Exemplos aceitos:
 
 - `feature/perfil-busca-configuravel`

@@ -17,6 +17,11 @@ from job_hunter_agent.application.composition import (
     create_repository,
     create_runtime_guard,
 )
+from job_hunter_agent.llm.candidate_profile_extractor import (
+    OllamaCandidateProfileSuggester,
+    extract_resume_text,
+    merge_candidate_profile_suggestions,
+)
 from job_hunter_agent.application.review_workflow import resolve_application_action
 from job_hunter_agent.application.review_workflow import resolve_review_action
 from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
@@ -43,6 +48,31 @@ APPLICATION_STATUS_ALIASES = {
     "review": "ready_for_review",
     "error": "error_submit",
 }
+
+
+def suggest_candidate_profile(
+    *,
+    resume_path: Path,
+    output_path: Path,
+    model_name: str,
+    base_url: str,
+) -> str:
+    if not resume_path.exists():
+        return f"Curriculo nao encontrado: {resume_path}"
+    resume_text = extract_resume_text(resume_path)
+    if not resume_text.strip():
+        return f"Nao foi possivel extrair texto do curriculo: {resume_path}"
+    suggester = OllamaCandidateProfileSuggester(model_name=model_name, base_url=base_url)
+    suggestion = suggester.suggest_from_resume_text(resume_text)
+    written_path = merge_candidate_profile_suggestions(
+        output_path=output_path,
+        suggestion=suggestion,
+        source_resume=resume_path,
+    )
+    if not suggestion.experience_years:
+        return f"Perfil sugerido sem tecnologias mapeadas: {written_path}"
+    mapped = ", ".join(f"{skill}={years}" for skill, years in sorted(suggestion.experience_years.items()))
+    return f"Perfil sugerido atualizado: {written_path} | sugestoes={mapped}"
 JOB_STATUS_ORDER = ("collected", "approved", "rejected", "error_collect")
 JOB_STATUS_ALIASES = {
     "all": None,
@@ -525,6 +555,32 @@ def parse_args() -> argparse.Namespace:
     )
     applications_submit_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
 
+    candidate_profile_parser = subparsers.add_parser(
+        "candidate-profile",
+        help="Operacoes do perfil estruturado do candidato.",
+    )
+    candidate_profile_subparsers = candidate_profile_parser.add_subparsers(
+        dest="candidate_profile_command",
+        required=True,
+    )
+
+    candidate_profile_suggest_parser = candidate_profile_subparsers.add_parser(
+        "suggest",
+        help="Gera sugestoes de anos de experiencia a partir do curriculo.",
+    )
+    candidate_profile_suggest_parser.add_argument(
+        "--resume-path",
+        type=Path,
+        default=None,
+        help="Caminho do curriculo em PDF. Usa JOB_HUNTER_RESUME_PATH por padrao.",
+    )
+    candidate_profile_suggest_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Arquivo de saida do perfil do candidato. Usa JOB_HUNTER_CANDIDATE_PROFILE_PATH por padrao.",
+    )
+
     args = parser.parse_args()
     if args.ciclos is not None and args.ciclos <= 0:
         parser.error("--ciclos deve ser maior que zero")
@@ -597,6 +653,20 @@ def run() -> None:
             return
         if args.applications_command == "submit":
             print(asyncio.run(app.handle_application_submit(args.id)))
+            return
+    if args.command == "candidate-profile":
+        settings = load_settings()
+        if args.candidate_profile_command == "suggest":
+            resume_path = args.resume_path or settings.resume_path
+            output_path = args.output or settings.candidate_profile_path
+            print(
+                suggest_candidate_profile(
+                    resume_path=resume_path,
+                    output_path=output_path,
+                    model_name=settings.ollama_model,
+                    base_url=settings.ollama_url,
+                )
+            )
             return
     asyncio.run(
         JobHunterApplication(enable_telegram=not args.sem_telegram).run(

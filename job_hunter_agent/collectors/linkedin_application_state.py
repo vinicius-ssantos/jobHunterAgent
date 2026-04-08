@@ -10,7 +10,15 @@ class LinkedInApplicationInspection:
 
 
 @dataclass(frozen=True)
+class LinkedInJobPageReadiness:
+    result: str
+    reason: str
+    sample: str
+
+
+@dataclass(frozen=True)
 class LinkedInApplicationPageState:
+    current_url: str = ""
     easy_apply: bool = False
     external_apply: bool = False
     submit_visible: bool = False
@@ -38,6 +46,9 @@ class LinkedInApplicationPageState:
     modal_headings: tuple[str, ...] = ()
     modal_buttons: tuple[str, ...] = ()
     modal_fields: tuple[str, ...] = ()
+    modal_questions: tuple[str, ...] = ()
+    answered_questions: tuple[str, ...] = ()
+    unanswered_questions: tuple[str, ...] = ()
 
 
 def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
@@ -48,6 +59,12 @@ def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
         parts.append(f"botoes={', '.join(state.modal_buttons[:5])}")
     if state.modal_fields:
         parts.append(f"campos_detectados={', '.join(state.modal_fields[:5])}")
+    if state.modal_questions:
+        parts.append(f"perguntas={', '.join(state.modal_questions[:4])}")
+    if state.answered_questions:
+        parts.append(f"respondidas={', '.join(state.answered_questions[:3])}")
+    if state.unanswered_questions:
+        parts.append(f"pendentes={', '.join(state.unanswered_questions[:3])}")
     if not parts:
         return "snapshot_modal=indisponivel"
     return "snapshot_modal=" + " | ".join(parts)
@@ -63,6 +80,8 @@ def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
         blockers.append("confirmacao_salvar_candidatura")
     if state.modal_questions_visible:
         blockers.append("perguntas_obrigatorias")
+    if state.unanswered_questions:
+        blockers.append("perguntas_nao_mapeadas")
     if state.modal_file_upload and not state.uploaded_resume:
         blockers.append("upload_cv_pendente")
     if state.modal_next_visible and not state.progressed_to_next_step:
@@ -87,6 +106,13 @@ def describe_linkedin_easy_apply_entrypoint(state: LinkedInApplicationPageState)
     if not parts:
         return "entrada_easy_apply=indisponivel"
     return " | ".join(parts)
+
+
+def describe_linkedin_job_page_readiness(readiness: LinkedInJobPageReadiness) -> str:
+    detail = f"readiness={readiness.result} | motivo={readiness.reason}"
+    if readiness.sample:
+        detail = f"{detail} | pagina={readiness.sample[:180]}"
+    return detail
 
 
 def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
@@ -140,6 +166,10 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail_parts.append("upload_cv=sim")
         if state.modal_questions_visible:
             detail_parts.append("perguntas=sim")
+        if state.answered_questions:
+            detail_parts.append(f"perguntas_respondidas={', '.join(state.answered_questions[:3])}")
+        if state.unanswered_questions:
+            detail_parts.append(f"perguntas_pendentes={', '.join(state.unanswered_questions[:3])}")
         if state.cta_text:
             detail_parts.append(f"cta={state.cta_text}")
         if state.modal_sample:

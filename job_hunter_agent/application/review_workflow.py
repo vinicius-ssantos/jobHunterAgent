@@ -24,12 +24,12 @@ def resolve_review_action(job: JobPosting, action: str) -> tuple[str | None, str
 def resolve_application_preflight_request(application: JobApplication) -> tuple[bool, str]:
     if application.status == "confirmed":
         return True, f"Executando preflight da candidatura: id={application.id}"
+    if application.status == "error_submit":
+        return True, f"Executando novo preflight da candidatura apos erro de envio: id={application.id}"
     if application.status == "authorized_submit":
         return False, f"Candidatura ja foi autorizada para envio: id={application.id}"
     if application.status == "cancelled":
         return False, f"Candidatura ja estava cancelada: id={application.id}"
-    if application.status == "error_submit":
-        return False, f"Candidatura esta em erro de submissao: id={application.id}"
     return False, f"Candidatura ainda nao foi confirmada para preflight: id={application.id}"
 
 
@@ -72,6 +72,8 @@ def resolve_application_action(application: JobApplication, action: str) -> tupl
     if action == "app_authorize":
         if application.status == "confirmed":
             return "authorized_submit", f"Candidatura autorizada para envio: id={application.id}"
+        if application.status == "error_submit":
+            return "authorized_submit", f"Candidatura reautorizada para novo envio: id={application.id}"
         if application.status == "authorized_submit":
             return None, f"Candidatura ja estava autorizada para envio: id={application.id}"
         if application.status == "ready_for_review":

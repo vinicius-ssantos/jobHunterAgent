@@ -9,6 +9,7 @@ pytest-cache-files-*/
 jobs.db
 *.db
 .env
+/candidate_profile.json
 .idea/
 logs/
 *.docx

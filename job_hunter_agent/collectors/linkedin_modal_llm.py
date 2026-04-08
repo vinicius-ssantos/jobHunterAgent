@@ -62,6 +62,9 @@ def build_linkedin_modal_snapshot_payload(state: LinkedInApplicationPageState) -
         "headings": list(state.modal_headings),
         "buttons": list(state.modal_buttons),
         "fields": list(state.modal_fields),
+        "questions": list(state.modal_questions),
+        "answered_questions": list(state.answered_questions),
+        "unanswered_questions": list(state.unanswered_questions),
         "resumable_fields": list(state.resumable_fields),
         "filled_fields": list(state.filled_fields),
         "signals": {
@@ -100,6 +103,13 @@ def deterministic_interpret_linkedin_modal(state: LinkedInApplicationPageState) 
             recommended_action="upload_resume",
             confidence=0.9,
             rationale="o modal exige upload de curriculo antes de prosseguir",
+        )
+    if state.unanswered_questions:
+        return LinkedInModalInterpretation(
+            step_type="screening_questions",
+            recommended_action="manual_review",
+            confidence=0.9,
+            rationale="ha perguntas obrigatorias sem resposta confirmada no perfil local",
         )
     if state.modal_review_visible and not state.reached_review_step:
         return LinkedInModalInterpretation(

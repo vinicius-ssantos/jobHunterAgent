@@ -92,6 +92,18 @@ O projeto le configuracao de `.env` e variaveis de ambiente via `pydantic-settin
 Use `.env.example` como base para o seu `.env`.
 Um `.env` local inicial pode ser criado com placeholders seguros, mas o token e o chat id do Telegram precisam ser substituidos antes do primeiro teste real.
 
+Para reduzir atrito no uso diario, a recomendacao agora e:
+
+- manter os valores `JOB_HUNTER_*` no `.env`
+- usar os wrappers PowerShell em `scripts/` para rodar o projeto com um comando curto
+
+Os wrappers ja:
+
+- entram na raiz do projeto
+- preferem o Python da `.venv`
+- configuram `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` quando necessario
+- adicionam o binario local do Ollama ao `PATH` quando ele existir no caminho padrao
+
 Variaveis principais:
 
 - `JOB_HUNTER_TELEGRAM_TOKEN`
@@ -100,6 +112,7 @@ Variaveis principais:
 - `JOB_HUNTER_APPLICATION_CONTACT_EMAIL`
 - `JOB_HUNTER_APPLICATION_PHONE`
 - `JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE`
+- `JOB_HUNTER_CANDIDATE_PROFILE_PATH`
 - `JOB_HUNTER_COLLECTION_TIME`
 - `JOB_HUNTER_DATABASE_PATH`
 - `JOB_HUNTER_BROWSER_USE_CONFIG_DIR`
@@ -191,6 +204,7 @@ O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e 
 - quando o modal exigir curriculo, o inspetor tambem pode carregar o arquivo configurado em `resume_path` em dry-run
 - se a etapa `Review/Revisar` aparecer, o inspetor tambem tenta alcanca-la e registrar quando o fluxo fica pronto para um submit humano
 - se `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o detalhe do preflight tambem inclui a interpretacao assistida da etapa atual do modal
+- antes de abrir o modal, o fluxo tambem valida se a pagina ainda e a vaga alvo certa, se nao caiu em `similar-jobs/collections` e se ainda existe CTA de candidatura
 - nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
 
 A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
@@ -226,6 +240,28 @@ Quando habilitada, falhas de submit real do LinkedIn salvam:
 - screenshot em PNG
 - metadata JSON com estado do modal e contexto da vaga
 
+Antes do submit real, o sistema tambem executa checks locais de prontidao operacional:
+
+- sessao autenticada do LinkedIn presente no `storage_state`
+- curriculo configurado e existente em disco
+- email, telefone e codigo do pais preenchidos
+
+Se algum desses itens faltar, o submit e bloqueado antes de abrir o applicant e a candidatura permanece em `authorized_submit`.
+
+Perguntas adicionais do `Easy Apply` agora tambem podem usar um perfil estruturado local do candidato:
+
+- `JOB_HUNTER_CANDIDATE_PROFILE_PATH=./candidate_profile.json`
+- existe um exemplo versionado em `candidate_profile.example.json`
+- hoje o fluxo usa automaticamente apenas valores `confirmed`
+- perguntas de experiencia numerica por stack, como `Java`, `Angular` e `EJB`, podem ser respondidas automaticamente quando houver valor confirmado no arquivo
+- perguntas novas, ambiguas ou sem valor confirmado continuam bloqueadas e sao reportadas nos artefatos e no erro operacional
+- quando uma pergunta nova aparece no formulario, ela tambem pode ser registrada automaticamente em `candidate_profile.json` com `confirmed=null`
+
+As capacidades do portal tambem ficaram explicitas no codigo:
+
+- `LinkedIn` suporta coleta, preflight real, submit real e artefatos locais
+- portais sem suporte real de preflight/submit falham cedo com mensagem operacional curta
+
 Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
 O perfil persistente do LinkedIn fica, por padrao, em:
 
@@ -258,6 +294,12 @@ Rodar um ciclo imediatamente:
 
 ```bash
 python main.py --agora
+```
+
+No PowerShell, o atalho equivalente fica:
+
+```powershell
+.\scripts\run_job_hunter.ps1 --agora
 ```
 
 Quando o Telegram estiver habilitado, `--agora` mantém o polling ativo por uma janela curta apos o envio dos cards para permitir cliques em `Aprovar` e `Ignorar`.
@@ -319,6 +361,35 @@ python main.py applications preflight --id 2
 python main.py applications authorize --id 2
 python main.py applications submit --id 2
 python main.py applications artifacts --limit 5
+python main.py candidate-profile suggest
+```
+
+Atalhos PowerShell para o fluxo de candidatura:
+
+```powershell
+.\scripts\authorize_application.ps1 8
+.\scripts\preflight_application.ps1 8
+.\scripts\submit_application.ps1 8
+```
+
+Se quiser manter o Telegram ativo nesses atalhos:
+
+```powershell
+.\scripts\authorize_application.ps1 8 -ComTelegram
+.\scripts\preflight_application.ps1 8 -ComTelegram
+.\scripts\submit_application.ps1 8 -ComTelegram
+```
+
+Atalho PowerShell para gerar sugestoes do perfil do candidato:
+
+```powershell
+.\scripts\suggest_candidate_profile.ps1
+```
+
+Opcionalmente, voce pode informar caminhos explicitos:
+
+```powershell
+.\scripts\suggest_candidate_profile.ps1 -ResumePath .\curriculo_vinicius_desenvolvedor_v6_pt.pdf -Output .\candidate_profile.json
 ```
 
 Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
@@ -329,6 +400,20 @@ Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quan
 - avancar estados (`prepare`, `confirm`, `cancel`)
 - validar e enviar (`preflight`, `authorize`, `submit`)
 - consultar falhas recentes (`artifacts`, `events`)
+- gerar sugestoes para o perfil estruturado do candidato (`candidate-profile suggest`)
+
+O comando abaixo le o curriculo em PDF, usa a LLM local para sugerir anos de experiencia por stack e atualiza apenas o campo `suggested` no arquivo de perfil:
+
+```bash
+python main.py candidate-profile suggest
+```
+
+Por padrao ele usa:
+
+- `JOB_HUNTER_RESUME_PATH`
+- `JOB_HUNTER_CANDIDATE_PROFILE_PATH`
+
+O runtime de submit continua usando apenas valores `confirmed`.
 
 Dry-run de limpeza controlada de jobs antigos poluidos:
 

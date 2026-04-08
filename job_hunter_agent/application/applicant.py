@@ -20,6 +20,8 @@ from job_hunter_agent.llm.job_requirements import (
     JobRequirementsExtractor,
     format_job_requirement_signals,
 )
+from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
+from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
 from job_hunter_agent.infrastructure.repository import JobRepository
 
 
@@ -206,7 +208,9 @@ class ApplicationPreflightService:
                 application_status=application_status,
             )
 
-        if job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
+        capabilities = get_portal_capabilities(job)
+
+        if capabilities.preflight_supported and job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
             if self.flow_inspector is not None:
                 try:
                     inspection = self.flow_inspector.inspect(job)
@@ -287,7 +291,7 @@ class ApplicationPreflightService:
                 application_status=application_status,
             )
 
-        detail = "preflight bloqueado: portal ainda nao possui executor suportado"
+        detail = f"preflight bloqueado: portal {capabilities.portal_name} ainda nao possui preflight suportado"
         application_status = self.flow.record_preflight_result(
             context,
             outcome="blocked",
@@ -304,10 +308,16 @@ class ApplicationPreflightService:
 
 
 class ApplicationSubmissionService:
-    def __init__(self, repository: JobRepository, applicant: JobApplicant | None = None) -> None:
+    def __init__(
+        self,
+        repository: JobRepository,
+        applicant: JobApplicant | None = None,
+        readiness_checker: ApplicationReadinessCheckService | None = None,
+    ) -> None:
         self.repository = repository
         self.applicant = applicant
         self.flow = ApplicationFlowCoordinator(repository)
+        self.readiness_checker = readiness_checker
 
     def run_for_application(self, application_id: int) -> ApplicationSubmitResult:
         context = load_application_context(self.repository, application_id)
@@ -328,6 +338,39 @@ class ApplicationSubmissionService:
                 detail=detail,
                 application_status=application.status,
             )
+
+        capabilities = get_portal_capabilities(job)
+        if not capabilities.submit_supported:
+            detail = f"submissao real bloqueada: portal {capabilities.portal_name} ainda nao possui submit suportado"
+            self.repository.mark_application_status(
+                application.id,
+                status="error_submit",
+                notes=_append_note(application.notes, detail),
+                last_error=detail,
+            )
+            return ApplicationSubmitResult(
+                outcome="blocked",
+                detail=detail,
+                application_status="error_submit",
+            )
+
+        if self.readiness_checker is not None:
+            readiness = self.readiness_checker.check_submit_ready(job)
+            if not readiness.ok:
+                detail = "submissao real bloqueada: prontidao operacional incompleta"
+                if readiness.failures:
+                    detail = f"{detail} | faltando={'; '.join(readiness.failures)}"
+                self.repository.mark_application_status(
+                    application.id,
+                    status="authorized_submit",
+                    notes=_append_note(application.notes, detail),
+                    last_error="",
+                )
+                return ApplicationSubmitResult(
+                    outcome="ignored",
+                    detail=detail,
+                    application_status="authorized_submit",
+                )
 
         if self.applicant is None:
             detail = "submissao real indisponivel nesta execucao"
