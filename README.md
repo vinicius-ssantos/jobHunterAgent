@@ -92,6 +92,18 @@ O projeto le configuracao de `.env` e variaveis de ambiente via `pydantic-settin
 Use `.env.example` como base para o seu `.env`.
 Um `.env` local inicial pode ser criado com placeholders seguros, mas o token e o chat id do Telegram precisam ser substituidos antes do primeiro teste real.
 
+Para reduzir atrito no uso diario, a recomendacao agora e:
+
+- manter os valores `JOB_HUNTER_*` no `.env`
+- usar os wrappers PowerShell em `scripts/` para rodar o projeto com um comando curto
+
+Os wrappers ja:
+
+- entram na raiz do projeto
+- preferem o Python da `.venv`
+- configuram `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` quando necessario
+- adicionam o binario local do Ollama ao `PATH` quando ele existir no caminho padrao
+
 Variaveis principais:
 
 - `JOB_HUNTER_TELEGRAM_TOKEN`
@@ -284,6 +296,12 @@ Rodar um ciclo imediatamente:
 python main.py --agora
 ```
 
+No PowerShell, o atalho equivalente fica:
+
+```powershell
+.\scripts\run_job_hunter.ps1 --agora
+```
+
 Quando o Telegram estiver habilitado, `--agora` mantém o polling ativo por uma janela curta apos o envio dos cards para permitir cliques em `Aprovar` e `Ignorar`.
 Esse tempo e controlado por `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`.
 
@@ -344,6 +362,20 @@ python main.py applications authorize --id 2
 python main.py applications submit --id 2
 python main.py applications artifacts --limit 5
 python main.py candidate-profile suggest
+```
+
+Atalhos PowerShell para o fluxo de candidatura:
+
+```powershell
+.\scripts\preflight_application.ps1 8
+.\scripts\submit_application.ps1 8
+```
+
+Se quiser manter o Telegram ativo nesses atalhos:
+
+```powershell
+.\scripts\preflight_application.ps1 8 -ComTelegram
+.\scripts\submit_application.ps1 8 -ComTelegram
 ```
 
 Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
