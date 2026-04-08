@@ -257,6 +257,13 @@ Perguntas adicionais do `Easy Apply` agora tambem podem usar um perfil estrutura
 - perguntas novas, ambiguas ou sem valor confirmado continuam bloqueadas e sao reportadas nos artefatos e no erro operacional
 - quando uma pergunta nova aparece no formulario, ela tambem pode ser registrada automaticamente em `candidate_profile.json` com `confirmed=null`
 
+Essa trilha do LinkedIn ja foi validada em casos reais suportados:
+
+- vagas com `Easy Apply` interno ja chegaram a `submitted` em execucoes reais
+- vagas externas bloqueiam cedo em `no_apply_cta`
+- vagas indisponiveis bloqueiam cedo em `expired`
+- o fluxo continua exigindo `authorized_submit` antes de qualquer envio real
+
 As capacidades do portal tambem ficaram explicitas no codigo:
 
 - `LinkedIn` suporta coleta, preflight real, submit real e artefatos locais
