@@ -78,7 +78,7 @@ def build_missing_application_reply(application_id: int) -> str:
 
 def build_application_queue_message(repository: JobRepository) -> str:
     summary = repository.application_summary()
-    tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit")
+    tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit")
     preview_lines: list[str] = []
     for status in tracked_statuses:
         applications = _sort_applications_by_priority(repository.list_applications_by_status(status))
@@ -176,6 +176,14 @@ def build_application_action_rows(application: JobApplication, button_factory) -
         return [
             [
                 button_factory("Enviar candidatura", callback_data=f"app_submit:{application.id}"),
+                button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
+            ]
+        ]
+    if application.status == "error_submit":
+        return [
+            [
+                button_factory("Validar fluxo", callback_data=f"app_preflight:{application.id}"),
+                button_factory("Reautorizar", callback_data=f"app_authorize:{application.id}"),
                 button_factory("Cancelar", callback_data=f"app_cancel:{application.id}"),
             ]
         ]

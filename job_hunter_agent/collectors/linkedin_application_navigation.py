@@ -12,6 +12,9 @@ class LinkedInEasyApplyNavigator:
             ".jobs-details-top-card",
             ".jobs-search__job-details--container",
             ".jobs-details",
+            'div[role="main"][data-sdui-screen*="JobDetails"]',
+            "#workspace",
+            "main",
         )
         for selector in selectors:
             try:
