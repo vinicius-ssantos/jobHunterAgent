@@ -342,6 +342,7 @@ python main.py applications preflight --id 2
 python main.py applications authorize --id 2
 python main.py applications submit --id 2
 python main.py applications artifacts --limit 5
+python main.py candidate-profile suggest
 ```
 
 Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
@@ -352,6 +353,20 @@ Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quan
 - avancar estados (`prepare`, `confirm`, `cancel`)
 - validar e enviar (`preflight`, `authorize`, `submit`)
 - consultar falhas recentes (`artifacts`, `events`)
+- gerar sugestoes para o perfil estruturado do candidato (`candidate-profile suggest`)
+
+O comando abaixo le o curriculo em PDF, usa a LLM local para sugerir anos de experiencia por stack e atualiza apenas o campo `suggested` no arquivo de perfil:
+
+```bash
+python main.py candidate-profile suggest
+```
+
+Por padrao ele usa:
+
+- `JOB_HUNTER_RESUME_PATH`
+- `JOB_HUNTER_CANDIDATE_PROFILE_PATH`
+
+O runtime de submit continua usando apenas valores `confirmed`.
 
 Dry-run de limpeza controlada de jobs antigos poluidos:
 

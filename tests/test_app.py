@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 from unittest import IsolatedAsyncioTestCase
 
-from job_hunter_agent.application.app import JobHunterApplication, parse_args
+from job_hunter_agent.application.app import JobHunterApplication, parse_args, suggest_candidate_profile
 from job_hunter_agent.application.composition import (
     build_known_job_lookup,
     create_linkedin_modal_interpreter,
@@ -95,6 +95,16 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(waited, [42])
         self.assertTrue(app.notifier.started)
         self.assertTrue(app.notifier.stopped)
+
+    async def test_suggest_candidate_profile_returns_missing_resume_message(self) -> None:
+        rendered = suggest_candidate_profile(
+            resume_path=Path("resume-inexistente.pdf"),
+            output_path=Path("candidate_profile.json"),
+            model_name="qwen2.5:7b",
+            base_url="http://localhost:11434",
+        )
+
+        self.assertIn("Curriculo nao encontrado", rendered)
 
     async def test_run_once_skips_review_window_without_jobs(self) -> None:
         app = JobHunterApplication.__new__(JobHunterApplication)
@@ -355,6 +365,13 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.command, "applications")
         self.assertEqual(args.applications_command, "submit")
         self.assertEqual(args.id, 7)
+
+    async def test_parse_args_accepts_candidate_profile_suggest_command(self) -> None:
+        with patch("sys.argv", ["main.py", "candidate-profile", "suggest"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "candidate-profile")
+        self.assertEqual(args.candidate_profile_command, "suggest")
 
     async def test_parse_args_rejects_operational_command_with_agora(self) -> None:
         with patch("sys.argv", ["main.py", "--agora", "applications", "list"]):
