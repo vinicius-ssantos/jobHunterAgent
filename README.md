@@ -243,6 +243,7 @@ Perguntas adicionais do `Easy Apply` agora tambem podem usar um perfil estrutura
 - hoje o fluxo usa automaticamente apenas valores `confirmed`
 - perguntas de experiencia numerica por stack, como `Java`, `Angular` e `EJB`, podem ser respondidas automaticamente quando houver valor confirmado no arquivo
 - perguntas novas, ambiguas ou sem valor confirmado continuam bloqueadas e sao reportadas nos artefatos e no erro operacional
+- quando uma pergunta nova aparece no formulario, ela tambem pode ser registrada automaticamente em `candidate_profile.json` com `confirmed=null`
 
 As capacidades do portal tambem ficaram explicitas no codigo:
 

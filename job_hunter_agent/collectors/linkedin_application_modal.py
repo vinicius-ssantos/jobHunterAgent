@@ -7,6 +7,7 @@ from typing import Callable
 from job_hunter_agent.core.candidate_profile import (
     CandidateProfile,
     extract_supported_experience_answers,
+    record_pending_questions,
 )
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 
@@ -20,6 +21,7 @@ class LinkedInEasyApplyModalDriver:
         phone: str,
         phone_country_code: str,
         candidate_profile: CandidateProfile | None = None,
+        candidate_profile_path: Path | None = None,
         modal_interpreter: Callable[[LinkedInApplicationPageState], object] | None = None,
     ) -> None:
         self.resume_path = resume_path
@@ -27,6 +29,7 @@ class LinkedInEasyApplyModalDriver:
         self.phone = phone
         self.phone_country_code = phone_country_code
         self.candidate_profile = candidate_profile
+        self.candidate_profile_path = candidate_profile_path
         self.modal_interpreter = modal_interpreter
 
     async def inspect_easy_apply_modal(
@@ -71,6 +74,7 @@ class LinkedInEasyApplyModalDriver:
                 state = await read_page_state(page)
             if unanswered_questions:
                 all_unanswered_questions = tuple(dict.fromkeys((*all_unanswered_questions, *unanswered_questions)))
+                self.record_pending_questions(unanswered_questions)
             if all_filled_fields:
                 state = LinkedInApplicationPageState(
                     **{
@@ -429,6 +433,14 @@ class LinkedInEasyApplyModalDriver:
         )
         unresolved = tuple(dict.fromkeys((*unanswered_remaining, *unanswered_from_answers)))
         return answered_questions, unresolved
+
+    def record_pending_questions(self, questions: tuple[str, ...]) -> None:
+        if self.candidate_profile_path is None or not questions:
+            return
+        try:
+            record_pending_questions(self.candidate_profile_path, questions)
+        except Exception:
+            return
 
     async def try_advance_single_step(self, page) -> bool:
         candidates = [

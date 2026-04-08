@@ -43,6 +43,7 @@ class LinkedInApplicationFlowInspector:
         phone: str = "",
         phone_country_code: str = "",
         candidate_profile: CandidateProfile | None = None,
+        candidate_profile_path: str | Path | None = None,
         modal_interpretation_formatter: Callable[[LinkedInApplicationPageState], str] | None = None,
         modal_interpreter: Callable[[LinkedInApplicationPageState], "LinkedInModalInterpretation"] | None = None,
         save_failure_artifacts: bool = False,
@@ -55,6 +56,7 @@ class LinkedInApplicationFlowInspector:
         self.phone = phone.strip()
         self.phone_country_code = phone_country_code.strip()
         self.candidate_profile = candidate_profile
+        self.candidate_profile_path = Path(candidate_profile_path).resolve() if candidate_profile_path else None
         self.modal_interpretation_formatter = modal_interpretation_formatter
         self.modal_interpreter = modal_interpreter
         self.save_failure_artifacts = save_failure_artifacts
@@ -66,6 +68,7 @@ class LinkedInApplicationFlowInspector:
             phone=self.phone,
             phone_country_code=self.phone_country_code,
             candidate_profile=self.candidate_profile,
+            candidate_profile_path=self.candidate_profile_path,
             modal_interpreter=self.modal_interpreter,
         )
 

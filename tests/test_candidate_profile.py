@@ -2,10 +2,12 @@ from pathlib import Path
 from unittest import TestCase
 
 from job_hunter_agent.core.candidate_profile import (
+    build_question_key,
     CandidateProfile,
     extract_skill_key_from_experience_question,
     extract_supported_experience_answers,
     load_candidate_profile,
+    record_pending_questions,
 )
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
@@ -58,3 +60,22 @@ class CandidateProfileTests(TestCase):
         self.assertEqual(answers[0].skill_key, "java")
         self.assertEqual(answers[0].years, 8)
         self.assertEqual(unresolved, ("Há quantos anos você já usa EJB no trabalho?",))
+
+    def test_record_pending_questions_persists_unconfirmed_question_entries(self) -> None:
+        tmp_dir = prepare_workspace_tmp_dir("candidate-profile-pending")
+        path = Path(tmp_dir) / "candidate_profile.json"
+
+        record_pending_questions(
+            path,
+            (
+                "Há quantos anos você já usa Java no trabalho?",
+                "Você precisa de visto para trabalhar no Brasil?",
+            ),
+        )
+
+        written = path.read_text(encoding="utf-8")
+        self.assertIn(build_question_key("Há quantos anos você já usa Java no trabalho?"), written)
+        self.assertIn('"type": "experience_years"', written)
+        self.assertIn('"skill": "java"', written)
+        self.assertIn('"confirmed": null', written)
+        self.assertIn('"type": "unknown"', written)

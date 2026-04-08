@@ -55,6 +55,33 @@ def load_candidate_profile(path: str | Path) -> CandidateProfile:
     return CandidateProfile(confirmed_experience_years=confirmed)
 
 
+def record_pending_questions(path: str | Path, questions: tuple[str, ...]) -> Path:
+    profile_path = Path(path)
+    existing_payload = _read_profile_payload(profile_path)
+    pending_payload = existing_payload.get("questions", {})
+    if not isinstance(pending_payload, dict):
+        pending_payload = {}
+
+    for question in questions:
+        if not question.strip():
+            continue
+        question_key = build_question_key(question)
+        current = pending_payload.get(question_key, {})
+        suggested = current.get("suggested") if isinstance(current, dict) else None
+        confirmed = current.get("confirmed") if isinstance(current, dict) else None
+        pending_payload[question_key] = {
+            "question": question,
+            "type": classify_question_type(question),
+            "skill": extract_skill_key_from_experience_question(question),
+            "suggested": suggested,
+            "confirmed": confirmed,
+        }
+
+    existing_payload["questions"] = dict(sorted(pending_payload.items()))
+    profile_path.write_text(json.dumps(existing_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return profile_path
+
+
 def normalize_skill_key(value: str) -> str:
     normalized = _normalize_text(value)
     for skill_key, aliases in _SKILL_ALIASES.items():
@@ -63,6 +90,18 @@ def normalize_skill_key(value: str) -> str:
         if any(alias in normalized for alias in aliases):
             return skill_key
     return normalized
+
+
+def build_question_key(question: str) -> str:
+    normalized = _normalize_text(question)
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    return normalized.strip("_") or "question"
+
+
+def classify_question_type(question: str) -> str:
+    if extract_skill_key_from_experience_question(question):
+        return "experience_years"
+    return "unknown"
 
 
 def extract_supported_experience_answers(
@@ -124,3 +163,13 @@ def _extract_confirmed_years(raw_value) -> int | None:
         if isinstance(confirmed_value, (int, float)):
             return int(confirmed_value)
     return None
+
+
+def _read_profile_payload(profile_path: Path) -> dict:
+    if not profile_path.exists():
+        return {}
+    try:
+        payload = json.loads(profile_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
