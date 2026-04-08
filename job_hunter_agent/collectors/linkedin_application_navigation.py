@@ -100,7 +100,7 @@ class LinkedInEasyApplyNavigator:
                     return False
         fallback_opened = await page.evaluate(
             """
-            (rootSelector) => {{
+            (rootSelector) => {
               const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
               const isExcludedNode = (node) => !!node?.closest(
                 '[componentkey^="JobDetailsSimilarJobsSlot_"], [data-sdui-component*="similarJobs"]'
@@ -109,13 +109,13 @@ class LinkedInEasyApplyNavigator:
               if (!root) return false;
               const seen = new Set();
               const candidates = [];
-              for (const element of Array.from(root.querySelectorAll('button, a'))) {{
+              for (const element of Array.from(root.querySelectorAll('button, a'))) {
                 if (isExcludedNode(element)) continue;
                 if (seen.has(element)) continue;
                 seen.add(element);
                 candidates.push(element);
               }
-              for (const element of candidates) {{
+              for (const element of candidates) {
                 const href = (element.getAttribute('href') || '').toLowerCase();
                 const text = normalize(element.textContent);
                 const aria = normalize(element.getAttribute('aria-label') || '');
@@ -130,7 +130,7 @@ class LinkedInEasyApplyNavigator:
                 return true;
               }
               return false;
-            }}
+            }
             """,
             root_selector,
         )
