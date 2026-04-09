@@ -44,7 +44,7 @@ Regra da fase atual:
 ### Higiene de estado
 
 - [x] Parar de acumular todo o historico operacional em `notes`
-- [ ] Separar no armazenamento:
+- [x] Separar no armazenamento:
   - [x] ultimo preflight
   - [x] ultimo submit
   - [x] ultimo erro
