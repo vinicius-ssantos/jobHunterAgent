@@ -58,7 +58,7 @@ Regra da fase atual:
   - [ ] quantas estao `authorized_submit`
   - [ ] quantas estao `submitted`
   - [ ] quantas estao `error_submit`
-- [ ] Padronizar nomes e estrutura dos artefatos de falha
+- [x] Padronizar nomes e estrutura dos artefatos de falha
 - [ ] Adicionar um resumo final por execucao com:
   - [ ] preflights concluidos
   - [ ] submits concluidos
@@ -229,6 +229,7 @@ Descricao:
 As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ainda precisam de analise de viabilidade antes de entrarem no backlog priorizado. A avaliacao deve considerar aderencia ao escopo local-first, impacto no loop principal, complexidade de manutencao, risco de ampliar demais o produto e custo operacional no uso diario.
 
 - [ ] Avaliar calibracao do scoring com base no historico local de vagas `approved` e `rejected`
+- [ ] Avaliar um modo de coleta continua priorizada para revisao em lote, ordenando vagas relevantes por aderencia, recencia e sinal de `Easy Apply`
 - [ ] Avaliar registrar motivo curto e padronizado para descarte por regra ou por score
 - [ ] Avaliar criar um feedback loop local de revisao humana para refinar criterios de triagem
 - [ ] Avaliar um modo formal de `dry-run` para preflight e submit, com relatorio e artefatos
