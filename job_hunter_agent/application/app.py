@@ -6,7 +6,10 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from job_hunter_agent.core.application_insights import classify_application_operational_insight
+from job_hunter_agent.core.application_insights import (
+    classify_application_operational_insight,
+    classify_operational_detail,
+)
 from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
 from job_hunter_agent.collectors.collector import JobCollectionService
 from job_hunter_agent.application.composition import (
@@ -448,6 +451,7 @@ class JobHunterApplication:
                 await asyncio.sleep(interval_seconds)
 
     async def run(self, run_once: bool, fixed_cycles: int | None = None, cycle_interval_seconds: int = 0) -> None:
+        execution_started_at = datetime.now().isoformat(timespec="seconds")
         terminated_processes = self.runtime_guard.prepare_for_startup()
         interrupted_runs = self.repository.interrupt_running_collection_runs()
         if terminated_processes:
@@ -466,8 +470,39 @@ class JobHunterApplication:
                 return
             await self.run_scheduler()
         finally:
+            logger.info("Resumo final da execucao:\n%s", self.build_execution_summary(execution_started_at))
             await self.notifier.stop()
             self.runtime_guard.release()
+
+    def build_execution_summary(self, since: str) -> str:
+        list_events_since = getattr(self.repository, "list_recent_application_events_since", None)
+        if list_events_since is None:
+            return "Execucao operacional:\n- preflights_concluidos=0\n- submits_concluidos=0\n- bloqueios_por_tipo=nenhum"
+        events = list_events_since(since)
+        preflight_count = 0
+        submit_count = 0
+        block_counts: dict[str, int] = {}
+        for event in events:
+            if event.event_type in {"preflight_ready", "preflight_manual_review", "preflight_blocked", "preflight_error"}:
+                preflight_count += 1
+            if event.event_type in {"submit_submitted", "submit_error"}:
+                submit_count += 1
+            if event.event_type in {"preflight_blocked", "submit_error"}:
+                reason_code = classify_operational_detail(event.detail).reason_code
+                if reason_code not in {"sem_detalhe_operacional", "nao_classificado"}:
+                    block_counts[reason_code] = block_counts.get(reason_code, 0) + 1
+        lines = [
+            "Execucao operacional:",
+            f"- preflights_concluidos={preflight_count}",
+            f"- submits_concluidos={submit_count}",
+        ]
+        if block_counts:
+            lines.append("- bloqueios_por_tipo:")
+            for key in sorted(block_counts):
+                lines.append(f"  - {key}={block_counts[key]}")
+        else:
+            lines.append("- bloqueios_por_tipo=nenhum")
+        return "\n".join(lines)
 
 
 def parse_args() -> argparse.Namespace:

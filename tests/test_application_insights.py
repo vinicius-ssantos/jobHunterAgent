@@ -1,6 +1,9 @@
 from unittest import TestCase
 
-from job_hunter_agent.core.application_insights import classify_application_operational_insight
+from job_hunter_agent.core.application_insights import (
+    classify_application_operational_insight,
+    classify_operational_detail,
+)
 from job_hunter_agent.core.domain import JobApplication
 
 
@@ -43,3 +46,11 @@ class ApplicationOperationalInsightsTests(TestCase):
 
         self.assertEqual(insight.classification, "ready")
         self.assertEqual(insight.reason_code, "pronto_para_envio")
+
+    def test_classify_operational_detail_handles_external_apply(self) -> None:
+        insight = classify_operational_detail(
+            "readiness=no_apply_cta | motivo=a vaga so oferece candidatura externa no site da empresa"
+        )
+
+        self.assertEqual(insight.classification, "blocked")
+        self.assertEqual(insight.reason_code, "candidatura_externa")

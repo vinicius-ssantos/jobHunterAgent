@@ -13,21 +13,8 @@ class ApplicationOperationalInsight:
     source_detail: str = ""
 
 
-def classify_application_operational_insight(application: JobApplication) -> ApplicationOperationalInsight:
-    if application.status == "submitted":
-        return ApplicationOperationalInsight(
-            classification="submitted",
-            reason_code="submitted",
-            summary="submetida",
-            source_detail=application.last_submit_detail,
-        )
-
-    source_detail = (
-        application.last_error
-        or application.last_submit_detail
-        or application.last_preflight_detail
-        or ""
-    ).strip()
+def classify_operational_detail(detail: str) -> ApplicationOperationalInsight:
+    source_detail = detail.strip()
     if not source_detail:
         return ApplicationOperationalInsight(
             classification="unknown",
@@ -104,3 +91,21 @@ def classify_application_operational_insight(application: JobApplication) -> App
         summary="nao classificado",
         source_detail=source_detail,
     )
+
+
+def classify_application_operational_insight(application: JobApplication) -> ApplicationOperationalInsight:
+    if application.status == "submitted":
+        return ApplicationOperationalInsight(
+            classification="submitted",
+            reason_code="submitted",
+            summary="submetida",
+            source_detail=application.last_submit_detail,
+        )
+
+    source_detail = (
+        application.last_error
+        or application.last_submit_detail
+        or application.last_preflight_detail
+        or ""
+    ).strip()
+    return classify_operational_detail(source_detail)

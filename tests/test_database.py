@@ -650,6 +650,25 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(latest_event.event_type, "preflight_ready")
         self.assertIn("preflight real ok", latest_event.detail)
 
+    def test_preflight_preserves_support_snapshot(self) -> None:
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="snapshot inicial de suporte",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        class _Inspector:
+            def inspect(self, job):
+                return type("Inspection", (), {"outcome": "ready", "detail": "preflight real ok: CTA encontrado"})()
+
+        ApplicationPreflightService(self.repository, flow_inspector=_Inspector()).run_for_application(application.id)
+        stored = self.repository.get_application(application.id)
+
+        self.assertEqual(stored.support_level, "manual_review")
+        self.assertEqual(stored.support_rationale, "snapshot inicial de suporte")
+
     def test_application_submission_requires_authorized_status(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
         application = self.repository.create_application_draft(
@@ -699,6 +718,31 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         latest_event = self.repository.list_application_events(application.id, limit=1)[0]
         self.assertEqual(latest_event.event_type, "submit_submitted")
         self.assertIn("submissao real concluida", latest_event.detail)
+
+    def test_submit_preserves_support_snapshot(self) -> None:
+        class _Applicant:
+            def submit(self, application, job):
+                from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+
+                return ApplicationSubmissionResult(
+                    status="submitted",
+                    detail="submissao real concluida",
+                    submitted_at="2026-04-05T10:00:00",
+                )
+
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="snapshot inicial de suporte",
+        )
+        self.repository.mark_application_status(application.id, status="authorized_submit")
+
+        ApplicationSubmissionService(self.repository, applicant=_Applicant()).run_for_application(application.id)
+        stored = self.repository.get_application(application.id)
+
+        self.assertEqual(stored.support_level, "manual_review")
+        self.assertEqual(stored.support_rationale, "snapshot inicial de suporte")
 
     def test_application_submission_keeps_authorized_when_readiness_is_incomplete(self) -> None:
         class _Applicant:

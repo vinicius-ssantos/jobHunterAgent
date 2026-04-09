@@ -131,6 +131,9 @@ class JobRepository(Protocol):
     ) -> list[JobApplicationEvent]:
         raise NotImplementedError
 
+    def list_recent_application_events_since(self, since: str) -> list[JobApplicationEvent]:
+        raise NotImplementedError
+
     def get_collection_cursor(self, source_site: str, search_url: str) -> int:
         raise NotImplementedError
 
@@ -774,6 +777,19 @@ class SqliteJobRepository:
             params = (application_id, limit)
         with self._connect() as connection:
             rows = connection.execute(query, params).fetchall()
+        return [self._row_to_application_event(row) for row in rows]
+
+    def list_recent_application_events_since(self, since: str) -> list[JobApplicationEvent]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, application_id, event_type, detail, from_status, to_status, created_at
+                FROM job_application_events
+                WHERE created_at >= ?
+                ORDER BY id ASC
+                """,
+                (since,),
+            ).fetchall()
         return [self._row_to_application_event(row) for row in rows]
 
     def get_collection_cursor(self, source_site: str, search_url: str) -> int:

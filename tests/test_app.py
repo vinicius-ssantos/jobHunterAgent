@@ -426,6 +426,24 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
                     ]
                 return []
 
+            def list_recent_application_events_since(self, since: str):
+                return [
+                    JobApplicationEvent(
+                        id=1,
+                        application_id=1,
+                        event_type="preflight_ready",
+                        detail="preflight real | pronto_para_envio=sim | ok: fluxo pronto para submissao assistida no LinkedIn",
+                        created_at="2026-04-08T10:00:00",
+                    ),
+                    JobApplicationEvent(
+                        id=2,
+                        application_id=2,
+                        event_type="submit_error",
+                        detail="readiness=listing_redirect | motivo=a navegacao caiu em listagem ou colecao do LinkedIn | pagina=https://www.linkedin.com/jobs/collections/similar-jobs/",
+                        created_at="2026-04-08T10:01:00",
+                    ),
+                ]
+
         app = JobHunterApplication.__new__(JobHunterApplication)
         app.repository = _Repository()
 
@@ -438,6 +456,51 @@ class ApplicationCliTests(IsolatedAsyncioTestCase):
         self.assertIn("operacao:", rendered)
         self.assertIn("- pronto_para_envio=1", rendered)
         self.assertIn("- similar_jobs=1", rendered)
+
+    async def test_build_execution_summary_renders_preflights_submits_and_block_counts(self) -> None:
+        class _Repository:
+            def list_recent_application_events_since(self, since: str):
+                return [
+                    JobApplicationEvent(
+                        id=1,
+                        application_id=1,
+                        event_type="preflight_ready",
+                        detail="preflight real | pronto_para_envio=sim | ok: fluxo pronto para submissao assistida no LinkedIn",
+                        created_at="2026-04-08T10:00:00",
+                    ),
+                    JobApplicationEvent(
+                        id=2,
+                        application_id=2,
+                        event_type="preflight_blocked",
+                        detail="readiness=no_apply_cta | motivo=a vaga so oferece candidatura externa no site da empresa",
+                        created_at="2026-04-08T10:01:00",
+                    ),
+                    JobApplicationEvent(
+                        id=3,
+                        application_id=3,
+                        event_type="submit_error",
+                        detail="readiness=listing_redirect | motivo=a navegacao caiu em listagem ou colecao do LinkedIn | pagina=https://www.linkedin.com/jobs/collections/similar-jobs/",
+                        created_at="2026-04-08T10:02:00",
+                    ),
+                    JobApplicationEvent(
+                        id=4,
+                        application_id=4,
+                        event_type="submit_submitted",
+                        detail="submissao real concluida no LinkedIn",
+                        created_at="2026-04-08T10:03:00",
+                    ),
+                ]
+
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = _Repository()
+
+        rendered = app.build_execution_summary("2026-04-08T09:59:00")
+
+        self.assertIn("Execucao operacional:", rendered)
+        self.assertIn("- preflights_concluidos=2", rendered)
+        self.assertIn("- submits_concluidos=2", rendered)
+        self.assertIn("candidatura_externa=1", rendered)
+        self.assertIn("similar_jobs=1", rendered)
 
     async def test_create_application_draft_for_job_creates_draft_for_approved_job(self) -> None:
         class _Repository:
