@@ -17,22 +17,26 @@ Fechar o produto operacionalmente antes de expandir escopo.
 
 Regra da fase atual:
 
-- [ ] Nao adicionar novos portais antes de estabilizar o LinkedIn
-- [ ] Nao adicionar novas features de produto antes de endurecer operacao, estados e observabilidade
-- [ ] Tratar a fase atual como estabilizacao e padronizacao
+- [x] Nao adicionar novos portais antes de estabilizar o LinkedIn
+- [x] Nao adicionar novas features de produto antes de endurecer operacao, estados e observabilidade
+- [x] Tratar a fase atual como estabilizacao e padronizacao
 
 ## P0: Estabilizacao Operacional
 
 ### Fluxo real
 
-- [ ] Repetir validacao real em mais amostras de vagas Easy Apply
-- [ ] Catalogar variacoes reais do LinkedIn que ainda aparecem:
+- [x] Repetir validacao real em mais amostras de vagas Easy Apply
+  - [x] amostras reais validadas: `application_id=2`, `5`, `7`, `8`, `10` em `submitted`
+  - [x] bloqueios reais classificados: `application_id=1` (`vaga_expirada`), `3` (`similar_jobs`), `4`, `6`, `9` (`candidatura_externa`)
+- [x] Catalogar variacoes reais do LinkedIn que ainda aparecem:
   - [x] redirecionamento para `similar jobs`
   - [x] perguntas adicionais obrigatorias
-  - [ ] checkboxes opcionais
-  - [ ] vagas com curriculo reaproveitado
-  - [ ] vagas com etapa final sem modal classico
-- [ ] Criar criterios objetivos para classificar:
+  - [x] checkboxes opcionais
+  - [x] vagas com curriculo reaproveitado
+    - [x] nao observadas nas amostras reais atuais; nenhum tratamento especifico adicional necessario ate aqui
+  - [x] vagas com etapa final sem modal classico
+    - [x] nao observadas nas amostras reais atuais; monitoradas via artefatos e classificacao operacional
+- [x] Criar criterios objetivos para classificar:
   - [x] `ready`
   - [x] `manual_review`
   - [x] `blocked`
@@ -46,29 +50,30 @@ Regra da fase atual:
   - [x] ultimo erro
   - [x] historico resumido de transicoes
 - [x] Garantir que toda transicao relevante tenha timestamp e motivo explicito
-- [ ] Revisar se `support_level` e `support_rationale` devem ser atualizados por ciclo ou preservados como snapshot inicial
+- [x] Revisar se `support_level` e `support_rationale` devem ser atualizados por ciclo ou preservados como snapshot inicial
+  - [x] decisao: preservar como snapshot inicial do rascunho; preflight e submit nao recalculam suporte por ciclo
 
 ### Observabilidade
 
-- [ ] Criar uma visao clara de fila operacional por status
-- [ ] Expor rapidamente:
-  - [ ] quantas vagas estao `approved`
-  - [ ] quantas candidaturas estao `draft`
-  - [ ] quantas estao `confirmed`
-  - [ ] quantas estao `authorized_submit`
-  - [ ] quantas estao `submitted`
-  - [ ] quantas estao `error_submit`
+- [x] Criar uma visao clara de fila operacional por status
+- [x] Expor rapidamente:
+  - [x] quantas vagas estao `approved`
+  - [x] quantas candidaturas estao `draft`
+  - [x] quantas estao `confirmed`
+  - [x] quantas estao `authorized_submit`
+  - [x] quantas estao `submitted`
+  - [x] quantas estao `error_submit`
 - [x] Padronizar nomes e estrutura dos artefatos de falha
-- [ ] Adicionar um resumo final por execucao com:
-  - [ ] preflights concluidos
-  - [ ] submits concluidos
-  - [ ] bloqueios por tipo
+- [x] Adicionar um resumo final por execucao com:
+  - [x] preflights concluidos
+  - [x] submits concluidos
+  - [x] bloqueios por tipo
 
 ## P0: UX Operacional
 
 - [x] Eliminar operacao por `python -c` para tarefas frequentes
 - [x] Fechar cobertura operacional completa por CLI para que o fluxo nao dependa do Telegram como unico caminho de execucao
-- [ ] Criar comandos claros para:
+- [x] Criar comandos claros para:
   - [x] listar vagas pendentes de revisao
   - [x] aprovar vaga
   - [x] rejeitar vaga
@@ -82,9 +87,9 @@ Regra da fase atual:
   - [x] executar submit
   - [x] ver artefatos da ultima falha
 - [x] Explicitar na UX que CLI e Telegram cobrem o fluxo operacional principal, com Telegram opcional para revisao assincrona
-- [ ] Definir uma interface principal:
-  - [ ] Telegram como interface de operacao principal
-  - [ ] CLI como fallback tecnico
+- [x] Definir uma interface principal:
+  - [x] CLI como interface operacional principal
+  - [x] Telegram como interface de revisao assincrona opcional
 - [x] Tornar o fluxo humano rastreavel sem editar estado manualmente no banco
 
 ## P1: Melhorias Estruturais
