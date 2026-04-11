@@ -95,7 +95,10 @@ def create_application_preparation_service(
 def create_application_preflight_service(repository: JobRepository, settings: Settings) -> ApplicationPreflightService:
     return ApplicationPreflightService(
         repository,
-        flow_inspector=create_linkedin_preflight_inspector(settings),
+        flow_inspector=create_linkedin_application_flow_inspector(
+            settings,
+            mode="preflight",
+        ),
         readiness_checker=ApplicationReadinessCheckService(
             linkedin_storage_state_path=settings.linkedin_storage_state_path,
             resume_path=settings.resume_path,
@@ -109,7 +112,10 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
 def create_application_submission_service(repository: JobRepository, settings: Settings) -> ApplicationSubmissionService:
     return ApplicationSubmissionService(
         repository,
-        applicant=create_linkedin_submission_applicant(settings),
+        applicant=create_linkedin_application_flow_inspector(
+            settings,
+            mode="submit",
+        ),
         readiness_checker=ApplicationReadinessCheckService(
             linkedin_storage_state_path=settings.linkedin_storage_state_path,
             resume_path=settings.resume_path,
