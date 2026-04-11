@@ -1,15 +1,66 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 import json
 from pathlib import Path
 import re
 from uuid import uuid4
 
+from job_hunter_agent.application.applicant import ApplicationSubmissionResult
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 
 ARTIFACT_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class LinkedInFailureArtifactCapture:
+    enabled: bool
+    artifacts_dir: Path | None
+
+    async def capture(
+        self,
+        page,
+        *,
+        state: LinkedInApplicationPageState,
+        job: JobPosting,
+        phase: str,
+        detail: str,
+    ) -> str:
+        return await capture_failure_artifacts(
+            page,
+            state=state,
+            job=job,
+            phase=phase,
+            detail=detail,
+            enabled=self.enabled,
+            artifacts_dir=self.artifacts_dir,
+        )
+
+    async def build_submit_exception_result(
+        self,
+        exc: Exception,
+        *,
+        page,
+        state: LinkedInApplicationPageState,
+        job: JobPosting,
+    ) -> ApplicationSubmissionResult:
+        if is_closed_target_error(exc):
+            detail = "submissao real interrompida: pagina do LinkedIn foi fechada durante a automacao"
+        else:
+            detail = f"submissao real falhou com erro inesperado: {exc}"
+        artifact_detail = await self.capture(
+            page,
+            state=state,
+            job=job,
+            phase="submit",
+            detail=detail,
+        )
+        return ApplicationSubmissionResult(
+            status="error_submit",
+            detail=f"{detail}{artifact_detail}",
+        )
 
 
 def is_page_closed(page) -> bool:

@@ -112,11 +112,11 @@ Regra da fase atual:
 #### Single Responsibility Principle
 
 - [ ] Quebrar `linkedin_application.py` em componentes menores:
-  - [ ] leitura do estado da pagina
-  - [ ] localizacao e abertura do fluxo apply
-  - [ ] preenchimento de campos
-  - [ ] decisao de submit
-  - [ ] captura de artefatos
+  - [x] leitura do estado da pagina
+  - [x] localizacao e abertura do fluxo apply
+  - [x] preenchimento de campos
+  - [x] decisao de submit
+  - [x] captura de artefatos
 - [x] Reduzir o papel de `applicant.py` para servicos de caso de uso e transicao
 - [ ] Manter logs e persistencia fora de helpers de DOM quando possivel
 
@@ -125,16 +125,16 @@ Regra da fase atual:
 - [ ] Definir pontos de extensao para novos tipos de fluxo do LinkedIn sem branching espalhado
 - [ ] Isolar estrategias de deteccao do fluxo:
   - [ ] modal classico
-  - [ ] `apply` por URL
+  - [x] `apply` por URL
   - [ ] review final
-  - [ ] bloqueios conhecidos
+  - [x] bloqueios conhecidos
 - [ ] Tornar a classificacao de preflight extensivel por estrategia
 
 #### Liskov Substitution Principle
 
-- [ ] Revisar protocolos de `ApplicationFlowInspector` e `JobApplicant`
-- [ ] Garantir que dublês de teste preservem o contrato real
-- [ ] Evitar caminhos especiais de producao que nao aparecem nos testes
+- [x] Revisar protocolos de `ApplicationFlowInspector` e `JobApplicant`
+- [x] Garantir que dublês de teste preservem o contrato real
+- [x] Evitar caminhos especiais de producao que nao aparecem nos testes
 
 #### Interface Segregation Principle
 
@@ -162,7 +162,7 @@ Regra da fase atual:
 ### Tamanho e legibilidade
 
 - [ ] Reduzir funcoes longas com muitos caminhos de erro
-- [ ] Extrair blocos de fallback do LinkedIn para helpers nomeados
+- [x] Extrair blocos de fallback do LinkedIn para helpers nomeados
 - [ ] Consolidar trechos repetidos de clique, espera e recuperacao
 
 ### Dados e modelos
@@ -234,7 +234,7 @@ Descricao:
 As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ainda precisam de analise de viabilidade antes de entrarem no backlog priorizado. A avaliacao deve considerar aderencia ao escopo local-first, impacto no loop principal, complexidade de manutencao, risco de ampliar demais o produto e custo operacional no uso diario.
 
 - [ ] Avaliar calibracao do scoring com base no historico local de vagas `approved` e `rejected`
-- [ ] Avaliar um modo de coleta continua priorizada para revisao em lote, ordenando vagas relevantes por aderencia, recencia e sinal de `Easy Apply`
+- [ ] Avaliar e implementar busca dirigida por empresas prioritarias, usando grupos de prioridade de empresas, familias de cargo, senioridade alvo e janela temporal para gerar uma fila priorizada de revisao em lote
 - [ ] Avaliar registrar motivo curto e padronizado para descarte por regra ou por score
 - [ ] Avaliar criar um feedback loop local de revisao humana para refinar criterios de triagem
 - [ ] Avaliar um modo formal de `dry-run` para preflight e submit, com relatorio e artefatos

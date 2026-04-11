@@ -8,6 +8,9 @@ from unittest import IsolatedAsyncioTestCase
 from job_hunter_agent.application.app import JobHunterApplication, parse_args, suggest_candidate_profile
 from job_hunter_agent.application.composition import (
     build_known_job_lookup,
+    create_application_preflight_service,
+    create_application_submission_service,
+    create_linkedin_application_flow_inspector,
     create_linkedin_modal_interpreter,
     create_linkedin_modal_interpretation_formatter,
     create_notifier,
@@ -1049,3 +1052,182 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         self.assertEqual(interpreted.recommended_action, "submit_if_authorized")
         self.assertGreater(interpreted.confidence, 0.8)
+
+    async def test_create_linkedin_application_flow_inspector_preflight_uses_formatter_only(self) -> None:
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_storage_state_path": "linkedin-state.json",
+                "browser_headless": True,
+                "resume_path": "resume.pdf",
+                "application_contact_email": "vinicius@example.com",
+                "application_phone": "11999999999",
+                "application_phone_country_code": "55",
+                "candidate_profile_path": "candidate_profile.json",
+                "save_failure_artifacts": True,
+                "failure_artifacts_dir": ".tmp-tests/failure-artifacts",
+            },
+        )()
+
+        candidate_profile = object()
+        formatter = object()
+
+        with patch(
+            "job_hunter_agent.application.composition.load_candidate_profile",
+            return_value=candidate_profile,
+        ) as load_profile, patch(
+            "job_hunter_agent.application.composition.create_linkedin_modal_interpretation_formatter",
+            return_value=formatter,
+        ) as create_formatter, patch(
+            "job_hunter_agent.application.composition.create_linkedin_modal_interpreter"
+        ) as create_interpreter, patch(
+            "job_hunter_agent.application.composition.LinkedInApplicationFlowInspector",
+            return_value="inspector-preflight",
+        ) as inspector_factory:
+            inspector = create_linkedin_application_flow_inspector(settings, mode="preflight")
+
+        self.assertEqual(inspector, "inspector-preflight")
+        load_profile.assert_called_once_with("candidate_profile.json")
+        create_formatter.assert_called_once_with(settings)
+        create_interpreter.assert_not_called()
+        inspector_factory.assert_called_once_with(
+            storage_state_path="linkedin-state.json",
+            headless=True,
+            resume_path="resume.pdf",
+            contact_email="vinicius@example.com",
+            phone="11999999999",
+            phone_country_code="55",
+            candidate_profile=candidate_profile,
+            candidate_profile_path="candidate_profile.json",
+            save_failure_artifacts=True,
+            failure_artifacts_dir=".tmp-tests/failure-artifacts",
+            modal_interpretation_formatter=formatter,
+        )
+
+    async def test_create_linkedin_application_flow_inspector_submit_uses_interpreter_only(self) -> None:
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_storage_state_path": "linkedin-state.json",
+                "browser_headless": False,
+                "resume_path": "resume.pdf",
+                "application_contact_email": "vinicius@example.com",
+                "application_phone": "11999999999",
+                "application_phone_country_code": "55",
+                "candidate_profile_path": "candidate_profile.json",
+                "save_failure_artifacts": False,
+                "failure_artifacts_dir": ".tmp-tests/failure-artifacts",
+            },
+        )()
+
+        candidate_profile = object()
+        interpreter = object()
+
+        with patch(
+            "job_hunter_agent.application.composition.load_candidate_profile",
+            return_value=candidate_profile,
+        ) as load_profile, patch(
+            "job_hunter_agent.application.composition.create_linkedin_modal_interpretation_formatter"
+        ) as create_formatter, patch(
+            "job_hunter_agent.application.composition.create_linkedin_modal_interpreter",
+            return_value=interpreter,
+        ) as create_interpreter, patch(
+            "job_hunter_agent.application.composition.LinkedInApplicationFlowInspector",
+            return_value="inspector-submit",
+        ) as inspector_factory:
+            inspector = create_linkedin_application_flow_inspector(settings, mode="submit")
+
+        self.assertEqual(inspector, "inspector-submit")
+        load_profile.assert_called_once_with("candidate_profile.json")
+        create_formatter.assert_not_called()
+        create_interpreter.assert_called_once_with(settings)
+        inspector_factory.assert_called_once_with(
+            storage_state_path="linkedin-state.json",
+            headless=False,
+            resume_path="resume.pdf",
+            contact_email="vinicius@example.com",
+            phone="11999999999",
+            phone_country_code="55",
+            candidate_profile=candidate_profile,
+            candidate_profile_path="candidate_profile.json",
+            save_failure_artifacts=False,
+            failure_artifacts_dir=".tmp-tests/failure-artifacts",
+            modal_interpreter=interpreter,
+        )
+
+    async def test_create_linkedin_application_flow_inspector_rejects_unsupported_mode(self) -> None:
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_storage_state_path": "linkedin-state.json",
+                "browser_headless": True,
+                "resume_path": "resume.pdf",
+                "application_contact_email": "vinicius@example.com",
+                "application_phone": "11999999999",
+                "application_phone_country_code": "55",
+                "candidate_profile_path": "candidate_profile.json",
+                "save_failure_artifacts": False,
+                "failure_artifacts_dir": ".tmp-tests/failure-artifacts",
+            },
+        )()
+
+        with patch(
+            "job_hunter_agent.application.composition.load_candidate_profile",
+            return_value=object(),
+        ):
+            with self.assertRaisesRegex(ValueError, "modo de inspector do LinkedIn nao suportado"):
+                create_linkedin_application_flow_inspector(settings, mode="unknown")
+
+    async def test_create_application_preflight_service_uses_preflight_mode(self) -> None:
+        repository = object()
+        settings = object()
+
+        with patch(
+            "job_hunter_agent.application.composition.create_linkedin_application_flow_inspector",
+            return_value="preflight-inspector",
+        ) as create_inspector:
+            service = create_application_preflight_service(repository, settings)
+
+        create_inspector.assert_called_once_with(settings, mode="preflight")
+        self.assertIs(service.repository, repository)
+        self.assertEqual(service.flow_inspector, "preflight-inspector")
+
+    async def test_create_application_submission_service_uses_submit_mode_and_readiness_checker(self) -> None:
+        repository = object()
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_storage_state_path": "linkedin-state.json",
+                "resume_path": "resume.pdf",
+                "application_contact_email": "vinicius@example.com",
+                "application_phone": "11999999999",
+                "application_phone_country_code": "55",
+            },
+        )()
+
+        readiness_checker = object()
+
+        with patch(
+            "job_hunter_agent.application.composition.create_linkedin_application_flow_inspector",
+            return_value="submit-inspector",
+        ) as create_inspector, patch(
+            "job_hunter_agent.application.composition.ApplicationReadinessCheckService",
+            return_value=readiness_checker,
+        ) as readiness_factory:
+            service = create_application_submission_service(repository, settings)
+
+        create_inspector.assert_called_once_with(settings, mode="submit")
+        readiness_factory.assert_called_once_with(
+            linkedin_storage_state_path="linkedin-state.json",
+            resume_path="resume.pdf",
+            contact_email="vinicius@example.com",
+            phone="11999999999",
+            phone_country_code="55",
+        )
+        self.assertIs(service.repository, repository)
+        self.assertEqual(service.applicant, "submit-inspector")
+        self.assertIs(service.readiness_checker, readiness_checker)
