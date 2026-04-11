@@ -484,15 +484,15 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 ### Telegram e revisao
 
 - [ ] Tornar o Telegram suficiente para operar o fluxo completo com seguranca
-- [ ] Exibir melhor o motivo de `manual_review`
+- [x] Exibir melhor o motivo de `manual_review`
 - [x] Exibir quando a vaga parece cair em `similar jobs`
 - [x] Exibir quando a vaga exige perguntas adicionais
 
 ### Priorizacao
 
 - [ ] Melhorar a selecao das vagas que valem tentativa automatica
-- [ ] Evitar gastar preflight em vagas com alta chance de `manual_review`
-- [ ] Dar preferencia a vagas com sinal forte de Easy Apply simples
+- [x] Evitar gastar preflight em vagas com alta chance de `manual_review`
+- [x] Dar preferencia a vagas com sinal forte de Easy Apply simples
 - [ ] Avaliar ordenar a captura do LinkedIn por vagas mais recentes primeiro
 - [ ] Avaliar parametrizar janela de recencia por portal, por exemplo ultimas 24h ou ultima semana
 - [ ] Isolar a montagem desses filtros de recencia no adaptador do LinkedIn, sem espalhar parametros de URL pelo dominio

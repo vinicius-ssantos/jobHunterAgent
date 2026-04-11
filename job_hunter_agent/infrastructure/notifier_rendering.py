@@ -226,21 +226,13 @@ def build_application_action_rows(application: JobApplication, button_factory) -
 
 
 def _sort_applications_by_priority(applications: list[JobApplication]) -> list[JobApplication]:
-    priority_order = {"alta": 0, "media": 1, "baixa": 2}
-    return sorted(
-        applications,
-        key=lambda application: (priority_order.get(extract_application_priority_level(application.notes), 3), application.id),
-    )
+    return sorted(applications, key=_application_queue_sort_key)
 
 
 def _sort_application_pairs_by_priority(
     applications: list[tuple[JobApplication, JobPosting | None]],
 ) -> list[tuple[JobApplication, JobPosting | None]]:
-    priority_order = {"alta": 0, "media": 1, "baixa": 2}
-    return sorted(
-        applications,
-        key=lambda item: (priority_order.get(extract_application_priority_level(item[0].notes), 3), item[0].id),
-    )
+    return sorted(applications, key=lambda item: _application_queue_sort_key(item[0]))
 
 
 def _list_queue_applications_with_jobs(
@@ -292,3 +284,45 @@ def summarize_operational_classifications(applications: list[JobApplication]) ->
         if key not in emitted:
             lines.append(f"- {key}={counts[key]}")
     return lines
+
+
+def _application_queue_sort_key(application: JobApplication) -> tuple[int, int, int, int]:
+    insight = classify_application_operational_insight(application)
+    return (
+        _queue_operational_rank(application, insight.reason_code),
+        _queue_support_penalty(application.support_level),
+        _queue_priority_rank(extract_application_priority_level(application.notes)),
+        application.id,
+    )
+
+
+def _queue_operational_rank(application: JobApplication, reason_code: str) -> int:
+    if reason_code == "pronto_para_envio":
+        return 0
+    if application.support_level == "auto_supported" and reason_code in {"sem_detalhe_operacional", "nao_classificado"}:
+        return 1
+    if reason_code in {"cta_detectado", "sem_detalhe_operacional", "nao_classificado"}:
+        return 2
+    if reason_code == "perguntas_adicionais":
+        return 4
+    if reason_code == "fluxo_inconclusivo":
+        return 5
+    if reason_code == "similar_jobs":
+        return 6
+    if reason_code in {"candidatura_externa", "no_apply_cta"}:
+        return 7
+    if reason_code == "vaga_expirada":
+        return 8
+    if reason_code == "bloqueio_funcional":
+        return 9
+    return 3
+
+
+def _queue_support_penalty(support_level: str) -> int:
+    support_order = {"auto_supported": 0, "manual_review": 1, "unsupported": 2}
+    return support_order.get(support_level, 3)
+
+
+def _queue_priority_rank(priority: str) -> int:
+    priority_order = {"alta": 0, "media": 1, "baixa": 2}
+    return priority_order.get(priority, 3)

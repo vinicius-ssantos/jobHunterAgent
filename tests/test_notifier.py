@@ -346,6 +346,99 @@ class PersistenceAndReviewIntegrationTests(TestCase):
 
         self.assertLess(beta_index, acme_index)
 
+    def test_build_application_queue_message_prioritizes_auto_supported_before_manual_review_heavy_flow(self) -> None:
+        first_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
+        second_job = self.repository.save_new_jobs(
+            [
+                JobPosting(
+                    title="Backend Java Manual Review",
+                    company="BETA",
+                    location="Brasil",
+                    work_mode="hibrido",
+                    salary_text="Nao informado",
+                    url="https://example.com/job-2",
+                    source_site="LinkedIn",
+                    summary="Resumo",
+                    relevance=7,
+                    rationale="Boa aderencia",
+                    external_key="key-2",
+                    status="approved",
+                )
+            ]
+        )[0]
+        self.repository.mark_status(first_job.id, "approved")
+        self.repository.mark_status(second_job.id, "approved")
+        self.repository.create_application_draft(
+            first_job.id,
+            notes="prioridade sugerida: media | motivo: fluxo simples",
+            support_level="auto_supported",
+            support_rationale="easy apply simples",
+        )
+        manual_review = self.repository.create_application_draft(
+            second_job.id,
+            notes="prioridade sugerida: alta | motivo: vaga importante",
+            support_level="manual_review",
+            support_rationale="requer confirmacao humana",
+        )
+        self.repository.mark_application_status(
+            manual_review.id,
+            status="draft",
+            last_error="submissao real bloqueada | bloqueio=perguntas_obrigatorias | perguntas_pendentes=ha quantos anos voce usa java?",
+        )
+
+        message = build_application_queue_message(self.repository)
+        auto_supported_index = message.index("Senior Kotlin Engineer - ACME")
+        manual_review_index = message.index("Backend Java Manual Review - BETA")
+
+        self.assertLess(auto_supported_index, manual_review_index)
+
+    def test_build_application_queue_message_prioritizes_ready_signal_before_generic_manual_review(self) -> None:
+        first_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
+        second_job = self.repository.save_new_jobs(
+            [
+                JobPosting(
+                    title="Backend Java Generic",
+                    company="BETA",
+                    location="Brasil",
+                    work_mode="hibrido",
+                    salary_text="Nao informado",
+                    url="https://example.com/job-2",
+                    source_site="LinkedIn",
+                    summary="Resumo",
+                    relevance=7,
+                    rationale="Boa aderencia",
+                    external_key="key-2",
+                    status="approved",
+                )
+            ]
+        )[0]
+        self.repository.mark_status(first_job.id, "approved")
+        self.repository.mark_status(second_job.id, "approved")
+        ready_application = self.repository.create_application_draft(
+            first_job.id,
+            notes="prioridade sugerida: media | motivo: quase pronto",
+            support_level="manual_review",
+            support_rationale="requer confirmacao humana",
+        )
+        self.repository.mark_application_status(
+            ready_application.id,
+            status="confirmed",
+            last_preflight_detail="preflight real | pronto_para_envio=sim | ok: fluxo pronto para submissao assistida no LinkedIn",
+        )
+        generic_application = self.repository.create_application_draft(
+            second_job.id,
+            notes="prioridade sugerida: alta | motivo: revisar primeiro",
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(generic_application.id, status="confirmed")
+
+        message = build_application_queue_message(self.repository)
+        ready_index = message.index("Senior Kotlin Engineer - ACME")
+        generic_index = message.index("Backend Java Generic - BETA")
+
+        self.assertLess(ready_index, generic_index)
+
     def test_build_application_card_message_contains_support_and_notes(self) -> None:
         approved_job = self.repository.save_new_jobs([sample_job(status="approved")])[0]
         self.repository.mark_status(approved_job.id, "approved")

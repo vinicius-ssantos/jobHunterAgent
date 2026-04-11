@@ -2,7 +2,7 @@
 
 ## Escopo Atual
 
-O `jobHunterAgent` e um sistema local para:ACHO 
+O `jobHunterAgent` e um sistema local para:
 
 - coletar vagas de fontes configuradas
 - normalizar e pontuar vagas contra um perfil local
@@ -164,6 +164,7 @@ O sistema expoe visao operacional por:
 - resumo de status de vagas
 - resumo de status de candidaturas
 - fila operacional por status
+- fila operacional priorizada por chance de fluxo assistido simples
 - eventos recentes de candidatura
 - artefatos recentes de falha
 - resumo final por execucao
@@ -258,6 +259,7 @@ Papel:
 - CLI suficiente para operar o fluxo principal
 - historico operacional separado de `notes`
 - classificacao clara de casos `similar jobs` e `perguntas adicionais`
+- fila operacional prioriza sinais de fluxo simples e empurra casos de `manual_review` pesado para baixo
 - fluxo LinkedIn modularizado em componentes menores
 - notifier com menos regra de negocio embutida no transporte
 - consultas operacionais de repositorio orientadas a uso real
@@ -269,7 +271,7 @@ Ainda estao em analise ou backlog:
 - melhoria do Telegram para operar o fluxo completo com mais seguranca
 - mais testes operacionais de regressao
 - health checks antes de operacoes criticas
-- priorizacao mais refinada da fila
+- priorizacao mais refinada da captura por recencia e portal
 - configuracao mais rica de perfil e busca
 - possivel operacao externa via OpenClaw
 - separacao futura de modelos LLM por responsabilidade
