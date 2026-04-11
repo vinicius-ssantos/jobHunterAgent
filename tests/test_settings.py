@@ -6,9 +6,11 @@ from job_hunter_agent.core.settings import Settings, load_settings
 
 
 class SettingsTests(TestCase):
-    def test_validate_rejects_placeholder_token(self) -> None:
-        with self.assertRaises(ValueError):
-            Settings(telegram_token="SEU_TOKEN_AQUI", telegram_chat_id="chat")
+    def test_settings_accepts_placeholder_telegram_credentials_for_non_telegram_execution(self) -> None:
+        settings = Settings()
+
+        self.assertEqual(settings.telegram_token, "SEU_TOKEN_AQUI")
+        self.assertEqual(settings.telegram_chat_id, "SEU_CHAT_ID_AQUI")
 
     def test_load_settings_reads_environment_overrides(self) -> None:
         previous_env_file = Settings.model_config.get("env_file")
@@ -40,7 +42,7 @@ class SettingsTests(TestCase):
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)
-        self.assertEqual(str(settings.failure_artifacts_dir), ".artifacts\\linkedin_failures")
+        self.assertEqual(settings.failure_artifacts_dir, Path("./.artifacts/linkedin_failures"))
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")
@@ -122,12 +124,14 @@ class SettingsTests(TestCase):
                 collection_time="99:99",
             )
 
-    def test_rejects_without_chat_id(self) -> None:
-        with self.assertRaises(ValueError):
-            Settings(
-                telegram_token="token",
-                telegram_chat_id="",
-            )
+    def test_settings_accepts_empty_telegram_values_for_non_telegram_execution(self) -> None:
+        settings = Settings(
+            telegram_token="",
+            telegram_chat_id="",
+        )
+
+        self.assertEqual(settings.telegram_token, "")
+        self.assertEqual(settings.telegram_chat_id, "")
 
     def test_rejects_without_active_sites(self) -> None:
         from job_hunter_agent.core.domain import SiteConfig

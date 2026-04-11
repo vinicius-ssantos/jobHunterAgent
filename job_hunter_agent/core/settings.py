@@ -91,20 +91,6 @@ class Settings(BaseSettings):
         )
     )
 
-    @field_validator("telegram_token")
-    @classmethod
-    def validate_telegram_token(cls, value: str) -> str:
-        if not value or value == "SEU_TOKEN_AQUI":
-            raise ValueError("Preencha JOB_HUNTER_TELEGRAM_TOKEN.")
-        return value
-
-    @field_validator("telegram_chat_id")
-    @classmethod
-    def validate_telegram_chat_id(cls, value: str) -> str:
-        if not value or value == "SEU_CHAT_ID_AQUI":
-            raise ValueError("Preencha JOB_HUNTER_TELEGRAM_CHAT_ID.")
-        return value
-
     @field_validator("profile_text")
     @classmethod
     def validate_profile_text(cls, value: str) -> str:
@@ -198,6 +184,7 @@ class Settings(BaseSettings):
         if not any(site.enabled for site in value):
             raise ValueError("Ative pelo menos um site.")
         return value
+
 
 def load_settings() -> Settings:
     return Settings()

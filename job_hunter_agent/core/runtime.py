@@ -80,8 +80,8 @@ def is_project_browser_process(process: psutil.Process, browser_use_dir: Path) -
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
 
-    normalized_parts = [str(part).lower() for part in cmdline]
-    browser_use_text = str(browser_use_dir).lower()
+    normalized_parts = [str(part).lower().replace("\\", "/") for part in cmdline]
+    browser_use_text = str(browser_use_dir).lower().replace("\\", "/")
     return any(
         browser_use_text in part or "browser-use-user-data-dir-" in part
         for part in normalized_parts
