@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Testes com Python 3.11
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install psutil pypdf
+
+      - name: Rodar pytest
+        env:
+          JOB_HUNTER_TELEGRAM_TOKEN: ci-token
+          JOB_HUNTER_TELEGRAM_CHAT_ID: ci-chat
+          JOB_HUNTER_PROFILE_TEXT: Perfil de teste para CI
+        run: pytest
