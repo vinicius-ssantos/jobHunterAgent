@@ -26,6 +26,10 @@ from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyA
 from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
 from job_hunter_agent.collectors.linkedin_application_opening import LinkedInEasyApplyFlowOpener
 from job_hunter_agent.collectors.linkedin_application_reader import LinkedInApplicationPageReader
+from job_hunter_agent.collectors.linkedin_application_runtime import (
+    run_linkedin_async,
+    run_with_linkedin_page,
+)
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationInspection,
     LinkedInApplicationPageState,
@@ -39,7 +43,6 @@ from job_hunter_agent.collectors.linkedin_application_state import (
 from job_hunter_agent.collectors.linkedin_application_submit import (
     evaluate_linkedin_submit_readiness,
 )
-from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.core.candidate_profile import CandidateProfile
 from job_hunter_agent.core.domain import JobPosting
 
@@ -152,99 +155,67 @@ class LinkedInApplicationFlowInspector:
         return self._submit_sync(job)
 
     def _inspect_sync(self, job: JobPosting) -> LinkedInApplicationInspection:
-        import asyncio
-
-        return asyncio.run(self._inspect_async(job))
+        return run_linkedin_async(self._inspect_async(job))
 
     def _submit_sync(self, job: JobPosting) -> ApplicationSubmissionResult:
-        import asyncio
-
-        return asyncio.run(self._submit_async(job))
+        return run_linkedin_async(self._submit_async(job))
 
     async def _inspect_async(self, job: JobPosting) -> LinkedInApplicationInspection:
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError as exc:
-            raise RuntimeError(
-                "Dependencias de candidatura assistida nao estao instaladas. Rode pip install -r requirements.txt."
-            ) from exc
+        async def _operate(page) -> LinkedInApplicationInspection:
+            await page.goto(job.url, wait_until="domcontentloaded")
+            await self._ensure_target_job_page(page, job)
+            state, readiness = await self._read_state_with_hydration(page, job)
+            if readiness.result != "ready":
+                artifact_detail = await self._capture_failure_artifacts(
+                    page,
+                    state=state,
+                    job=job,
+                    phase="preflight",
+                    detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}",
+                )
+                inspection = LinkedInApplicationInspection(
+                    outcome="blocked",
+                    detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
+                )
+                return inspection
+            state = await self._execution.inspect_preflight_state(page, state)
+            if state.easy_apply and not state.modal_open:
+                artifact_detail = await self._capture_failure_artifacts(
+                    page,
+                    state=state,
+                    job=job,
+                    phase="preflight",
+                    detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+                )
+            else:
+                artifact_detail = ""
 
-        executable_path = resolve_local_chromium()
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(
-                executable_path=str(executable_path),
-                headless=self.headless,
-                args=["--start-maximized"],
-            )
-            context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
-            page = await context.new_page()
-            try:
-                await page.goto(job.url, wait_until="domcontentloaded")
-                await self._ensure_target_job_page(page, job)
-                state, readiness = await self._read_state_with_hydration(page, job)
-                if readiness.result != "ready":
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="preflight",
-                        detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}",
-                    )
+            inspection = classify_linkedin_application_page_state(state)
+            if self.modal_interpretation_formatter is not None and state.modal_open:
+                try:
+                    extra = self.modal_interpretation_formatter(state).strip()
+                except Exception:
+                    extra = ""
+                if extra:
                     inspection = LinkedInApplicationInspection(
-                        outcome="blocked",
-                        detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
+                        outcome=inspection.outcome,
+                        detail=f"{inspection.detail} | {extra}",
                     )
-                    return inspection
-                state = await self._execution.inspect_preflight_state(page, state)
-                if state.easy_apply and not state.modal_open:
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="preflight",
-                        detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
-                    )
-                else:
-                    artifact_detail = ""
-            finally:
-                await context.close()
-                await browser.close()
-
-        inspection = classify_linkedin_application_page_state(state)
-        if self.modal_interpretation_formatter is not None and state.modal_open:
-            try:
-                extra = self.modal_interpretation_formatter(state).strip()
-            except Exception:
-                extra = ""
-            if extra:
+            if artifact_detail:
                 inspection = LinkedInApplicationInspection(
                     outcome=inspection.outcome,
-                    detail=f"{inspection.detail} | {extra}",
+                    detail=f"{inspection.detail}{artifact_detail}",
                 )
-        if artifact_detail:
-            inspection = LinkedInApplicationInspection(
-                outcome=inspection.outcome,
-                detail=f"{inspection.detail}{artifact_detail}",
-            )
-        return inspection
+            return inspection
+
+        return await run_with_linkedin_page(
+            storage_state_path=self.storage_state_path,
+            headless=self.headless,
+            page_operation=_operate,
+        )
 
     async def _submit_async(self, job: JobPosting) -> ApplicationSubmissionResult:
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError as exc:
-            raise RuntimeError(
-                "Dependencias de candidatura assistida nao estao instaladas. Rode pip install -r requirements.txt."
-            ) from exc
-
-        executable_path = resolve_local_chromium()
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(
-                executable_path=str(executable_path),
-                headless=self.headless,
-                args=["--start-maximized"],
-            )
-            context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
-            page = await context.new_page()
+        async def _operate(page) -> ApplicationSubmissionResult:
             state = LinkedInApplicationPageState()
             try:
                 await page.goto(job.url, wait_until="domcontentloaded")
@@ -310,13 +281,15 @@ class LinkedInApplicationFlowInspector:
                 )
             except Exception as exc:
                 return await self._build_submit_exception_result(exc, page=page, state=state, job=job)
-            finally:
-                await context.close()
-                await browser.close()
+
+        return await run_with_linkedin_page(
+            storage_state_path=self.storage_state_path,
+            headless=self.headless,
+            page_operation=_operate,
+        )
 
     async def _read_page_state(self, page) -> LinkedInApplicationPageState:
         return await self._page_reader.read(page)
-
 
     def _assess_job_page_readiness(
         self,
@@ -513,5 +486,3 @@ class LinkedInApplicationFlowInspector:
 
     async def _detect_submit_success(self, page) -> bool:
         return await self._modal_driver.detect_submit_success(page)
-
-
