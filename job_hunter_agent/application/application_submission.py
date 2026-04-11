@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
 from job_hunter_agent.application.application_flow import (
     ApplicationFlowCoordinator,
@@ -16,9 +15,11 @@ from job_hunter_agent.application.application_messages import (
     format_submit_unavailable_in_execution,
 )
 from job_hunter_agent.application.application_notes import append_note
+from job_hunter_agent.application.application_ports import (
+    JobApplicant,
+    normalize_application_submission_result,
+)
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
-from job_hunter_agent.application.contracts import ApplicationSubmissionResult
-from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
 from job_hunter_agent.infrastructure.repository import JobRepository
 
@@ -28,36 +29,6 @@ class ApplicationSubmitResult:
     outcome: str
     detail: str
     application_status: str
-
-
-class JobApplicant(Protocol):
-    def submit(self, application: JobApplication, job: JobPosting) -> ApplicationSubmissionResult:
-        raise NotImplementedError
-
-
-def normalize_application_submission_result(result) -> ApplicationSubmissionResult:
-    status = str(getattr(result, "status", "") or "").strip()
-    detail = str(getattr(result, "detail", "") or "").strip()
-    submitted_at_raw = getattr(result, "submitted_at", None)
-    external_reference_raw = getattr(result, "external_reference", "")
-    if status not in {"submitted", "error_submit", "authorized_submit"}:
-        return ApplicationSubmissionResult(
-            status="error_submit",
-            detail="applicant retornou status invalido",
-        )
-    if not detail:
-        return ApplicationSubmissionResult(
-            status="error_submit",
-            detail="applicant retornou detail vazio",
-        )
-    submitted_at = str(submitted_at_raw).strip() if submitted_at_raw else None
-    external_reference = str(external_reference_raw or "").strip()
-    return ApplicationSubmissionResult(
-        status=status,
-        detail=detail,
-        submitted_at=submitted_at,
-        external_reference=external_reference,
-    )
 
 
 class ApplicationSubmissionService:
