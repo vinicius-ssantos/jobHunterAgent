@@ -1,4 +1,12 @@
-# Pos-MVP: Estrutura, Refatoracao e Evolucao
+# Pos-MVP: Backlog Vivo e Registro de Fechamento Estrutural
+
+## Papel Deste Documento
+
+- [x] Este arquivo e o backlog vivo do pos-MVP
+- [x] `docs/archive/` guarda material historico e planos antigos que nao devem ser tratados como checklist operacional ativo
+- [x] O fechamento da refatoracao estrutural principal ja foi absorvido em `master`
+- [x] Itens ainda abertos abaixo representam endurecimento residual, produto futuro ou analise arquitetural, e nao bloqueiam mais o encerramento da fase estrutural
+- [x] Nao criar novos arquivos de checklist sem dono e sem funcao explicita
 
 ## Estado Atual Validado
 
@@ -92,7 +100,11 @@ Regra da fase atual:
   - [x] Telegram como interface de revisao assincrona opcional
 - [x] Tornar o fluxo humano rastreavel sem editar estado manualmente no banco
 
-## P1: Melhorias Estruturais
+## P1: Backlog Estrutural Residual
+
+Contexto:
+O bloco principal de modularizacao de `app.py`, `applicant.py`, `linkedin_application.py`, `notifier.py` e `repository.py` foi concluido e mergeado em `master`.
+Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual de endurecimento, nao como pendencia de fechamento da fase estrutural anterior.
 
 ### Separacao de responsabilidades
 
@@ -196,8 +208,8 @@ Regra da fase atual:
 - [ ] Adicionar testes para:
   - [ ] redirecionamento para `similar jobs`
   - [ ] perguntas adicionais obrigatorias
-  - [ ] fluxo `apply` por URL direta
-  - [ ] review final com `submit` visivel
+  - [x] fluxo `apply` por URL direta
+  - [x] review final com `submit` visivel
   - [ ] artefatos de preflight inconclusivo
 - [ ] Criar fixtures HTML reais anonimizadas dos casos validados
 - [ ] Adicionar testes focados em transicoes de estado
@@ -493,12 +505,12 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 ## P2: Organizacao do Repositorio
 
-- [ ] Consolidar checklists dispersos quando houver sobreposicao
-- [ ] Definir quais arquivos viram:
-  - [ ] backlog vivo
-  - [ ] checklist operacional
-  - [ ] documentacao historica
-- [ ] Evitar proliferacao de arquivos de checklist sem dono claro
+- [x] Consolidar checklists dispersos quando houver sobreposicao
+- [x] Definir quais arquivos viram:
+  - [x] backlog vivo
+  - [x] checklist operacional
+  - [x] documentacao historica
+- [x] Evitar proliferacao de arquivos de checklist sem dono claro
 
 ## Refatoracao Proposta por Modulo
 
