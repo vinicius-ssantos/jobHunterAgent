@@ -1,4 +1,5 @@
 from unittest import TestCase
+from pathlib import Path
 
 from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy, build_matching_criteria
 from job_hunter_agent.core.settings import Settings, load_settings
@@ -10,12 +11,18 @@ class SettingsTests(TestCase):
             Settings(telegram_token="SEU_TOKEN_AQUI", telegram_chat_id="chat")
 
     def test_load_settings_reads_environment_overrides(self) -> None:
-        settings = Settings(
-            telegram_token="token",
-            telegram_chat_id="chat",
-            profile_text="Backend engineer",
-            collection_time="09:30",
-        )
+        previous_env_file = Settings.model_config.get("env_file")
+        Settings.model_config["env_file"] = None
+        try:
+            settings = Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                profile_text="Backend engineer",
+                collection_time="09:30",
+                save_failure_artifacts=False,
+            )
+        finally:
+            Settings.model_config["env_file"] = previous_env_file
 
         self.assertEqual(settings.telegram_token, "token")
         self.assertEqual(settings.telegram_chat_id, "chat")
@@ -74,6 +81,38 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.application_contact_email, "vinicius@example.com")
         self.assertEqual(settings.application_phone, "11999999999")
         self.assertEqual(settings.application_phone_country_code, "Brazil (+55)")
+
+    def test_rejects_invalid_application_contact_email(self) -> None:
+        with self.assertRaisesRegex(ValueError, "JOB_HUNTER_APPLICATION_CONTACT_EMAIL"):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                application_contact_email="vinicius-at-example.com",
+            )
+
+    def test_rejects_invalid_application_phone(self) -> None:
+        with self.assertRaisesRegex(ValueError, "JOB_HUNTER_APPLICATION_PHONE"):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                application_phone="1234",
+            )
+
+    def test_rejects_invalid_application_phone_country_code(self) -> None:
+        with self.assertRaisesRegex(ValueError, "JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE"):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                application_phone_country_code="Brasil",
+            )
+
+    def test_rejects_directory_as_resume_path(self) -> None:
+        with self.assertRaisesRegex(ValueError, "resume_path deve apontar para um arquivo"):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                resume_path=Path("."),
+            )
 
     def test_rejects_invalid_collection_time(self) -> None:
         with self.assertRaises(ValueError):

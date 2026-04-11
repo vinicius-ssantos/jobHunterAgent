@@ -133,6 +133,7 @@ O submit real existe somente para candidaturas que ja passaram pelo gate humano.
 O sistema consegue:
 
 - validar readiness minima antes de enviar
+- validar formato minimo de email, telefone e codigo de pais configurados
 - usar sessao autenticada do LinkedIn
 - executar o submit real quando permitido
 - atualizar status e eventos de candidatura
@@ -141,6 +142,7 @@ O sistema consegue:
 Regra:
 
 - submit real so pode sair de `authorized_submit`
+- configuracao malformada de contato bloqueia o fluxo antes do applicant real
 
 ### 8. Captura de artefatos
 

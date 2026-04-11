@@ -499,9 +499,9 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 ### Configuracao
 
-- [ ] Revisar validacao de curriculo, telefone e email para o fluxo real
-- [ ] Tornar obrigatoria a validacao das configuracoes minimas antes de submit
-- [ ] Melhorar mensagens de configuracao invalida
+- [x] Revisar validacao de curriculo, telefone e email para o fluxo real
+- [x] Tornar obrigatoria a validacao das configuracoes minimas antes de submit
+- [x] Melhorar mensagens de configuracao invalida
 
 ## P2: Organizacao do Repositorio
 

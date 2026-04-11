@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -110,6 +111,52 @@ class Settings(BaseSettings):
         if not value.strip():
             raise ValueError("Preencha JOB_HUNTER_PROFILE_TEXT.")
         return value
+
+    @field_validator("application_contact_email")
+    @classmethod
+    def validate_application_contact_email(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            return normalized
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", normalized):
+            raise ValueError(
+                "JOB_HUNTER_APPLICATION_CONTACT_EMAIL deve conter um email valido."
+            )
+        return normalized
+
+    @field_validator("application_phone")
+    @classmethod
+    def validate_application_phone(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            return normalized
+        digits = "".join(char for char in normalized if char.isdigit())
+        if len(digits) < 8:
+            raise ValueError(
+                "JOB_HUNTER_APPLICATION_PHONE deve conter ao menos 8 digitos."
+            )
+        return normalized
+
+    @field_validator("application_phone_country_code")
+    @classmethod
+    def validate_application_phone_country_code(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            return normalized
+        digits = "".join(char for char in normalized if char.isdigit())
+        if not digits:
+            raise ValueError(
+                "JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE deve conter um codigo com digitos."
+            )
+        return normalized
+
+    @field_validator("resume_path", "linkedin_storage_state_path")
+    @classmethod
+    def validate_runtime_paths(cls, value: Path, info) -> Path:
+        path = Path(value)
+        if path.exists() and path.is_dir():
+            raise ValueError(f"{info.field_name} deve apontar para um arquivo, nao um diretorio.")
+        return path
 
     @field_validator("collection_time")
     @classmethod

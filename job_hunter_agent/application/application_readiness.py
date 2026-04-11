@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
@@ -59,11 +60,33 @@ class ApplicationReadinessCheckService:
             )
         if not self.resume_path.exists():
             failures.append(f"curriculo configurado nao foi encontrado ({self.resume_path})")
+        elif not self.resume_path.is_file():
+            failures.append(f"curriculo configurado precisa ser um arquivo ({self.resume_path})")
         if not self.contact_email:
             failures.append("email de contato nao configurado (JOB_HUNTER_APPLICATION_CONTACT_EMAIL)")
+        elif not _looks_like_email(self.contact_email):
+            failures.append("email de contato invalido (JOB_HUNTER_APPLICATION_CONTACT_EMAIL)")
         if not self.phone:
             failures.append("telefone de contato nao configurado (JOB_HUNTER_APPLICATION_PHONE)")
+        elif not _has_minimum_phone_digits(self.phone):
+            failures.append("telefone de contato invalido (JOB_HUNTER_APPLICATION_PHONE)")
         if not self.phone_country_code:
             failures.append("codigo do pais do telefone nao configurado (JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE)")
+        elif not _has_country_code_digits(self.phone_country_code):
+            failures.append("codigo do pais do telefone invalido (JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE)")
 
         return ApplicationExecutionReadiness(ok=not failures, failures=tuple(failures))
+
+
+def _looks_like_email(value: str) -> bool:
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value.strip()))
+
+
+def _has_minimum_phone_digits(value: str) -> bool:
+    digits = "".join(char for char in value if char.isdigit())
+    return len(digits) >= 8
+
+
+def _has_country_code_digits(value: str) -> bool:
+    digits = "".join(char for char in value if char.isdigit())
+    return bool(digits)
