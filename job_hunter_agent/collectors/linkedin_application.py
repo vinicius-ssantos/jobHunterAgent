@@ -15,13 +15,13 @@ from job_hunter_agent.collectors.linkedin_application_entrypoint import (
     classify_linkedin_job_page_readiness,
     extract_linkedin_job_id,
     needs_canonical_job_navigation,
-    recover_linkedin_direct_apply_url_from_html,
 )
 from job_hunter_agent.collectors.linkedin_application_entry_strategies import (
     LinkedInApplyHrefEntrypointStrategy,
     LinkedInApplyHtmlRecoveryStrategy,
 )
 from job_hunter_agent.collectors.linkedin_application_execution import LinkedInEasyApplyExecution
+from job_hunter_agent.collectors.linkedin_application_inspection import inspect_linkedin_application
 from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyApplyModalDriver
 from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
 from job_hunter_agent.collectors.linkedin_application_opening import LinkedInEasyApplyFlowOpener
@@ -161,57 +161,16 @@ class LinkedInApplicationFlowInspector:
         return run_linkedin_async(self._submit_async(job))
 
     async def _inspect_async(self, job: JobPosting) -> LinkedInApplicationInspection:
-        async def _operate(page) -> LinkedInApplicationInspection:
-            await page.goto(job.url, wait_until="domcontentloaded")
-            await self._ensure_target_job_page(page, job)
-            state, readiness = await self._read_state_with_hydration(page, job)
-            if readiness.result != "ready":
-                artifact_detail = await self._capture_failure_artifacts(
-                    page,
-                    state=state,
-                    job=job,
-                    phase="preflight",
-                    detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}",
-                )
-                inspection = LinkedInApplicationInspection(
-                    outcome="blocked",
-                    detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
-                )
-                return inspection
-            state = await self._execution.inspect_preflight_state(page, state)
-            if state.easy_apply and not state.modal_open:
-                artifact_detail = await self._capture_failure_artifacts(
-                    page,
-                    state=state,
-                    job=job,
-                    phase="preflight",
-                    detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
-                )
-            else:
-                artifact_detail = ""
-
-            inspection = classify_linkedin_application_page_state(state)
-            if self.modal_interpretation_formatter is not None and state.modal_open:
-                try:
-                    extra = self.modal_interpretation_formatter(state).strip()
-                except Exception:
-                    extra = ""
-                if extra:
-                    inspection = LinkedInApplicationInspection(
-                        outcome=inspection.outcome,
-                        detail=f"{inspection.detail} | {extra}",
-                    )
-            if artifact_detail:
-                inspection = LinkedInApplicationInspection(
-                    outcome=inspection.outcome,
-                    detail=f"{inspection.detail}{artifact_detail}",
-                )
-            return inspection
-
-        return await run_with_linkedin_page(
+        return await inspect_linkedin_application(
+            job=job,
             storage_state_path=self.storage_state_path,
             headless=self.headless,
-            page_operation=_operate,
+            ensure_target_job_page=self._ensure_target_job_page,
+            read_state_with_hydration=self._read_state_with_hydration,
+            capture_failure_artifacts=self._capture_failure_artifacts,
+            inspect_preflight_state=self._execution.inspect_preflight_state,
+            classify_page_state=classify_linkedin_application_page_state,
+            modal_interpretation_formatter=self.modal_interpretation_formatter,
         )
 
     async def _submit_async(self, job: JobPosting) -> ApplicationSubmissionResult:
