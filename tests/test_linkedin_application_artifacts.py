@@ -8,6 +8,50 @@ from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
 class LinkedInFailureArtifactCaptureTests(unittest.TestCase):
+    def test_capture_preflight_inconclusive_writes_metadata(self) -> None:
+        class _Page:
+            def is_closed(self):
+                return False
+
+            async def content(self):
+                return "<html><body>easy apply cta sem modal</body></html>"
+
+            async def screenshot(self, path, full_page):
+                Path(path).write_bytes(b"fake-png")
+
+        class _Job:
+            id = 321
+            title = "Backend Engineer"
+            url = "https://www.linkedin.com/jobs/view/321/"
+
+        tmp = prepare_workspace_tmp_dir("linkedin-artifacts-preflight-inconclusive")
+        capture = LinkedInFailureArtifactCapture(enabled=True, artifacts_dir=tmp)
+
+        import asyncio
+
+        detail = asyncio.run(
+            capture.capture(
+                _Page(),
+                state=LinkedInApplicationPageState(
+                    easy_apply=True,
+                    modal_open=False,
+                    cta_text="easy apply",
+                    sample="easy apply | vaga",
+                ),
+                job=_Job(),
+                phase="preflight",
+                detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+            )
+        )
+
+        self.assertIn("artefatos=", detail)
+        meta_files = list(Path(tmp).glob("*_meta.json"))
+        self.assertEqual(len(meta_files), 1)
+        payload = json.loads(meta_files[0].read_text(encoding="utf-8"))
+        self.assertEqual(payload["artifact_type"], "preflight")
+        self.assertIn("modal nao abriu", payload["detail"])
+        self.assertTrue(payload["files"]["html"].endswith("_dom.html"))
+
     def test_capture_writes_html_and_metadata(self) -> None:
         class _Page:
             def is_closed(self):

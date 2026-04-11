@@ -206,14 +206,14 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 ## P1: Qualidade e Testes
 
 - [ ] Adicionar testes para:
-  - [ ] redirecionamento para `similar jobs`
-  - [ ] perguntas adicionais obrigatorias
+  - [x] redirecionamento para `similar jobs`
+  - [x] perguntas adicionais obrigatorias
   - [x] fluxo `apply` por URL direta
   - [x] review final com `submit` visivel
-  - [ ] artefatos de preflight inconclusivo
+  - [x] artefatos de preflight inconclusivo
 - [ ] Criar fixtures HTML reais anonimizadas dos casos validados
 - [ ] Adicionar testes focados em transicoes de estado
-- [ ] Garantir uma suite rapida de regressao operacional
+- [x] Garantir uma suite rapida de regressao operacional
 
 ## P2: Melhoria de Produto
 

@@ -91,6 +91,25 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertIn("modal nao abriu", inspection.detail)
         self.assertIn("cta=easy apply", inspection.detail)
 
+    def test_classify_page_state_marks_unanswered_questions_as_manual_review(self) -> None:
+        inspection = classify_linkedin_application_page_state(
+            LinkedInApplicationPageState(
+                easy_apply=True,
+                modal_open=True,
+                modal_questions_visible=True,
+                modal_next_visible=True,
+                unanswered_questions=("ha quantos anos voce usa java?",),
+                answered_questions=("autorizacao para trabalho",),
+                cta_text="easy apply",
+                modal_sample="next | additional questions",
+            )
+        )
+
+        self.assertEqual(inspection.outcome, "manual_review")
+        self.assertIn("perguntas=sim", inspection.detail)
+        self.assertIn("perguntas_pendentes=ha quantos anos voce usa java?", inspection.detail)
+        self.assertIn("perguntas_respondidas=autorizacao para trabalho", inspection.detail)
+
     def test_describe_linkedin_modal_blocker_lists_pending_signals(self) -> None:
         blocker = describe_linkedin_modal_blocker(
             LinkedInApplicationPageState(

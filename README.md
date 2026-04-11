@@ -538,3 +538,19 @@ Os demais campos podem usar fallback textual controlado, mas nao devem ser inven
 ```bash
 pytest
 ```
+## Regressao Operacional Rapida
+
+Para rodar a suite curta de regressao operacional:
+
+```powershell
+./scripts/run_operational_regression.ps1
+```
+
+Ela cobre os casos principais do fluxo atual:
+
+- prontidao minima de preflight e submit
+- classificacao operacional de `similar jobs`
+- perguntas adicionais obrigatorias
+- review final com submit visivel
+- artefatos de falha do LinkedIn
+- rendering principal de CLI e Telegram
