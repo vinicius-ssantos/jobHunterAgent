@@ -22,13 +22,13 @@ class ApplicationCliDispatchTests(TestCase):
         )
 
         with patch(
-            "job_hunter_agent.application.application_cli_dispatch.JobHunterApplication",
+            "job_hunter_agent.application.application_cli_dispatch.create_query_app",
             return_value=fake_app,
         ) as app_factory, patch("builtins.print") as print_mock:
             handled = execute_cli_command(args)
 
         self.assertTrue(handled)
-        app_factory.assert_called_once_with(enable_telegram=False)
+        app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("resumo")
 
     def test_execute_cli_command_dispatches_application_list_alias(self) -> None:
@@ -49,14 +49,45 @@ class ApplicationCliDispatchTests(TestCase):
         )
 
         with patch(
-            "job_hunter_agent.application.application_cli_dispatch.JobHunterApplication",
+            "job_hunter_agent.application.application_cli_dispatch.create_query_app",
             return_value=fake_app,
         ) as app_factory, patch("builtins.print") as print_mock:
             handled = execute_cli_command(args)
 
         self.assertTrue(handled)
-        app_factory.assert_called_once_with(enable_telegram=True)
+        app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("status=authorized_submit")
+
+    def test_execute_cli_command_dispatches_application_preflight_with_flow_app(self) -> None:
+        fake_app = type(
+            "FakeApp",
+            (),
+            {
+                "handle_application_preflight": lambda self, application_id: f"preflight={application_id}",
+            },
+        )()
+
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="applications",
+            applications_command="preflight",
+            id=7,
+            sem_telegram=True,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.create_application_flow_app",
+            return_value=fake_app,
+        ) as app_factory, patch(
+            "job_hunter_agent.application.application_cli_dispatch.asyncio.run",
+            side_effect=lambda value: value,
+        ) as asyncio_run, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        app_factory.assert_called_once_with()
+        asyncio_run.assert_called_once_with("preflight=7")
+        print_mock.assert_called_once_with("preflight=7")
 
     def test_execute_cli_command_returns_false_for_scheduler_mode(self) -> None:
         args = Namespace(
