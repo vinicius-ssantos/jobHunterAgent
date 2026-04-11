@@ -104,7 +104,7 @@ class Settings(BaseSettings):
         normalized = value.strip()
         if not normalized:
             return normalized
-        if not re.match(r"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", normalized):
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", normalized):
             raise ValueError(
                 "JOB_HUNTER_APPLICATION_CONTACT_EMAIL deve conter um email valido."
             )

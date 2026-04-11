@@ -42,7 +42,7 @@ class SettingsTests(TestCase):
         self.assertFalse(settings.relaxed_matching_for_testing)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)
-        self.assertEqual(str(settings.failure_artifacts_dir), ".artifacts\\linkedin_failures")
+        self.assertEqual(settings.failure_artifacts_dir, Path("./.artifacts/linkedin_failures"))
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")
