@@ -43,6 +43,15 @@ resolve_application_submit_request = workflow_resolve_application_submit_request
 resolve_application_action = workflow_resolve_application_action
 
 
+def validate_telegram_settings(settings: Settings) -> None:
+    token = settings.telegram_token.strip()
+    chat_id = settings.telegram_chat_id.strip()
+    if not token or token == "SEU_TOKEN_AQUI":
+        raise ValueError("Preencha JOB_HUNTER_TELEGRAM_TOKEN para usar o Telegram.")
+    if not chat_id or chat_id == "SEU_CHAT_ID_AQUI":
+        raise ValueError("Preencha JOB_HUNTER_TELEGRAM_CHAT_ID para usar o Telegram.")
+
+
 class ReviewNotifier(Protocol):
     async def start(self) -> None:
         raise NotImplementedError
@@ -84,6 +93,7 @@ class TelegramNotifier:
         on_application_submit: Optional[ApplicationSubmitCallback] = None,
         review_rationale_formatter: ReviewRationaleFormatter | None = None,
     ) -> None:
+        validate_telegram_settings(settings)
         try:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             from telegram.ext import Application, CallbackQueryHandler, CommandHandler
@@ -247,4 +257,3 @@ class TelegramNotifier:
             disable_web_page_preview=True,
             reply_markup=keyboard,
         )
-
