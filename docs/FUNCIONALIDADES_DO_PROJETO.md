@@ -110,6 +110,7 @@ O preflight existe para validar a chance de submit antes da autorizacao final.
 
 O sistema consegue:
 
+- validar prontidao minima antes de inspecionar o fluxo real
 - abrir o fluxo Easy Apply
 - detectar bloqueios conhecidos
 - identificar quando a vaga cai em `similar jobs`
@@ -122,6 +123,7 @@ Regra:
 
 - preflight nao executa submit real
 - preflight nao pula o gate `authorized_submit`
+- preflight real no LinkedIn exige sessao autenticada local quando o portal requer login
 
 ### 7. Submit real assistido no LinkedIn
 

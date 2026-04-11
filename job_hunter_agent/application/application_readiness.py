@@ -30,6 +30,19 @@ class ApplicationReadinessCheckService:
         self.phone = phone.strip()
         self.phone_country_code = phone_country_code.strip()
 
+    def check_preflight_ready(self, job: JobPosting) -> ApplicationExecutionReadiness:
+        capabilities = get_portal_capabilities(job)
+        failures: list[str] = []
+
+        if capabilities.requires_login and not self.linkedin_storage_state_path.exists():
+            failures.append(
+                "sessao autenticada do LinkedIn nao encontrada "
+                f"(arquivo esperado: {self.linkedin_storage_state_path}) "
+                "| rode --bootstrap-linkedin-session"
+            )
+
+        return ApplicationExecutionReadiness(ok=not failures, failures=tuple(failures))
+
     def check_submit_ready(self, job: JobPosting) -> ApplicationExecutionReadiness:
         capabilities = get_portal_capabilities(job)
         failures: list[str] = []
@@ -39,14 +52,18 @@ class ApplicationReadinessCheckService:
             return ApplicationExecutionReadiness(ok=False, failures=tuple(failures))
 
         if capabilities.requires_login and not self.linkedin_storage_state_path.exists():
-            failures.append("sessao autenticada do LinkedIn nao encontrada")
+            failures.append(
+                "sessao autenticada do LinkedIn nao encontrada "
+                f"(arquivo esperado: {self.linkedin_storage_state_path}) "
+                "| rode --bootstrap-linkedin-session"
+            )
         if not self.resume_path.exists():
-            failures.append("curriculo configurado nao foi encontrado")
+            failures.append(f"curriculo configurado nao foi encontrado ({self.resume_path})")
         if not self.contact_email:
-            failures.append("email de contato nao configurado")
+            failures.append("email de contato nao configurado (JOB_HUNTER_APPLICATION_CONTACT_EMAIL)")
         if not self.phone:
-            failures.append("telefone de contato nao configurado")
+            failures.append("telefone de contato nao configurado (JOB_HUNTER_APPLICATION_PHONE)")
         if not self.phone_country_code:
-            failures.append("codigo do pais do telefone nao configurado")
+            failures.append("codigo do pais do telefone nao configurado (JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE)")
 
         return ApplicationExecutionReadiness(ok=not failures, failures=tuple(failures))

@@ -33,6 +33,13 @@ def format_preflight_portal_not_supported(*, portal_name: str) -> str:
     return f"preflight bloqueado: portal {portal_name} ainda nao possui preflight suportado"
 
 
+def format_preflight_readiness_incomplete(*, failures: list[str]) -> str:
+    detail = "preflight bloqueado: prontidao operacional incompleta"
+    if failures:
+        return f"{detail} | faltando={'; '.join(failures)}"
+    return detail
+
+
 def format_submit_requires_authorized_status() -> str:
     return "submissao real disponivel apenas para candidaturas autorizadas"
 

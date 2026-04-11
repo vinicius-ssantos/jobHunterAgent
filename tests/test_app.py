@@ -1185,17 +1185,39 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
     async def test_create_application_preflight_service_uses_preflight_mode(self) -> None:
         repository = object()
-        settings = object()
+        settings = type(
+            "Settings",
+            (),
+            {
+                "linkedin_storage_state_path": "linkedin-state.json",
+                "resume_path": "resume.pdf",
+                "application_contact_email": "vinicius@example.com",
+                "application_phone": "11999999999",
+                "application_phone_country_code": "55",
+            },
+        )()
+        readiness_checker = object()
 
         with patch(
             "job_hunter_agent.application.composition.create_linkedin_application_flow_inspector",
             return_value="preflight-inspector",
-        ) as create_inspector:
+        ) as create_inspector, patch(
+            "job_hunter_agent.application.composition.ApplicationReadinessCheckService",
+            return_value=readiness_checker,
+        ) as readiness_factory:
             service = create_application_preflight_service(repository, settings)
 
         create_inspector.assert_called_once_with(settings, mode="preflight")
+        readiness_factory.assert_called_once_with(
+            linkedin_storage_state_path="linkedin-state.json",
+            resume_path="resume.pdf",
+            contact_email="vinicius@example.com",
+            phone="11999999999",
+            phone_country_code="55",
+        )
         self.assertIs(service.repository, repository)
         self.assertEqual(service.flow_inspector, "preflight-inspector")
+        self.assertIs(service.readiness_checker, readiness_checker)
 
     async def test_create_application_submission_service_uses_submit_mode_and_readiness_checker(self) -> None:
         repository = object()

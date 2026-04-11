@@ -11,9 +11,11 @@ from job_hunter_agent.application.application_messages import (
     format_linkedin_preflight_ready,
     format_preflight_inspection_error,
     format_preflight_portal_not_supported,
+    format_preflight_readiness_incomplete,
     format_preflight_requires_confirmed_status,
     format_preflight_unsupported_flow_blocked,
 )
+from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
 from job_hunter_agent.application.contracts import ApplicationFlowInspection
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
@@ -49,10 +51,16 @@ def normalize_application_flow_inspection(result) -> ApplicationFlowInspection:
 
 
 class ApplicationPreflightService:
-    def __init__(self, repository: JobRepository, flow_inspector: ApplicationFlowInspector | None = None) -> None:
+    def __init__(
+        self,
+        repository: JobRepository,
+        flow_inspector: ApplicationFlowInspector | None = None,
+        readiness_checker: ApplicationReadinessCheckService | None = None,
+    ) -> None:
         self.repository = repository
         self.flow_inspector = flow_inspector
         self.flow = ApplicationFlowCoordinator(repository)
+        self.readiness_checker = readiness_checker
 
     def run_for_application(self, application_id: int) -> ApplicationPreflightResult:
         context = load_application_context(self.repository, application_id)
@@ -91,6 +99,24 @@ class ApplicationPreflightService:
             )
 
         capabilities = get_portal_capabilities(job)
+
+        if self.readiness_checker is not None:
+            readiness = self.readiness_checker.check_preflight_ready(job)
+            if not readiness.ok:
+                detail = format_preflight_readiness_incomplete(failures=list(readiness.failures))
+                application_status = self.flow.record_preflight_result(
+                    context,
+                    outcome="blocked",
+                    detail=detail,
+                    event_type="preflight_blocked",
+                    status="error_submit",
+                    clear_error=False,
+                )
+                return ApplicationPreflightResult(
+                    outcome="blocked",
+                    detail=detail,
+                    application_status=application_status,
+                )
 
         if capabilities.preflight_supported and job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
             if self.flow_inspector is not None:

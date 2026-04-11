@@ -6,6 +6,7 @@ from job_hunter_agent.application.application_messages import (
     format_linkedin_preflight_ready,
     format_preflight_cli_result,
     format_preflight_inspection_error,
+    format_preflight_readiness_incomplete,
     format_submit_cli_result,
     format_submit_detail,
     format_submit_readiness_incomplete,
@@ -39,6 +40,16 @@ class ApplicationMessagesTests(unittest.TestCase):
             rendered,
             "submissao real bloqueada: prontidao operacional incompleta | "
             "faltando=curriculo ausente; telefone ausente",
+        )
+
+    def test_format_preflight_readiness_incomplete_includes_failures(self) -> None:
+        rendered = format_preflight_readiness_incomplete(
+            failures=["sessao ausente"],
+        )
+
+        self.assertEqual(
+            rendered,
+            "preflight bloqueado: prontidao operacional incompleta | faltando=sessao ausente",
         )
 
     def test_format_submit_detail_appends_external_reference(self) -> None:

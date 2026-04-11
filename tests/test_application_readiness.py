@@ -22,6 +22,22 @@ def _sample_linkedin_job() -> JobPosting:
 
 
 class ApplicationReadinessCheckServiceTests(TestCase):
+    def test_check_preflight_ready_reports_missing_authenticated_session(self) -> None:
+        service = ApplicationReadinessCheckService(
+            linkedin_storage_state_path="./.nao-existe/linkedin-storage-state.json",
+            resume_path="./curriculo-inexistente.pdf",
+            contact_email="",
+            phone="",
+            phone_country_code="",
+        )
+
+        readiness = service.check_preflight_ready(_sample_linkedin_job())
+
+        self.assertFalse(readiness.ok)
+        self.assertEqual(len(readiness.failures), 1)
+        self.assertIn("sessao autenticada do LinkedIn nao encontrada", readiness.failures[0])
+        self.assertIn("--bootstrap-linkedin-session", readiness.failures[0])
+
     def test_check_submit_ready_reports_missing_local_prerequisites(self) -> None:
         service = ApplicationReadinessCheckService(
             linkedin_storage_state_path="./.nao-existe/linkedin-storage-state.json",
@@ -34,8 +50,17 @@ class ApplicationReadinessCheckServiceTests(TestCase):
         readiness = service.check_submit_ready(_sample_linkedin_job())
 
         self.assertFalse(readiness.ok)
-        self.assertIn("sessao autenticada do LinkedIn nao encontrada", readiness.failures)
-        self.assertIn("curriculo configurado nao foi encontrado", readiness.failures)
-        self.assertIn("email de contato nao configurado", readiness.failures)
-        self.assertIn("telefone de contato nao configurado", readiness.failures)
-        self.assertIn("codigo do pais do telefone nao configurado", readiness.failures)
+        self.assertTrue(any("sessao autenticada do LinkedIn nao encontrada" in item for item in readiness.failures))
+        self.assertTrue(any("curriculo configurado nao foi encontrado" in item for item in readiness.failures))
+        self.assertIn(
+            "email de contato nao configurado (JOB_HUNTER_APPLICATION_CONTACT_EMAIL)",
+            readiness.failures,
+        )
+        self.assertIn(
+            "telefone de contato nao configurado (JOB_HUNTER_APPLICATION_PHONE)",
+            readiness.failures,
+        )
+        self.assertIn(
+            "codigo do pais do telefone nao configurado (JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE)",
+            readiness.failures,
+        )

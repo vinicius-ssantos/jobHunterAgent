@@ -831,6 +831,40 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertIn("CTA nao encontrado", stored.last_preflight_detail)
         self.assertIn("CTA nao encontrado", stored.last_error)
 
+    def test_application_preflight_blocks_when_readiness_is_incomplete(self) -> None:
+        class _Inspector:
+            def inspect(self, job):
+                raise AssertionError("preflight nao deveria inspecionar sem prontidao minima")
+
+        saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]
+        application = self.repository.create_application_draft(
+            saved.id,
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+        )
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        readiness = ApplicationReadinessCheckService(
+            linkedin_storage_state_path="./.nao-existe/linkedin-storage-state.json",
+            resume_path="./curriculo-inexistente.pdf",
+            contact_email="",
+            phone="",
+            phone_country_code="",
+        )
+
+        result = ApplicationPreflightService(
+            self.repository,
+            flow_inspector=_Inspector(),
+            readiness_checker=readiness,
+        ).run_for_application(application.id)
+
+        stored = self.repository.get_application(application.id)
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.application_status, "error_submit")
+        self.assertEqual(stored.status, "error_submit")
+        self.assertIn("preflight bloqueado: prontidao operacional incompleta", result.detail)
+        self.assertIn("--bootstrap-linkedin-session", result.detail)
+
     def test_application_preflight_blocks_for_portal_without_preflight_support(self) -> None:
         gupy_job = sample_job("https://empresa.gupy.io/job/123", "key-1")
         gupy_job = JobPosting(**{**gupy_job.__dict__, "source_site": "Gupy"})
