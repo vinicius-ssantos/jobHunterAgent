@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, TYPE_CHECKING
 
-from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+from job_hunter_agent.application.contracts import ApplicationSubmissionResult, ArtifactCapturePort
 from job_hunter_agent.collectors.linkedin_application_artifacts import (
     LinkedInFailureArtifactCapture,
     is_closed_target_error,
@@ -17,6 +17,7 @@ from job_hunter_agent.collectors.linkedin_application_entrypoint import (
     needs_canonical_job_navigation,
     recover_linkedin_direct_apply_url_from_html,
 )
+from job_hunter_agent.collectors.linkedin_application_execution import LinkedInEasyApplyExecution
 from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyApplyModalDriver
 from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
 from job_hunter_agent.collectors.linkedin_application_opening import LinkedInEasyApplyFlowOpener
@@ -58,6 +59,7 @@ class LinkedInApplicationFlowInspector:
         modal_interpreter: Callable[[LinkedInApplicationPageState], "LinkedInModalInterpretation"] | None = None,
         save_failure_artifacts: bool = False,
         failure_artifacts_dir: str | Path | None = None,
+        artifact_capture: ArtifactCapturePort | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
@@ -71,7 +73,7 @@ class LinkedInApplicationFlowInspector:
         self.modal_interpreter = modal_interpreter
         self.save_failure_artifacts = save_failure_artifacts
         self.failure_artifacts_dir = Path(failure_artifacts_dir).resolve() if failure_artifacts_dir else None
-        self._artifact_capture = LinkedInFailureArtifactCapture(
+        self._artifact_capture = artifact_capture or LinkedInFailureArtifactCapture(
             enabled=self.save_failure_artifacts,
             artifacts_dir=self.failure_artifacts_dir,
         )
@@ -85,6 +87,13 @@ class LinkedInApplicationFlowInspector:
             candidate_profile=self.candidate_profile,
             candidate_profile_path=self.candidate_profile_path,
             modal_interpreter=self.modal_interpreter,
+        )
+        self._execution = LinkedInEasyApplyExecution(
+            inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_executor,
+            try_open_easy_apply_modal=self._try_open_easy_apply_modal,
+            try_open_easy_apply_via_direct_url=self._try_open_easy_apply_via_direct_url_via_executor,
+            try_submit_application=self._try_submit_application,
+            read_page_state=self._read_page_state,
         )
         self._flow_opener = LinkedInEasyApplyFlowOpener(
             prepare_job_page_for_apply=self._prepare_job_page_for_apply,
@@ -173,20 +182,15 @@ class LinkedInApplicationFlowInspector:
                         detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
                     )
                     return inspection
-                if state.easy_apply:
-                    state = await self._inspect_easy_apply_modal(page, state)
-                    if state.easy_apply and not state.modal_open:
-                        state = await self._try_open_easy_apply_via_direct_url(page, close_modal=True)
-                    if state.easy_apply and not state.modal_open:
-                        artifact_detail = await self._capture_failure_artifacts(
-                            page,
-                            state=state,
-                            job=job,
-                            phase="preflight",
-                            detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
-                        )
-                    else:
-                        artifact_detail = ""
+                state = await self._execution.inspect_preflight_state(page, state)
+                if state.easy_apply and not state.modal_open:
+                    artifact_detail = await self._capture_failure_artifacts(
+                        page,
+                        state=state,
+                        job=job,
+                        phase="preflight",
+                        detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+                    )
                 else:
                     artifact_detail = ""
             finally:
@@ -250,15 +254,7 @@ class LinkedInApplicationFlowInspector:
                         status="error_submit",
                         detail="submissao real bloqueada: CTA de candidatura simplificada nao encontrado",
                     )
-                state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
-                if not state.modal_open:
-                    await self._try_open_easy_apply_modal(page)
-                    await page.wait_for_timeout(1800)
-                    state = await self._read_page_state(page)
-                    if state.modal_open:
-                        state = await self._inspect_easy_apply_modal(page, state, close_modal=False)
-                if not state.modal_open and state.easy_apply:
-                    state = await self._try_open_easy_apply_via_direct_url(page, close_modal=False)
+                state = await self._execution.prepare_submit_state(page, state)
                 if not state.modal_open or not state.modal_submit_visible:
                     submit_readiness = evaluate_linkedin_submit_readiness(
                         state,
@@ -278,7 +274,7 @@ class LinkedInApplicationFlowInspector:
                         status="error_submit",
                         detail=f"{submit_readiness.detail}{artifact_detail}",
                     )
-                submitted = await self._try_submit_application(page)
+                submitted = await self._execution.submit(page)
                 if not submitted:
                     artifact_detail = await self._capture_failure_artifacts(
                         page,
@@ -377,6 +373,18 @@ class LinkedInApplicationFlowInspector:
             close_modal=close_modal,
         )
 
+    async def _inspect_easy_apply_modal_via_executor(
+        self,
+        page,
+        initial_state: LinkedInApplicationPageState,
+        close_modal: bool,
+    ) -> LinkedInApplicationPageState:
+        return await self._inspect_easy_apply_modal(
+            page,
+            initial_state,
+            close_modal=close_modal,
+        )
+
     async def _capture_failure_artifacts(
         self,
         page,
@@ -450,6 +458,16 @@ class LinkedInApplicationFlowInspector:
     ) -> LinkedInApplicationPageState:
         self._refresh_flow_opener_callbacks()
         return await self._flow_opener.try_open_easy_apply_via_direct_url(
+            page,
+            close_modal=close_modal,
+        )
+
+    async def _try_open_easy_apply_via_direct_url_via_executor(
+        self,
+        page,
+        close_modal: bool,
+    ) -> LinkedInApplicationPageState:
+        return await self._try_open_easy_apply_via_direct_url(
             page,
             close_modal=close_modal,
         )

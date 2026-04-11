@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from typing import Callable
 
-from job_hunter_agent.application.applicant import (
-    ApplicationPreparationService,
-    ApplicationPreflightService,
-    ApplicationSubmissionService,
-    OllamaApplicationSupportAssessor,
-)
+from job_hunter_agent.application.application_preflight import ApplicationPreflightService
+from job_hunter_agent.application.application_preparation import ApplicationPreparationService
+from job_hunter_agent.application.application_submission import ApplicationSubmissionService
+from job_hunter_agent.application.application_support import OllamaApplicationSupportAssessor
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
 from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
@@ -29,6 +27,7 @@ from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobR
 from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
 from job_hunter_agent.core.runtime import RuntimeGuard
 from job_hunter_agent.core.settings import Settings
+from job_hunter_agent.collectors.linkedin_application_artifacts import LinkedInFailureArtifactCapture
 
 
 def create_repository(settings: Settings) -> JobRepository:
@@ -212,6 +211,10 @@ def create_linkedin_application_flow_inspector(
         "candidate_profile_path": settings.candidate_profile_path,
         "save_failure_artifacts": settings.save_failure_artifacts,
         "failure_artifacts_dir": settings.failure_artifacts_dir,
+        "artifact_capture": LinkedInFailureArtifactCapture(
+            enabled=settings.save_failure_artifacts,
+            artifacts_dir=settings.failure_artifacts_dir,
+        ),
     }
     if mode == "preflight":
         return LinkedInApplicationFlowInspector(

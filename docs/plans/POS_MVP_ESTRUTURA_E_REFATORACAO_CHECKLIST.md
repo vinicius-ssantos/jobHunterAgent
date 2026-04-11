@@ -504,22 +504,22 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 ### `job_hunter_agent/app.py`
 
-- [ ] Reduzir para orquestracao de alto nivel
-- [ ] Mover comandos operacionais para uma camada de interface/CLI
-- [ ] Evitar logica de transicao fora de servicos dedicados
+- [x] Reduzir para orquestracao de alto nivel
+- [x] Mover comandos operacionais para uma camada de interface/CLI
+- [x] Evitar logica de transicao fora de servicos dedicados
 
 ### `job_hunter_agent/applicant.py`
 
-- [ ] Separar preparacao, preflight e submit em casos de uso ainda mais explicitos
-- [ ] Extrair logica de montagem de `detail` para formatadores dedicados
-- [ ] Reduzir responsabilidade sobre strings operacionais
+- [x] Separar preparacao, preflight e submit em casos de uso ainda mais explicitos
+- [x] Extrair logica de montagem de `detail` para formatadores dedicados
+- [x] Reduzir responsabilidade sobre strings operacionais
 
 ### `job_hunter_agent/linkedin_application.py`
 
-- [ ] Separar DOM inspection de action execution
+- [x] Separar DOM inspection de action execution
 - [ ] Isolar estrategias de entrada no fluxo apply
 - [ ] Isolar estrategias de deteccao de review final
-- [ ] Extrair um componente de artifact capture
+- [x] Extrair um componente de artifact capture
 
 ### `job_hunter_agent/notifier.py`
 

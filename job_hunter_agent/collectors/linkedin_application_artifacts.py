@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from uuid import uuid4
 
-from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+from job_hunter_agent.application.contracts import ApplicationSubmissionResult
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 

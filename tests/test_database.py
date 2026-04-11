@@ -687,7 +687,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
     def test_application_submission_marks_submitted_when_applicant_succeeds(self) -> None:
         class _Applicant:
             def submit(self, application, job):
-                from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+                from job_hunter_agent.application.contracts import ApplicationSubmissionResult
 
                 return ApplicationSubmissionResult(
                     status="submitted",
@@ -722,7 +722,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
     def test_submit_preserves_support_snapshot(self) -> None:
         class _Applicant:
             def submit(self, application, job):
-                from job_hunter_agent.application.applicant import ApplicationSubmissionResult
+                from job_hunter_agent.application.contracts import ApplicationSubmissionResult
 
                 return ApplicationSubmissionResult(
                     status="submitted",

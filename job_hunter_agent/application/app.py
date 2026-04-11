@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-import argparse
 import asyncio
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from job_hunter_agent.core.application_insights import (
-    classify_application_operational_insight,
-    classify_operational_detail,
+from job_hunter_agent.application.application_commands import (
+    ApplicationDraftCommandService,
+    ApplicationTransitionCommandService,
+    JobReviewCommandService,
 )
-from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
+from job_hunter_agent.application.application_messages import (
+    format_preflight_cli_result,
+    format_submit_cli_result,
+)
+from job_hunter_agent.application.application_queries import ApplicationQueryService
+from job_hunter_agent.application.application_cli_rendering import render_failure_artifacts
 from job_hunter_agent.collectors.collector import JobCollectionService
 from job_hunter_agent.application.composition import (
     create_application_preflight_service,
@@ -26,9 +31,6 @@ from job_hunter_agent.llm.candidate_profile_extractor import (
     extract_resume_text,
     merge_candidate_profile_suggestions,
 )
-from job_hunter_agent.application.review_workflow import resolve_application_action
-from job_hunter_agent.application.review_workflow import resolve_review_action
-from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.infrastructure.repository import JobRepository
 from job_hunter_agent.core.settings import load_settings
@@ -37,23 +39,6 @@ from job_hunter_agent.core.runtime import RuntimeGuard
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
-APPLICATION_STATUS_ORDER = (
-    "draft",
-    "ready_for_review",
-    "confirmed",
-    "authorized_submit",
-    "submitted",
-    "error_submit",
-    "cancelled",
-)
-APPLICATION_STATUS_ALIASES = {
-    "all": None,
-    "ready": "authorized_submit",
-    "review": "ready_for_review",
-    "error": "error_submit",
-}
-
-
 def suggest_candidate_profile(
     *,
     resume_path: Path,
@@ -77,15 +62,6 @@ def suggest_candidate_profile(
         return f"Perfil sugerido sem tecnologias mapeadas: {written_path}"
     mapped = ", ".join(f"{skill}={years}" for skill, years in sorted(suggestion.experience_years.items()))
     return f"Perfil sugerido atualizado: {written_path} | sugestoes={mapped}"
-JOB_STATUS_ORDER = ("collected", "approved", "rejected", "error_collect")
-JOB_STATUS_ALIASES = {
-    "all": None,
-    "pending": "collected",
-    "review": "collected",
-    "approved_only": "approved",
-}
-
-
 class JobHunterApplication:
     def __init__(self, *, enable_telegram: bool = True) -> None:
         self.enable_telegram = enable_telegram
@@ -95,6 +71,13 @@ class JobHunterApplication:
         self.application_preparation = create_application_preparation_service(self.repository, self.settings)
         self.application_preflight = create_application_preflight_service(self.repository, self.settings)
         self.application_submission = create_application_submission_service(self.repository, self.settings)
+        self.query = ApplicationQueryService(self.repository)
+        self.job_review_commands = JobReviewCommandService(self.repository)
+        self.application_draft_commands = ApplicationDraftCommandService(
+            self.repository,
+            self.application_preparation,
+        )
+        self.application_transition_commands = ApplicationTransitionCommandService(self.repository)
         self.collector = create_collection_service(
             settings=self.settings,
             repository=self.repository,
@@ -124,7 +107,10 @@ class JobHunterApplication:
             result.outcome,
             result.application_status,
         )
-        return f"Preflight: {result.detail} (status={result.application_status})"
+        return format_preflight_cli_result(
+            detail=result.detail,
+            application_status=result.application_status,
+        )
 
     async def handle_application_submit(self, application_id: int) -> str:
         result = await asyncio.to_thread(self.application_submission.run_for_application, application_id)
@@ -134,240 +120,53 @@ class JobHunterApplication:
             result.outcome,
             result.application_status,
         )
-        return f"Submissao: {result.detail} (status={result.application_status})"
+        return format_submit_cli_result(
+            detail=result.detail,
+            application_status=result.application_status,
+        )
 
     def list_applications(self, *, status: str | None = None) -> str:
-        requested_statuses = (
-            (status,)
-            if status is not None
-            else tuple(current for current in APPLICATION_STATUS_ORDER if current in VALID_APPLICATION_STATUSES)
-        )
-        lines: list[str] = []
-        total = 0
-        for current_status in requested_statuses:
-            applications = self.repository.list_applications_by_status(current_status)
-            for application in applications:
-                job = self.repository.get_job(application.job_id)
-                job_label = (
-                    f"{job.title} | {job.company}"
-                    if job is not None
-                    else f"job_id={application.job_id}"
-                )
-                lines.append(
-                    f"{application.id}: {application.status} | {job_label} | suporte={application.support_level} "
-                    f"| op={classify_application_operational_insight(application).reason_code}"
-                )
-                total += 1
-        if not lines:
-            filter_text = status if status is not None else "todos"
-            return f"Nenhuma candidatura encontrada para status={filter_text}."
-        return "\n".join([f"Candidaturas listadas: {total}"] + lines)
+        return self._query_service().list_applications(status=status)
 
     def list_jobs(self, *, status: str | None = None) -> str:
-        requested_statuses = (
-            (status,)
-            if status is not None
-            else tuple(current for current in JOB_STATUS_ORDER if current in VALID_STATUSES)
-        )
-        lines: list[str] = []
-        total = 0
-        for current_status in requested_statuses:
-            jobs = self.repository.list_jobs_by_status(current_status)
-            for job in jobs:
-                lines.append(
-                    f"{job.id}: {job.status} | {job.title} | {job.company} | "
-                    f"relevancia={job.relevance} | modalidade={job.work_mode}"
-                )
-                total += 1
-        if not lines:
-            filter_text = status if status is not None else "todos"
-            return f"Nenhuma vaga encontrada para status={filter_text}."
-        return "\n".join([f"Vagas listadas: {total}"] + lines)
+        return self._query_service().list_jobs(status=status)
 
     def show_job(self, job_id: int) -> str:
-        job = self.repository.get_job(job_id)
-        if job is None:
-            return f"Vaga nao encontrada: id={job_id}"
-        application = self.repository.get_application_by_job(job_id)
-        lines = [
-            f"id={job.id}",
-            f"status={job.status}",
-            f"titulo={job.title}",
-            f"empresa={job.company}",
-            f"local={job.location}",
-            f"modalidade={job.work_mode}",
-            f"salario={job.salary_text}",
-            f"relevancia={job.relevance}",
-            f"fonte={job.source_site}",
-            f"url={job.url}",
-            f"rationale={job.rationale}",
-            f"summary={job.summary}",
-            f"application_id={application.id if application is not None else '-'}",
-            f"application_status={application.status if application is not None else '-'}",
-        ]
-        events = self.repository.list_job_events(job_id, limit=5)
-        if events:
-            lines.append("eventos_recentes:")
-            for event in events:
-                lines.append(
-                    f"- {event.created_at or '-'} | {event.event_type} | "
-                    f"{event.from_status or '-'} -> {event.to_status or '-'} | "
-                    f"{event.detail or '-'}"
-                )
-        return "\n".join(lines)
+        return self._query_service().show_job(job_id)
 
     def show_status_overview(self) -> str:
-        job_summary = self.repository.summary()
-        application_summary = self.repository.application_summary()
-        tracked_applications = self._list_tracked_applications()
-        operational_counts = self._summarize_operational_counts(tracked_applications)
-        lines = [
-            "Resumo operacional:",
-            "vagas:",
-            f"- total={job_summary['total']}",
-            f"- collected={job_summary['collected']}",
-            f"- approved={job_summary['approved']}",
-            f"- rejected={job_summary['rejected']}",
-            f"- error_collect={job_summary['error_collect']}",
-            "candidaturas:",
-            f"- total={application_summary['total']}",
-            f"- draft={application_summary['draft']}",
-            f"- ready_for_review={application_summary['ready_for_review']}",
-            f"- confirmed={application_summary['confirmed']}",
-            f"- authorized_submit={application_summary['authorized_submit']}",
-            f"- submitted={application_summary['submitted']}",
-            f"- error_submit={application_summary['error_submit']}",
-            f"- cancelled={application_summary['cancelled']}",
-        ]
-        if operational_counts:
-            lines.append("operacao:")
-            for key in (
-                "pronto_para_envio",
-                "perguntas_adicionais",
-                "similar_jobs",
-                "candidatura_externa",
-                "vaga_expirada",
-                "no_apply_cta",
-                "fluxo_inconclusivo",
-                "bloqueio_funcional",
-            ):
-                if key in operational_counts:
-                    lines.append(f"- {key}={operational_counts[key]}")
-        return "\n".join(lines)
+        return self._query_service().show_status_overview()
 
     def review_job(self, job_id: int, action: str) -> str:
-        job = self.repository.get_job(job_id)
-        if job is None:
-            return f"Vaga nao encontrada: id={job_id}"
-        next_status, detail = resolve_review_action(job, action)
-        if next_status is None:
-            return detail
-        self.repository.mark_status(job_id, next_status, detail=detail)
-        return detail
+        return self._job_review_commands().review_job(job_id, action)
 
     def create_application_draft_for_job(self, job_id: int) -> str:
-        job = self.repository.get_job(job_id)
-        if job is None:
-            return f"Vaga nao encontrada: id={job_id}"
-        existing = self.repository.get_application_by_job(job_id)
-        if existing is not None:
-            return (
-                f"Candidatura ja existe para a vaga: application_id={existing.id} "
-                f"status={existing.status} job_id={job_id}"
-            )
-        drafts = self.application_preparation.create_drafts_for_approved_jobs(
-            [job_id],
-            notes="rascunho criado via cli apos aprovacao humana",
-        )
-        if not drafts:
-            return f"Vaga ainda nao foi aprovada para criar candidatura: id={job_id}"
-        draft = drafts[0]
-        return (
-            f"Rascunho criado: application_id={draft.id} job_id={job_id} "
-            f"status={draft.status} suporte={draft.support_level}"
-        )
+        return self._application_draft_commands().create_application_draft_for_job(job_id)
 
     def show_application_events(self, application_id: int, *, limit: int = 10) -> str:
-        application = self.repository.get_application(application_id)
-        if application is None:
-            return f"Candidatura nao encontrada: id={application_id}"
-        events = self.repository.list_application_events(application_id, limit=limit)
-        if not events:
-            return f"Nenhum evento encontrado para candidatura: id={application_id}"
-        lines = [f"Eventos da candidatura {application_id}: {len(events)}"]
-        for event in events:
-            lines.append(
-                f"{event.created_at or '-'} | {event.event_type} | "
-                f"{event.from_status or '-'} -> {event.to_status or '-'} | "
-                f"{event.detail or '-'}"
-            )
-        return "\n".join(lines)
+        return self._query_service().show_application_events(application_id, limit=limit)
 
     def show_application(self, application_id: int) -> str:
-        application = self.repository.get_application(application_id)
-        if application is None:
-            return f"Candidatura nao encontrada: id={application_id}"
-        job = self.repository.get_job(application.job_id)
-        job_title = job.title if job is not None else "vaga nao encontrada"
-        job_company = job.company if job is not None else "-"
-        job_url = job.url if job is not None else "-"
-        lines = [
-            f"id={application.id}",
-            f"status={application.status}",
-            f"job_id={application.job_id}",
-            f"vaga={job_title}",
-            f"empresa={job_company}",
-            f"suporte={application.support_level}",
-            "classificacao_operacional="
-            f"{classify_application_operational_insight(application).classification}"
-            f" | motivo={classify_application_operational_insight(application).reason_code}",
-            f"url={job_url}",
-            f"last_preflight_detail={application.last_preflight_detail or '-'}",
-            f"last_submit_detail={application.last_submit_detail or '-'}",
-            f"last_error={application.last_error or '-'}",
-            f"submitted_at={application.submitted_at or '-'}",
-            f"notes={application.notes or '-'}",
-        ]
-        events = self.repository.list_application_events(application_id, limit=5)
-        if events:
-            lines.append("eventos_recentes:")
-            for event in events:
-                lines.append(
-                    f"- {event.created_at or '-'} | {event.event_type} | "
-                    f"{event.from_status or '-'} -> {event.to_status or '-'} | "
-                    f"{event.detail or '-'}"
-                )
-        return "\n".join(lines)
+        return self._query_service().show_application(application_id)
 
     def transition_application(self, application_id: int, action: str) -> str:
-        application = self.repository.get_application(application_id)
-        if application is None:
-            return f"Candidatura nao encontrada: id={application_id}"
-        next_status, detail = resolve_application_action(application, action)
-        if next_status is None:
-            return detail
-        self.repository.mark_application_status(application_id, status=next_status, event_detail=detail)
-        return detail
+        return self._application_transition_commands().transition_application(application_id, action)
 
     def authorize_application(self, application_id: int) -> str:
-        return self.transition_application(application_id, "app_authorize")
+        return self._application_transition_commands().authorize_application(application_id)
 
     def show_latest_failure_artifacts(self, *, limit: int = 5) -> str:
         artifacts_dir = Path(self.settings.failure_artifacts_dir)
-        if not artifacts_dir.exists():
-            return f"Nenhum diretorio de artefatos encontrado: {artifacts_dir}"
         files = sorted(
             artifacts_dir.glob("*_meta.json"),
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
-        if not files:
-            return f"Nenhum artefato de falha encontrado em: {artifacts_dir}"
-        lines = [f"Artefatos recentes: {min(len(files), limit)}"]
-        for path in files[:limit]:
-            timestamp = datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
-            lines.append(f"{timestamp} | {path.name}")
-        return "\n".join(lines)
+        return render_failure_artifacts(
+            artifacts_dir=artifacts_dir,
+            files=files,
+            limit=limit,
+        )
 
     async def run_collection_cycle(self) -> bool:
         run = self.repository.start_collection_run()
@@ -399,22 +198,6 @@ class JobHunterApplication:
             return False
         await self.notifier.notify_jobs_for_review(jobs)
         return True
-
-    def _list_tracked_applications(self) -> list:
-        tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit", "submitted")
-        applications: list = []
-        for status in tracked_statuses:
-            applications.extend(self.repository.list_applications_by_status(status))
-        return applications
-
-    def _summarize_operational_counts(self, applications: list) -> dict[str, int]:
-        counts: dict[str, int] = {}
-        for application in applications:
-            reason_code = classify_application_operational_insight(application).reason_code
-            if reason_code in {"sem_detalhe_operacional", "nao_classificado"}:
-                continue
-            counts[reason_code] = counts.get(reason_code, 0) + 1
-        return counts
 
     async def wait_for_review_window(self) -> None:
         if not self.enable_telegram:
@@ -475,275 +258,43 @@ class JobHunterApplication:
             self.runtime_guard.release()
 
     def build_execution_summary(self, since: str) -> str:
-        list_events_since = getattr(self.repository, "list_recent_application_events_since", None)
-        if list_events_since is None:
-            return "Execucao operacional:\n- preflights_concluidos=0\n- submits_concluidos=0\n- bloqueios_por_tipo=nenhum"
-        events = list_events_since(since)
-        preflight_count = 0
-        submit_count = 0
-        block_counts: dict[str, int] = {}
-        for event in events:
-            if event.event_type in {"preflight_ready", "preflight_manual_review", "preflight_blocked", "preflight_error"}:
-                preflight_count += 1
-            if event.event_type in {"submit_submitted", "submit_error"}:
-                submit_count += 1
-            if event.event_type in {"preflight_blocked", "submit_error"}:
-                reason_code = classify_operational_detail(event.detail).reason_code
-                if reason_code not in {"sem_detalhe_operacional", "nao_classificado"}:
-                    block_counts[reason_code] = block_counts.get(reason_code, 0) + 1
-        lines = [
-            "Execucao operacional:",
-            f"- preflights_concluidos={preflight_count}",
-            f"- submits_concluidos={submit_count}",
-        ]
-        if block_counts:
-            lines.append("- bloqueios_por_tipo:")
-            for key in sorted(block_counts):
-                lines.append(f"  - {key}={block_counts[key]}")
-        else:
-            lines.append("- bloqueios_por_tipo=nenhum")
-        return "\n".join(lines)
+        return self._query_service().build_execution_summary(since)
 
+    def _query_service(self) -> ApplicationQueryService:
+        query = getattr(self, "query", None)
+        if query is None:
+            query = ApplicationQueryService(self.repository)
+            self.query = query
+        return query
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Job Hunter Agent")
-    parser.add_argument("--agora", action="store_true", help="Roda um ciclo imediatamente e encerra.")
-    parser.add_argument("--sem-telegram", action="store_true", help="Executa sem iniciar o Telegram.")
-    parser.add_argument(
-        "--ciclos",
-        type=int,
-        default=None,
-        help="Roda um numero finito de ciclos imediatamente, sem usar o agendamento diario.",
-    )
-    parser.add_argument(
-        "--intervalo-ciclos-segundos",
-        type=int,
-        default=0,
-        help="Intervalo em segundos entre ciclos quando usado com --ciclos.",
-    )
-    parser.add_argument(
-        "--bootstrap-linkedin-session",
-        action="store_true",
-        help="Abre o Chromium para exportar o storage_state autenticado do LinkedIn.",
-    )
-    subparsers = parser.add_subparsers(dest="command")
-    subparsers.add_parser("status", help="Mostra um resumo operacional de vagas e candidaturas.")
-    jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
-    jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", required=True)
+    def _job_review_commands(self) -> JobReviewCommandService:
+        service = getattr(self, "job_review_commands", None)
+        if service is None:
+            service = JobReviewCommandService(self.repository)
+            self.job_review_commands = service
+        return service
 
-    jobs_list_parser = jobs_subparsers.add_parser("list", help="Lista vagas por status.")
-    jobs_list_parser.add_argument(
-        "--status",
-        choices=["all", "pending", "review", "approved_only", *sorted(VALID_STATUSES)],
-        default="all",
-        help="Filtra por status de vaga.",
-    )
+    def _application_draft_commands(self) -> ApplicationDraftCommandService:
+        service = getattr(self, "application_draft_commands", None)
+        if service is None:
+            service = ApplicationDraftCommandService(self.repository, self.application_preparation)
+            self.application_draft_commands = service
+        return service
 
-    jobs_approve_parser = jobs_subparsers.add_parser("approve", help="Aprova uma vaga coletada.")
-    jobs_approve_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
-
-    jobs_reject_parser = jobs_subparsers.add_parser("reject", help="Rejeita uma vaga coletada.")
-    jobs_reject_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
-
-    jobs_show_parser = jobs_subparsers.add_parser("show", help="Mostra o detalhe de uma vaga.")
-    jobs_show_parser.add_argument("--id", type=int, required=True, help="ID da vaga.")
-
-    applications_parser = subparsers.add_parser("applications", help="Operacoes de candidaturas.")
-    applications_subparsers = applications_parser.add_subparsers(dest="applications_command", required=True)
-
-    applications_list_parser = applications_subparsers.add_parser("list", help="Lista candidaturas.")
-    applications_list_parser.add_argument(
-        "--status",
-        choices=["all", "ready", "review", "error", *sorted(VALID_APPLICATION_STATUSES)],
-        default="all",
-        help="Filtra por status de candidatura.",
-    )
-
-    applications_create_parser = applications_subparsers.add_parser(
-        "create",
-        help="Cria um rascunho de candidatura para uma vaga aprovada.",
-    )
-    applications_create_parser.add_argument("--job-id", type=int, required=True, help="ID da vaga aprovada.")
-
-    applications_show_parser = applications_subparsers.add_parser("show", help="Mostra uma candidatura.")
-    applications_show_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    applications_events_parser = applications_subparsers.add_parser(
-        "events",
-        help="Lista eventos recentes de uma candidatura.",
-    )
-    applications_events_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-    applications_events_parser.add_argument(
-        "--limit",
-        type=int,
-        default=10,
-        help="Quantidade maxima de eventos retornados.",
-    )
-
-    applications_prepare_parser = applications_subparsers.add_parser(
-        "prepare",
-        help="Move uma candidatura de draft para ready_for_review.",
-    )
-    applications_prepare_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    applications_confirm_parser = applications_subparsers.add_parser(
-        "confirm",
-        help="Confirma uma candidatura pronta para revisao.",
-    )
-    applications_confirm_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    applications_cancel_parser = applications_subparsers.add_parser(
-        "cancel",
-        help="Cancela uma candidatura em andamento.",
-    )
-    applications_cancel_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    applications_artifacts_parser = applications_subparsers.add_parser(
-        "artifacts",
-        help="Lista artefatos recentes de falha do LinkedIn.",
-    )
-    applications_artifacts_parser.add_argument(
-        "--limit",
-        type=int,
-        default=5,
-        help="Quantidade maxima de artefatos retornados.",
-    )
-
-    applications_preflight_parser = applications_subparsers.add_parser(
-        "preflight",
-        help="Roda o preflight de uma candidatura confirmada.",
-    )
-    applications_preflight_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    applications_authorize_parser = applications_subparsers.add_parser(
-        "authorize",
-        help="Autoriza uma candidatura confirmada para envio real.",
-    )
-    applications_authorize_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    applications_submit_parser = applications_subparsers.add_parser(
-        "submit",
-        help="Executa o envio real de uma candidatura autorizada.",
-    )
-    applications_submit_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
-
-    candidate_profile_parser = subparsers.add_parser(
-        "candidate-profile",
-        help="Operacoes do perfil estruturado do candidato.",
-    )
-    candidate_profile_subparsers = candidate_profile_parser.add_subparsers(
-        dest="candidate_profile_command",
-        required=True,
-    )
-
-    candidate_profile_suggest_parser = candidate_profile_subparsers.add_parser(
-        "suggest",
-        help="Gera sugestoes de anos de experiencia a partir do curriculo.",
-    )
-    candidate_profile_suggest_parser.add_argument(
-        "--resume-path",
-        type=Path,
-        default=None,
-        help="Caminho do curriculo em PDF. Usa JOB_HUNTER_RESUME_PATH por padrao.",
-    )
-    candidate_profile_suggest_parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="Arquivo de saida do perfil do candidato. Usa JOB_HUNTER_CANDIDATE_PROFILE_PATH por padrao.",
-    )
-
-    args = parser.parse_args()
-    if args.ciclos is not None and args.ciclos <= 0:
-        parser.error("--ciclos deve ser maior que zero")
-    if args.intervalo_ciclos_segundos < 0:
-        parser.error("--intervalo-ciclos-segundos nao pode ser negativo")
-    if args.agora and args.ciclos is not None:
-        parser.error("use --agora ou --ciclos, nao ambos")
-    if args.command is not None and (args.agora or args.ciclos is not None):
-        parser.error("comandos operacionais nao podem ser combinados com --agora ou --ciclos")
-    return args
-
+    def _application_transition_commands(self) -> ApplicationTransitionCommandService:
+        service = getattr(self, "application_transition_commands", None)
+        if service is None:
+            service = ApplicationTransitionCommandService(self.repository)
+            self.application_transition_commands = service
+        return service
 
 def run() -> None:
-    args = parse_args()
-    if args.bootstrap_linkedin_session:
-        settings = load_settings()
-        asyncio.run(bootstrap_linkedin_storage_state(settings))
-        return
-    if args.command == "status":
-        app = JobHunterApplication(enable_telegram=not args.sem_telegram)
-        print(app.show_status_overview())
-        return
-    if args.command == "jobs":
-        app = JobHunterApplication(enable_telegram=not args.sem_telegram)
-        if args.jobs_command == "list":
-            status = JOB_STATUS_ALIASES.get(args.status, args.status)
-            print(app.list_jobs(status=status))
-            return
-        if args.jobs_command == "show":
-            print(app.show_job(args.id))
-            return
-        if args.jobs_command == "approve":
-            print(app.review_job(args.id, "approve"))
-            return
-        if args.jobs_command == "reject":
-            print(app.review_job(args.id, "reject"))
-            return
-    if args.command == "applications":
-        app = JobHunterApplication(enable_telegram=not args.sem_telegram)
-        if args.applications_command == "list":
-            status = APPLICATION_STATUS_ALIASES.get(args.status, args.status)
-            print(app.list_applications(status=status))
-            return
-        if args.applications_command == "create":
-            print(app.create_application_draft_for_job(args.job_id))
-            return
-        if args.applications_command == "show":
-            print(app.show_application(args.id))
-            return
-        if args.applications_command == "events":
-            print(app.show_application_events(args.id, limit=args.limit))
-            return
-        if args.applications_command == "prepare":
-            print(app.transition_application(args.id, "app_prepare"))
-            return
-        if args.applications_command == "confirm":
-            print(app.transition_application(args.id, "app_confirm"))
-            return
-        if args.applications_command == "cancel":
-            print(app.transition_application(args.id, "app_cancel"))
-            return
-        if args.applications_command == "artifacts":
-            print(app.show_latest_failure_artifacts(limit=args.limit))
-            return
-        if args.applications_command == "authorize":
-            print(app.authorize_application(args.id))
-            return
-        if args.applications_command == "preflight":
-            print(asyncio.run(app.handle_application_preflight(args.id)))
-            return
-        if args.applications_command == "submit":
-            print(asyncio.run(app.handle_application_submit(args.id)))
-            return
-    if args.command == "candidate-profile":
-        settings = load_settings()
-        if args.candidate_profile_command == "suggest":
-            resume_path = args.resume_path or settings.resume_path
-            output_path = args.output or settings.candidate_profile_path
-            print(
-                suggest_candidate_profile(
-                    resume_path=resume_path,
-                    output_path=output_path,
-                    model_name=settings.ollama_model,
-                    base_url=settings.ollama_url,
-                )
-            )
-            return
-    asyncio.run(
-        JobHunterApplication(enable_telegram=not args.sem_telegram).run(
-            run_once=args.agora,
-            fixed_cycles=args.ciclos,
-            cycle_interval_seconds=args.intervalo_ciclos_segundos,
-        )
-    )
+    from job_hunter_agent.application.application_cli import run as run_cli
+
+    run_cli()
+
+
+def parse_args():
+    from job_hunter_agent.application.application_cli import parse_args as parse_cli_args
+
+    return parse_cli_args()

@@ -1091,19 +1091,20 @@ class CompositionTests(IsolatedAsyncioTestCase):
         load_profile.assert_called_once_with("candidate_profile.json")
         create_formatter.assert_called_once_with(settings)
         create_interpreter.assert_not_called()
-        inspector_factory.assert_called_once_with(
-            storage_state_path="linkedin-state.json",
-            headless=True,
-            resume_path="resume.pdf",
-            contact_email="vinicius@example.com",
-            phone="11999999999",
-            phone_country_code="55",
-            candidate_profile=candidate_profile,
-            candidate_profile_path="candidate_profile.json",
-            save_failure_artifacts=True,
-            failure_artifacts_dir=".tmp-tests/failure-artifacts",
-            modal_interpretation_formatter=formatter,
-        )
+        kwargs = inspector_factory.call_args.kwargs  # type: ignore[attr-defined]
+        self.assertEqual(kwargs["storage_state_path"], "linkedin-state.json")
+        self.assertTrue(kwargs["headless"])
+        self.assertEqual(kwargs["resume_path"], "resume.pdf")
+        self.assertEqual(kwargs["contact_email"], "vinicius@example.com")
+        self.assertEqual(kwargs["phone"], "11999999999")
+        self.assertEqual(kwargs["phone_country_code"], "55")
+        self.assertIs(kwargs["candidate_profile"], candidate_profile)
+        self.assertEqual(kwargs["candidate_profile_path"], "candidate_profile.json")
+        self.assertTrue(kwargs["save_failure_artifacts"])
+        self.assertEqual(kwargs["failure_artifacts_dir"], ".tmp-tests/failure-artifacts")
+        self.assertEqual(kwargs["modal_interpretation_formatter"], formatter)
+        self.assertTrue(kwargs["artifact_capture"].enabled)
+        self.assertEqual(str(kwargs["artifact_capture"].artifacts_dir), ".tmp-tests/failure-artifacts")
 
     async def test_create_linkedin_application_flow_inspector_submit_uses_interpreter_only(self) -> None:
         settings = type(
@@ -1143,19 +1144,20 @@ class CompositionTests(IsolatedAsyncioTestCase):
         load_profile.assert_called_once_with("candidate_profile.json")
         create_formatter.assert_not_called()
         create_interpreter.assert_called_once_with(settings)
-        inspector_factory.assert_called_once_with(
-            storage_state_path="linkedin-state.json",
-            headless=False,
-            resume_path="resume.pdf",
-            contact_email="vinicius@example.com",
-            phone="11999999999",
-            phone_country_code="55",
-            candidate_profile=candidate_profile,
-            candidate_profile_path="candidate_profile.json",
-            save_failure_artifacts=False,
-            failure_artifacts_dir=".tmp-tests/failure-artifacts",
-            modal_interpreter=interpreter,
-        )
+        kwargs = inspector_factory.call_args.kwargs  # type: ignore[attr-defined]
+        self.assertEqual(kwargs["storage_state_path"], "linkedin-state.json")
+        self.assertFalse(kwargs["headless"])
+        self.assertEqual(kwargs["resume_path"], "resume.pdf")
+        self.assertEqual(kwargs["contact_email"], "vinicius@example.com")
+        self.assertEqual(kwargs["phone"], "11999999999")
+        self.assertEqual(kwargs["phone_country_code"], "55")
+        self.assertIs(kwargs["candidate_profile"], candidate_profile)
+        self.assertEqual(kwargs["candidate_profile_path"], "candidate_profile.json")
+        self.assertFalse(kwargs["save_failure_artifacts"])
+        self.assertEqual(kwargs["failure_artifacts_dir"], ".tmp-tests/failure-artifacts")
+        self.assertEqual(kwargs["modal_interpreter"], interpreter)
+        self.assertFalse(kwargs["artifact_capture"].enabled)
+        self.assertEqual(str(kwargs["artifact_capture"].artifacts_dir), ".tmp-tests/failure-artifacts")
 
     async def test_create_linkedin_application_flow_inspector_rejects_unsupported_mode(self) -> None:
         settings = type(
