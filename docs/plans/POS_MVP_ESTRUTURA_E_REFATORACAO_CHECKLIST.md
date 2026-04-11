@@ -552,3 +552,22 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 - [x] Regressao operacional principal permanece verde
 - [x] Estrutura do codigo fica mais modular no fluxo LinkedIn
 - [x] Telegram ou CLI passam a ser suficientes para operar o produto com seguranca
+
+## Registro de Hipoteses Futuras
+
+### MCP remoto como executor opcional ainda em analise
+
+Descricao:
+Existe uma hipotese de expor um servidor MCP remoto apontando para a maquina pessoal ou para um host dedicado como camada opcional de operacao assistida. O objetivo nao e substituir o runtime principal do produto, e sim permitir execucao controlada de comandos operacionais por uma interface externa. Essa direcao parece util para testes, operacao tecnica e integracoes futuras, mas ainda exige analise de seguranca, escopo, rede e aderencia ao modelo local-first.
+
+- [ ] Avaliar um servidor MCP remoto como interface opcional para operar o projeto
+- [ ] Validar explicitamente o requisito de servidor remoto acessivel ao ChatGPT, e nao apenas `localhost`
+- [ ] Definir o escopo minimo de ferramentas publicas do MCP:
+  - [ ] rodar testes
+  - [ ] executar comandos operacionais da aplicacao
+  - [ ] ler logs
+  - [ ] escrever configuracoes locais controladas
+- [ ] Preferir operacoes publicas e restritas em vez de shell remoto irrestrito
+- [ ] Garantir que segredos locais nao entrem no repositorio, artefatos ou historico operacional
+- [ ] Avaliar se essa abordagem preserva o modelo local-first e o escopo pessoal do produto
+- [ ] Avaliar se o alvo ideal dessa interface e a maquina local, uma VPS ou um runner dedicado
