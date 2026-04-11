@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
 from job_hunter_agent.application.application_flow import (
     ApplicationFlowCoordinator,
@@ -15,9 +14,11 @@ from job_hunter_agent.application.application_messages import (
     format_preflight_requires_confirmed_status,
     format_preflight_unsupported_flow_blocked,
 )
+from job_hunter_agent.application.application_ports import (
+    ApplicationFlowInspector,
+    normalize_application_flow_inspection,
+)
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
-from job_hunter_agent.application.contracts import ApplicationFlowInspection
-from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
 from job_hunter_agent.infrastructure.repository import JobRepository
 
@@ -27,27 +28,6 @@ class ApplicationPreflightResult:
     outcome: str
     detail: str
     application_status: str
-
-
-class ApplicationFlowInspector(Protocol):
-    def inspect(self, job: JobPosting) -> ApplicationFlowInspection:
-        raise NotImplementedError
-
-
-def normalize_application_flow_inspection(result) -> ApplicationFlowInspection:
-    outcome = str(getattr(result, "outcome", "") or "").strip()
-    detail = str(getattr(result, "detail", "") or "").strip()
-    if outcome not in {"ready", "manual_review", "blocked", "ignored", "error"}:
-        return ApplicationFlowInspection(
-            outcome="error",
-            detail="inspecao de fluxo retornou outcome invalido",
-        )
-    if not detail:
-        return ApplicationFlowInspection(
-            outcome="error",
-            detail="inspecao de fluxo retornou detail vazio",
-        )
-    return ApplicationFlowInspection(outcome=outcome, detail=detail)
 
 
 class ApplicationPreflightService:

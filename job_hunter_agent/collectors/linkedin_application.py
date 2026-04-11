@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, TYPE_CHECKING
 
@@ -15,17 +14,18 @@ from job_hunter_agent.collectors.linkedin_application_entrypoint import (
     classify_linkedin_job_page_readiness,
     extract_linkedin_job_id,
     needs_canonical_job_navigation,
-    recover_linkedin_direct_apply_url_from_html,
 )
 from job_hunter_agent.collectors.linkedin_application_entry_strategies import (
     LinkedInApplyHrefEntrypointStrategy,
     LinkedInApplyHtmlRecoveryStrategy,
 )
 from job_hunter_agent.collectors.linkedin_application_execution import LinkedInEasyApplyExecution
+from job_hunter_agent.collectors.linkedin_application_inspection import inspect_linkedin_application
 from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyApplyModalDriver
 from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
 from job_hunter_agent.collectors.linkedin_application_opening import LinkedInEasyApplyFlowOpener
 from job_hunter_agent.collectors.linkedin_application_reader import LinkedInApplicationPageReader
+from job_hunter_agent.collectors.linkedin_application_runtime import run_linkedin_async
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationInspection,
     LinkedInApplicationPageState,
@@ -36,10 +36,7 @@ from job_hunter_agent.collectors.linkedin_application_state import (
     describe_linkedin_job_page_readiness,
     describe_linkedin_modal_blocker,
 )
-from job_hunter_agent.collectors.linkedin_application_submit import (
-    evaluate_linkedin_submit_readiness,
-)
-from job_hunter_agent.core.browser_support import load_playwright_storage_state, resolve_local_chromium
+from job_hunter_agent.collectors.linkedin_application_submission_flow import submit_linkedin_application
 from job_hunter_agent.core.candidate_profile import CandidateProfile
 from job_hunter_agent.core.domain import JobPosting
 
@@ -152,171 +149,40 @@ class LinkedInApplicationFlowInspector:
         return self._submit_sync(job)
 
     def _inspect_sync(self, job: JobPosting) -> LinkedInApplicationInspection:
-        import asyncio
-
-        return asyncio.run(self._inspect_async(job))
+        return run_linkedin_async(self._inspect_async(job))
 
     def _submit_sync(self, job: JobPosting) -> ApplicationSubmissionResult:
-        import asyncio
-
-        return asyncio.run(self._submit_async(job))
+        return run_linkedin_async(self._submit_async(job))
 
     async def _inspect_async(self, job: JobPosting) -> LinkedInApplicationInspection:
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError as exc:
-            raise RuntimeError(
-                "Dependencias de candidatura assistida nao estao instaladas. Rode pip install -r requirements.txt."
-            ) from exc
-
-        executable_path = resolve_local_chromium()
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(
-                executable_path=str(executable_path),
-                headless=self.headless,
-                args=["--start-maximized"],
-            )
-            context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
-            page = await context.new_page()
-            try:
-                await page.goto(job.url, wait_until="domcontentloaded")
-                await self._ensure_target_job_page(page, job)
-                state, readiness = await self._read_state_with_hydration(page, job)
-                if readiness.result != "ready":
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="preflight",
-                        detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}",
-                    )
-                    inspection = LinkedInApplicationInspection(
-                        outcome="blocked",
-                        detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
-                    )
-                    return inspection
-                state = await self._execution.inspect_preflight_state(page, state)
-                if state.easy_apply and not state.modal_open:
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="preflight",
-                        detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
-                    )
-                else:
-                    artifact_detail = ""
-            finally:
-                await context.close()
-                await browser.close()
-
-        inspection = classify_linkedin_application_page_state(state)
-        if self.modal_interpretation_formatter is not None and state.modal_open:
-            try:
-                extra = self.modal_interpretation_formatter(state).strip()
-            except Exception:
-                extra = ""
-            if extra:
-                inspection = LinkedInApplicationInspection(
-                    outcome=inspection.outcome,
-                    detail=f"{inspection.detail} | {extra}",
-                )
-        if artifact_detail:
-            inspection = LinkedInApplicationInspection(
-                outcome=inspection.outcome,
-                detail=f"{inspection.detail}{artifact_detail}",
-            )
-        return inspection
+        return await inspect_linkedin_application(
+            job=job,
+            storage_state_path=self.storage_state_path,
+            headless=self.headless,
+            ensure_target_job_page=self._ensure_target_job_page,
+            read_state_with_hydration=self._read_state_with_hydration,
+            capture_failure_artifacts=self._capture_failure_artifacts,
+            inspect_preflight_state=self._execution.inspect_preflight_state,
+            classify_page_state=classify_linkedin_application_page_state,
+            modal_interpretation_formatter=self.modal_interpretation_formatter,
+        )
 
     async def _submit_async(self, job: JobPosting) -> ApplicationSubmissionResult:
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError as exc:
-            raise RuntimeError(
-                "Dependencias de candidatura assistida nao estao instaladas. Rode pip install -r requirements.txt."
-            ) from exc
-
-        executable_path = resolve_local_chromium()
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(
-                executable_path=str(executable_path),
-                headless=self.headless,
-                args=["--start-maximized"],
-            )
-            context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
-            page = await context.new_page()
-            state = LinkedInApplicationPageState()
-            try:
-                await page.goto(job.url, wait_until="domcontentloaded")
-                await self._ensure_target_job_page(page, job)
-                state, readiness = await self._read_state_with_hydration(page, job)
-                if readiness.result != "ready":
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="submit",
-                        detail=f"submissao real bloqueada: {describe_linkedin_job_page_readiness(readiness)}",
-                    )
-                    return ApplicationSubmissionResult(
-                        status="error_submit",
-                        detail=f"submissao real bloqueada: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
-                    )
-                if not state.easy_apply:
-                    return ApplicationSubmissionResult(
-                        status="error_submit",
-                        detail="submissao real bloqueada: CTA de candidatura simplificada nao encontrado",
-                    )
-                state = await self._execution.prepare_submit_state(page, state)
-                if not state.modal_open or not state.modal_submit_visible:
-                    submit_readiness = evaluate_linkedin_submit_readiness(
-                        state,
-                        interpretation_detail=self._format_modal_interpretation_for_error(state),
-                    )
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="submit",
-                        detail=(
-                            "submissao real bloqueada: fluxo nao chegou ao botao de envio"
-                            f" | bloqueio={describe_linkedin_modal_blocker(state)}"
-                        ),
-                    )
-                    return ApplicationSubmissionResult(
-                        status="error_submit",
-                        detail=f"{submit_readiness.detail}{artifact_detail}",
-                    )
-                submitted = await self._execution.submit(page)
-                if not submitted:
-                    artifact_detail = await self._capture_failure_artifacts(
-                        page,
-                        state=state,
-                        job=job,
-                        phase="submit",
-                        detail="submissao real falhou: clique final de envio nao confirmou sucesso",
-                    )
-                    return ApplicationSubmissionResult(
-                        status="error_submit",
-                        detail=(
-                            "submissao real falhou: clique final de envio nao confirmou sucesso"
-                            f"{artifact_detail}"
-                        ),
-                    )
-                return ApplicationSubmissionResult(
-                    status="submitted",
-                    detail="submissao real concluida no LinkedIn",
-                    submitted_at=datetime.now().isoformat(timespec="seconds"),
-                )
-            except Exception as exc:
-                return await self._build_submit_exception_result(exc, page=page, state=state, job=job)
-            finally:
-                await context.close()
-                await browser.close()
+        return await submit_linkedin_application(
+            job=job,
+            storage_state_path=self.storage_state_path,
+            headless=self.headless,
+            ensure_target_job_page=self._ensure_target_job_page,
+            read_state_with_hydration=self._read_state_with_hydration,
+            capture_failure_artifacts=self._capture_failure_artifacts,
+            prepare_submit_state=self._execution.prepare_submit_state,
+            execution_submit=self._execution.submit,
+            format_modal_interpretation_for_error=self._format_modal_interpretation_for_error,
+            build_submit_exception_result=self._build_submit_exception_result,
+        )
 
     async def _read_page_state(self, page) -> LinkedInApplicationPageState:
         return await self._page_reader.read(page)
-
 
     def _assess_job_page_readiness(
         self,
@@ -513,5 +379,3 @@ class LinkedInApplicationFlowInspector:
 
     async def _detect_submit_success(self, page) -> bool:
         return await self._modal_driver.detect_submit_success(page)
-
-
