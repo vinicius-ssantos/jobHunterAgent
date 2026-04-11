@@ -53,6 +53,12 @@ class ApplicationSubmitResult:
     application_status: str
 
 
+@dataclass(frozen=True)
+class ApplicationFlowInspection:
+    outcome: str
+    detail: str
+
+
 class ApplicationSupportAssessor(Protocol):
     def assess(self, job: JobPosting) -> ApplicationSupportAssessment:
         raise NotImplementedError
@@ -64,7 +70,7 @@ class JobApplicant(Protocol):
 
 
 class ApplicationFlowInspector(Protocol):
-    def inspect(self, job: JobPosting):
+    def inspect(self, job: JobPosting) -> ApplicationFlowInspection:
         raise NotImplementedError
 
 
@@ -166,6 +172,47 @@ class ApplicationPreparationService:
         return format_application_priority_note(assessed)
 
 
+def normalize_application_flow_inspection(result) -> ApplicationFlowInspection:
+    outcome = str(getattr(result, "outcome", "") or "").strip()
+    detail = str(getattr(result, "detail", "") or "").strip()
+    if outcome not in {"ready", "manual_review", "blocked", "ignored", "error"}:
+        return ApplicationFlowInspection(
+            outcome="error",
+            detail="inspecao de fluxo retornou outcome invalido",
+        )
+    if not detail:
+        return ApplicationFlowInspection(
+            outcome="error",
+            detail="inspecao de fluxo retornou detail vazio",
+        )
+    return ApplicationFlowInspection(outcome=outcome, detail=detail)
+
+
+def normalize_application_submission_result(result) -> ApplicationSubmissionResult:
+    status = str(getattr(result, "status", "") or "").strip()
+    detail = str(getattr(result, "detail", "") or "").strip()
+    submitted_at_raw = getattr(result, "submitted_at", None)
+    external_reference_raw = getattr(result, "external_reference", "")
+    if status not in {"submitted", "error_submit", "authorized_submit"}:
+        return ApplicationSubmissionResult(
+            status="error_submit",
+            detail="applicant retornou status invalido",
+        )
+    if not detail:
+        return ApplicationSubmissionResult(
+            status="error_submit",
+            detail="applicant retornou detail vazio",
+        )
+    submitted_at = str(submitted_at_raw).strip() if submitted_at_raw else None
+    external_reference = str(external_reference_raw or "").strip()
+    return ApplicationSubmissionResult(
+        status=status,
+        detail=detail,
+        submitted_at=submitted_at,
+        external_reference=external_reference,
+    )
+
+
 class ApplicationPreflightService:
     def __init__(self, repository: JobRepository, flow_inspector: ApplicationFlowInspector | None = None) -> None:
         self.repository = repository
@@ -213,7 +260,7 @@ class ApplicationPreflightService:
         if capabilities.preflight_supported and job.source_site.lower() == "linkedin" and "linkedin.com/jobs/" in job.url.lower():
             if self.flow_inspector is not None:
                 try:
-                    inspection = self.flow_inspector.inspect(job)
+                    inspection = normalize_application_flow_inspection(self.flow_inspector.inspect(job))
                 except Exception as exc:
                     inspection = None
                     detail = f"preflight real falhou ao inspecionar a pagina: {exc}"
@@ -388,7 +435,7 @@ class ApplicationSubmissionService:
             )
 
         try:
-            result = self.applicant.submit(application, job)
+            result = normalize_application_submission_result(self.applicant.submit(application, job))
         except Exception as exc:
             detail = f"submissao real falhou ao executar o applicant: {exc}"
             application_status = self.flow.record_submit_result(

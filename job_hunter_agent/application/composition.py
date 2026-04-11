@@ -92,18 +92,9 @@ def create_application_preparation_service(
 def create_application_preflight_service(repository: JobRepository, settings: Settings) -> ApplicationPreflightService:
     return ApplicationPreflightService(
         repository,
-        flow_inspector=LinkedInApplicationFlowInspector(
-            storage_state_path=settings.linkedin_storage_state_path,
-            headless=settings.browser_headless,
-            resume_path=settings.resume_path,
-            contact_email=settings.application_contact_email,
-            phone=settings.application_phone,
-            phone_country_code=settings.application_phone_country_code,
-            candidate_profile=load_candidate_profile(settings.candidate_profile_path),
-            candidate_profile_path=settings.candidate_profile_path,
-            modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
-            save_failure_artifacts=settings.save_failure_artifacts,
-            failure_artifacts_dir=settings.failure_artifacts_dir,
+        flow_inspector=create_linkedin_application_flow_inspector(
+            settings,
+            mode="preflight",
         ),
     )
 
@@ -111,18 +102,9 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
 def create_application_submission_service(repository: JobRepository, settings: Settings) -> ApplicationSubmissionService:
     return ApplicationSubmissionService(
         repository,
-        applicant=LinkedInApplicationFlowInspector(
-            storage_state_path=settings.linkedin_storage_state_path,
-            headless=settings.browser_headless,
-            resume_path=settings.resume_path,
-            contact_email=settings.application_contact_email,
-            phone=settings.application_phone,
-            phone_country_code=settings.application_phone_country_code,
-            candidate_profile=load_candidate_profile(settings.candidate_profile_path),
-            candidate_profile_path=settings.candidate_profile_path,
-            modal_interpreter=create_linkedin_modal_interpreter(settings),
-            save_failure_artifacts=settings.save_failure_artifacts,
-            failure_artifacts_dir=settings.failure_artifacts_dir,
+        applicant=create_linkedin_application_flow_inspector(
+            settings,
+            mode="submit",
         ),
         readiness_checker=ApplicationReadinessCheckService(
             linkedin_storage_state_path=settings.linkedin_storage_state_path,
@@ -212,6 +194,36 @@ def create_linkedin_field_repairer(settings: Settings) -> OllamaLinkedInFieldRep
         model_name=settings.ollama_model,
         base_url=settings.ollama_url,
     )
+
+
+def create_linkedin_application_flow_inspector(
+    settings: Settings,
+    *,
+    mode: str,
+) -> LinkedInApplicationFlowInspector:
+    shared_kwargs = {
+        "storage_state_path": settings.linkedin_storage_state_path,
+        "headless": settings.browser_headless,
+        "resume_path": settings.resume_path,
+        "contact_email": settings.application_contact_email,
+        "phone": settings.application_phone,
+        "phone_country_code": settings.application_phone_country_code,
+        "candidate_profile": load_candidate_profile(settings.candidate_profile_path),
+        "candidate_profile_path": settings.candidate_profile_path,
+        "save_failure_artifacts": settings.save_failure_artifacts,
+        "failure_artifacts_dir": settings.failure_artifacts_dir,
+    }
+    if mode == "preflight":
+        return LinkedInApplicationFlowInspector(
+            **shared_kwargs,
+            modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
+        )
+    if mode == "submit":
+        return LinkedInApplicationFlowInspector(
+            **shared_kwargs,
+            modal_interpreter=create_linkedin_modal_interpreter(settings),
+        )
+    raise ValueError(f"modo de inspector do LinkedIn nao suportado: {mode}")
 
 
 def create_notifier(

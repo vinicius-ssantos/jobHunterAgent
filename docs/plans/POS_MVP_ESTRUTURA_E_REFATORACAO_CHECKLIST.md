@@ -17,58 +17,63 @@ Fechar o produto operacionalmente antes de expandir escopo.
 
 Regra da fase atual:
 
-- [ ] Nao adicionar novos portais antes de estabilizar o LinkedIn
-- [ ] Nao adicionar novas features de produto antes de endurecer operacao, estados e observabilidade
-- [ ] Tratar a fase atual como estabilizacao e padronizacao
+- [x] Nao adicionar novos portais antes de estabilizar o LinkedIn
+- [x] Nao adicionar novas features de produto antes de endurecer operacao, estados e observabilidade
+- [x] Tratar a fase atual como estabilizacao e padronizacao
 
 ## P0: Estabilizacao Operacional
 
 ### Fluxo real
 
-- [ ] Repetir validacao real em mais amostras de vagas Easy Apply
-- [ ] Catalogar variacoes reais do LinkedIn que ainda aparecem:
-  - [ ] redirecionamento para `similar jobs`
-  - [ ] perguntas adicionais obrigatorias
-  - [ ] checkboxes opcionais
-  - [ ] vagas com curriculo reaproveitado
-  - [ ] vagas com etapa final sem modal classico
-- [ ] Criar criterios objetivos para classificar:
-  - [ ] `ready`
-  - [ ] `manual_review`
-  - [ ] `blocked`
+- [x] Repetir validacao real em mais amostras de vagas Easy Apply
+  - [x] amostras reais validadas: `application_id=2`, `5`, `7`, `8`, `10` em `submitted`
+  - [x] bloqueios reais classificados: `application_id=1` (`vaga_expirada`), `3` (`similar_jobs`), `4`, `6`, `9` (`candidatura_externa`)
+- [x] Catalogar variacoes reais do LinkedIn que ainda aparecem:
+  - [x] redirecionamento para `similar jobs`
+  - [x] perguntas adicionais obrigatorias
+  - [x] checkboxes opcionais
+  - [x] vagas com curriculo reaproveitado
+    - [x] nao observadas nas amostras reais atuais; nenhum tratamento especifico adicional necessario ate aqui
+  - [x] vagas com etapa final sem modal classico
+    - [x] nao observadas nas amostras reais atuais; monitoradas via artefatos e classificacao operacional
+- [x] Criar criterios objetivos para classificar:
+  - [x] `ready`
+  - [x] `manual_review`
+  - [x] `blocked`
 
 ### Higiene de estado
 
 - [x] Parar de acumular todo o historico operacional em `notes`
-- [ ] Separar no armazenamento:
+- [x] Separar no armazenamento:
   - [x] ultimo preflight
   - [x] ultimo submit
   - [x] ultimo erro
   - [x] historico resumido de transicoes
 - [x] Garantir que toda transicao relevante tenha timestamp e motivo explicito
-- [ ] Revisar se `support_level` e `support_rationale` devem ser atualizados por ciclo ou preservados como snapshot inicial
+- [x] Revisar se `support_level` e `support_rationale` devem ser atualizados por ciclo ou preservados como snapshot inicial
+  - [x] decisao: preservar como snapshot inicial do rascunho; preflight e submit nao recalculam suporte por ciclo
 
 ### Observabilidade
 
-- [ ] Criar uma visao clara de fila operacional por status
-- [ ] Expor rapidamente:
-  - [ ] quantas vagas estao `approved`
-  - [ ] quantas candidaturas estao `draft`
-  - [ ] quantas estao `confirmed`
-  - [ ] quantas estao `authorized_submit`
-  - [ ] quantas estao `submitted`
-  - [ ] quantas estao `error_submit`
-- [ ] Padronizar nomes e estrutura dos artefatos de falha
-- [ ] Adicionar um resumo final por execucao com:
-  - [ ] preflights concluidos
-  - [ ] submits concluidos
-  - [ ] bloqueios por tipo
+- [x] Criar uma visao clara de fila operacional por status
+- [x] Expor rapidamente:
+  - [x] quantas vagas estao `approved`
+  - [x] quantas candidaturas estao `draft`
+  - [x] quantas estao `confirmed`
+  - [x] quantas estao `authorized_submit`
+  - [x] quantas estao `submitted`
+  - [x] quantas estao `error_submit`
+- [x] Padronizar nomes e estrutura dos artefatos de falha
+- [x] Adicionar um resumo final por execucao com:
+  - [x] preflights concluidos
+  - [x] submits concluidos
+  - [x] bloqueios por tipo
 
 ## P0: UX Operacional
 
 - [x] Eliminar operacao por `python -c` para tarefas frequentes
 - [x] Fechar cobertura operacional completa por CLI para que o fluxo nao dependa do Telegram como unico caminho de execucao
-- [ ] Criar comandos claros para:
+- [x] Criar comandos claros para:
   - [x] listar vagas pendentes de revisao
   - [x] aprovar vaga
   - [x] rejeitar vaga
@@ -82,9 +87,9 @@ Regra da fase atual:
   - [x] executar submit
   - [x] ver artefatos da ultima falha
 - [x] Explicitar na UX que CLI e Telegram cobrem o fluxo operacional principal, com Telegram opcional para revisao assincrona
-- [ ] Definir uma interface principal:
-  - [ ] Telegram como interface de operacao principal
-  - [ ] CLI como fallback tecnico
+- [x] Definir uma interface principal:
+  - [x] CLI como interface operacional principal
+  - [x] Telegram como interface de revisao assincrona opcional
 - [x] Tornar o fluxo humano rastreavel sem editar estado manualmente no banco
 
 ## P1: Melhorias Estruturais
@@ -107,11 +112,11 @@ Regra da fase atual:
 #### Single Responsibility Principle
 
 - [ ] Quebrar `linkedin_application.py` em componentes menores:
-  - [ ] leitura do estado da pagina
-  - [ ] localizacao e abertura do fluxo apply
-  - [ ] preenchimento de campos
-  - [ ] decisao de submit
-  - [ ] captura de artefatos
+  - [x] leitura do estado da pagina
+  - [x] localizacao e abertura do fluxo apply
+  - [x] preenchimento de campos
+  - [x] decisao de submit
+  - [x] captura de artefatos
 - [x] Reduzir o papel de `applicant.py` para servicos de caso de uso e transicao
 - [ ] Manter logs e persistencia fora de helpers de DOM quando possivel
 
@@ -120,16 +125,16 @@ Regra da fase atual:
 - [ ] Definir pontos de extensao para novos tipos de fluxo do LinkedIn sem branching espalhado
 - [ ] Isolar estrategias de deteccao do fluxo:
   - [ ] modal classico
-  - [ ] `apply` por URL
+  - [x] `apply` por URL
   - [ ] review final
-  - [ ] bloqueios conhecidos
+  - [x] bloqueios conhecidos
 - [ ] Tornar a classificacao de preflight extensivel por estrategia
 
 #### Liskov Substitution Principle
 
-- [ ] Revisar protocolos de `ApplicationFlowInspector` e `JobApplicant`
-- [ ] Garantir que dublês de teste preservem o contrato real
-- [ ] Evitar caminhos especiais de producao que nao aparecem nos testes
+- [x] Revisar protocolos de `ApplicationFlowInspector` e `JobApplicant`
+- [x] Garantir que dublês de teste preservem o contrato real
+- [x] Evitar caminhos especiais de producao que nao aparecem nos testes
 
 #### Interface Segregation Principle
 
@@ -157,7 +162,7 @@ Regra da fase atual:
 ### Tamanho e legibilidade
 
 - [ ] Reduzir funcoes longas com muitos caminhos de erro
-- [ ] Extrair blocos de fallback do LinkedIn para helpers nomeados
+- [x] Extrair blocos de fallback do LinkedIn para helpers nomeados
 - [ ] Consolidar trechos repetidos de clique, espera e recuperacao
 
 ### Dados e modelos
@@ -229,6 +234,7 @@ Descricao:
 As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ainda precisam de analise de viabilidade antes de entrarem no backlog priorizado. A avaliacao deve considerar aderencia ao escopo local-first, impacto no loop principal, complexidade de manutencao, risco de ampliar demais o produto e custo operacional no uso diario.
 
 - [ ] Avaliar calibracao do scoring com base no historico local de vagas `approved` e `rejected`
+- [ ] Avaliar e implementar busca dirigida por empresas prioritarias, usando grupos de prioridade de empresas, familias de cargo, senioridade alvo e janela temporal para gerar uma fila priorizada de revisao em lote
 - [ ] Avaliar registrar motivo curto e padronizado para descarte por regra ou por score
 - [ ] Avaliar criar um feedback loop local de revisao humana para refinar criterios de triagem
 - [ ] Avaliar um modo formal de `dry-run` para preflight e submit, com relatorio e artefatos
@@ -467,8 +473,8 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 - [ ] Tornar o Telegram suficiente para operar o fluxo completo com seguranca
 - [ ] Exibir melhor o motivo de `manual_review`
-- [ ] Exibir quando a vaga parece cair em `similar jobs`
-- [ ] Exibir quando a vaga exige perguntas adicionais
+- [x] Exibir quando a vaga parece cair em `similar jobs`
+- [x] Exibir quando a vaga exige perguntas adicionais
 
 ### Priorizacao
 
@@ -530,7 +536,7 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 
 - [x] Fluxo de candidatura assistida opera sem `python -c`
 - [x] Historico operacional deixa de depender de texto livre acumulado
-- [ ] Casos `similar jobs` e `perguntas adicionais` ficam claramente classificados
+- [x] Casos `similar jobs` e `perguntas adicionais` ficam claramente classificados
 - [x] Regressao operacional principal permanece verde
 - [x] Estrutura do codigo fica mais modular no fluxo LinkedIn
 - [x] Telegram ou CLI passam a ser suficientes para operar o produto com seguranca

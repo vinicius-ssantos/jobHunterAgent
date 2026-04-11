@@ -620,6 +620,10 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         meta_files = list(Path(tmp).glob("*_meta.json"))
         self.assertEqual(len(meta_files), 1)
         payload = json.loads(meta_files[0].read_text(encoding="utf-8"))
+        self.assertEqual(payload["artifact_schema_version"], 1)
+        self.assertEqual(payload["artifact_type"], "submit")
+        self.assertTrue(payload["artifact_id"].startswith("submit-job-123-"))
+        self.assertEqual(payload["detail_slug"], "pagina-fechada")
         self.assertTrue(payload["page_closed"])
         self.assertEqual(payload["files"]["html"], "")
         self.assertEqual(payload["files"]["screenshot"], "")
@@ -662,6 +666,13 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertEqual(result.status, "error_submit")
         self.assertIn("erro inesperado: boom", result.detail)
         self.assertIn("artefatos=", result.detail)
+        meta_files = list(Path(tmp).glob("*_meta.json"))
+        self.assertEqual(len(meta_files), 1)
+        payload = json.loads(meta_files[0].read_text(encoding="utf-8"))
+        self.assertEqual(payload["artifact_schema_version"], 1)
+        self.assertEqual(payload["detail_slug"], "submissao-real-falhou-com-erro-inesperado-boom")
+        self.assertTrue(payload["files"]["html"].endswith("_dom.html"))
+        self.assertTrue(payload["files"]["screenshot"].endswith("_screenshot.png"))
 
     def test_build_submit_exception_result_reports_closed_page_with_artifact_metadata(self) -> None:
         class _ClosedPage:
