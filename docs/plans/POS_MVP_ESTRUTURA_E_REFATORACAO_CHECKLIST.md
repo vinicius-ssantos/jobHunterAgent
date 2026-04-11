@@ -517,20 +517,20 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 ### `job_hunter_agent/linkedin_application.py`
 
 - [x] Separar DOM inspection de action execution
-- [ ] Isolar estrategias de entrada no fluxo apply
-- [ ] Isolar estrategias de deteccao de review final
+- [x] Isolar estrategias de entrada no fluxo apply
+- [x] Isolar estrategias de deteccao de review final
 - [x] Extrair um componente de artifact capture
 
 ### `job_hunter_agent/notifier.py`
 
-- [ ] Revisar se handlers de callback ainda estao fazendo mais de uma coisa
-- [ ] Reduzir regras de negocio embutidas no transporte
+- [x] Revisar se handlers de callback ainda estao fazendo mais de uma coisa
+- [x] Reduzir regras de negocio embutidas no transporte
 
 ### `job_hunter_agent/repository.py`
 
-- [ ] Avaliar se `notes` deve continuar no formato atual
-- [ ] Criar consultas mais orientadas a operacao
-- [ ] Manter SQL encapsulado, mas reduzir responsabilidades auxiliares quando crescer
+- [x] Avaliar se `notes` deve continuar no formato atual
+- [x] Criar consultas mais orientadas a operacao
+- [x] Manter SQL encapsulado, mas reduzir responsabilidades auxiliares quando crescer
 
 ## Definicao de Conclusao da Fase
 

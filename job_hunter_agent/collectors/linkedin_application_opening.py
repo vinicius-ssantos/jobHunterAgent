@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from job_hunter_agent.collectors.linkedin_application_entrypoint import (
-    recover_linkedin_direct_apply_url_from_html,
+from job_hunter_agent.collectors.linkedin_application_entry_strategies import (
+    LinkedInApplyHrefEntrypointStrategy,
+    LinkedInApplyHtmlRecoveryStrategy,
 )
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationPageState,
@@ -19,16 +20,14 @@ class LinkedInEasyApplyFlowOpener:
         prepare_job_page_for_apply: Callable[[object], Awaitable[None]],
         read_page_state: Callable[[object], Awaitable[LinkedInApplicationPageState]],
         assess_job_page_readiness: Callable[[JobPosting, LinkedInApplicationPageState], LinkedInJobPageReadiness],
-        extract_easy_apply_href: Callable[[object], Awaitable[str]],
-        inspect_easy_apply_modal: Callable[[object, LinkedInApplicationPageState, bool], Awaitable[LinkedInApplicationPageState]],
-        is_page_closed: Callable[[object], bool],
+        href_entrypoint: LinkedInApplyHrefEntrypointStrategy,
+        html_recovery: LinkedInApplyHtmlRecoveryStrategy,
     ) -> None:
         self._prepare_job_page_for_apply = prepare_job_page_for_apply
         self._read_page_state = read_page_state
         self._assess_job_page_readiness = assess_job_page_readiness
-        self._extract_easy_apply_href = extract_easy_apply_href
-        self._inspect_easy_apply_modal = inspect_easy_apply_modal
-        self._is_page_closed = is_page_closed
+        self._href_entrypoint = href_entrypoint
+        self._html_recovery = html_recovery
 
     async def read_state_with_hydration(
         self,
@@ -60,19 +59,7 @@ class LinkedInEasyApplyFlowOpener:
         return state, readiness
 
     async def recover_easy_apply_from_page_html(self, page, job: JobPosting) -> bool:
-        try:
-            content = await page.content()
-        except Exception:
-            return False
-        apply_url = recover_linkedin_direct_apply_url_from_html(content, job.url)
-        if not apply_url:
-            return False
-        try:
-            await page.goto(apply_url, wait_until="domcontentloaded")
-            await page.wait_for_timeout(1800)
-            return True
-        except Exception:
-            return False
+        return await self._html_recovery.recover(page, job_url=job.url)
 
     async def try_open_easy_apply_via_direct_url(
         self,
@@ -80,18 +67,4 @@ class LinkedInEasyApplyFlowOpener:
         *,
         close_modal: bool,
     ) -> LinkedInApplicationPageState:
-        direct_apply_url = await self._extract_easy_apply_href(page)
-        if not direct_apply_url:
-            return await self._read_page_state(page)
-        try:
-            await page.goto(direct_apply_url, wait_until="domcontentloaded")
-            await page.wait_for_timeout(1800)
-            await self._prepare_job_page_for_apply(page)
-            state = await self._read_page_state(page)
-            if state.modal_open:
-                return await self._inspect_easy_apply_modal(page, state, close_modal)
-            return state
-        except Exception:
-            if self._is_page_closed(page):
-                raise
-            return await self._read_page_state(page)
+        return await self._href_entrypoint.open(page, close_modal=close_modal)

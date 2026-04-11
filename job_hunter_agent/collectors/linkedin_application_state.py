@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from job_hunter_agent.collectors.linkedin_application_review import (
+    is_linkedin_review_final_ready,
+    is_linkedin_review_transition_available,
+)
+
 
 @dataclass(frozen=True)
 class LinkedInApplicationInspection:
@@ -86,7 +91,7 @@ def describe_linkedin_modal_blocker(state: LinkedInApplicationPageState) -> str:
         blockers.append("upload_cv_pendente")
     if state.modal_next_visible and not state.progressed_to_next_step:
         blockers.append("etapa_intermediaria")
-    if state.modal_review_visible and not state.reached_review_step:
+    if is_linkedin_review_transition_available(state) and not state.reached_review_step:
         blockers.append("revisao_nao_alcancada")
     if not state.modal_submit_visible:
         blockers.append("botao_submit_ausente")
@@ -130,14 +135,7 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail_parts.append("revisao_final_alcancada=sim")
         if state.ready_to_submit:
             detail_parts.append("pronto_para_envio=sim")
-        if state.ready_to_submit or (
-            state.modal_submit_visible and not (
-                state.modal_next_visible
-                or state.modal_review_visible
-                or state.modal_file_upload
-                or state.modal_questions_visible
-            )
-        ):
+        if is_linkedin_review_final_ready(state):
             detail_parts.append("ok: fluxo pronto para submissao assistida no LinkedIn")
             if state.cta_text:
                 detail_parts.append(f"cta={state.cta_text}")
@@ -149,18 +147,13 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
                 detail=" | ".join(detail_parts),
             )
 
-        if state.modal_submit_visible and not (
-            state.modal_next_visible
-            or state.modal_review_visible
-            or state.modal_file_upload
-            or state.modal_questions_visible
-        ):
+        if is_linkedin_review_final_ready(state):
             detail_parts.append("ok: fluxo simplificado aberto no LinkedIn")
 
         detail_parts.append("inconclusivo: fluxo do LinkedIn exige revisao manual")
         if state.modal_next_visible:
             detail_parts.append("passos_adicionais=sim")
-        if state.modal_review_visible:
+        if is_linkedin_review_transition_available(state):
             detail_parts.append("revisao_final=sim")
         if state.modal_file_upload:
             detail_parts.append("upload_cv=sim")

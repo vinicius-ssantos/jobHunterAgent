@@ -79,14 +79,16 @@ def build_missing_application_reply(application_id: int) -> str:
 
 def build_application_queue_message(repository: JobRepository) -> str:
     summary = repository.application_summary()
-    tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit")
     preview_lines: list[str] = []
     tracked_applications: list[JobApplication] = []
-    for status in tracked_statuses:
-        applications = _sort_applications_by_priority(repository.list_applications_by_status(status))
-        tracked_applications.extend(applications)
-        for application in applications[:3]:
-            preview_lines.append(build_application_preview_line(repository, application))
+    tracked_with_jobs = _list_queue_applications_with_jobs(repository)
+    grouped_by_status: dict[str, list[tuple[JobApplication, JobPosting | None]]] = {}
+    for application, job in tracked_with_jobs:
+        grouped_by_status.setdefault(application.status, []).append((application, job))
+        tracked_applications.append(application)
+    for status in ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit"):
+        for application, job in grouped_by_status.get(status, [])[:3]:
+            preview_lines.append(build_application_preview_line(repository, application, job=job))
     lines = [
         "Candidaturas:",
         f"Total: {summary['total']}",
@@ -113,17 +115,22 @@ def build_application_queue_message(repository: JobRepository) -> str:
     return "\n".join(lines)
 
 
-def build_application_preview_line(repository: JobRepository, application: JobApplication) -> str:
-    job = repository.get_job(application.job_id)
+def build_application_preview_line(
+    repository: JobRepository,
+    application: JobApplication,
+    *,
+    job: JobPosting | None = None,
+) -> str:
+    resolved_job = job if job is not None else repository.get_job(application.job_id)
     priority = extract_application_priority_level(application.notes)
     operational = classify_application_operational_insight(application)
-    if not job:
+    if not resolved_job:
         return (
             f"{application.job_id}: vaga ausente "
             f"[{application.status} | prioridade {priority} | op={operational.reason_code}]"
         )
     return (
-        f"{job.id}: {job.title} - {job.company} "
+        f"{resolved_job.id}: {resolved_job.title} - {resolved_job.company} "
         f"[{application.status} | {application.support_level} | prioridade {priority} | op={operational.reason_code}]"
     )
 
@@ -211,6 +218,33 @@ def _sort_applications_by_priority(applications: list[JobApplication]) -> list[J
         applications,
         key=lambda application: (priority_order.get(extract_application_priority_level(application.notes), 3), application.id),
     )
+
+
+def _sort_application_pairs_by_priority(
+    applications: list[tuple[JobApplication, JobPosting | None]],
+) -> list[tuple[JobApplication, JobPosting | None]]:
+    priority_order = {"alta": 0, "media": 1, "baixa": 2}
+    return sorted(
+        applications,
+        key=lambda item: (priority_order.get(extract_application_priority_level(item[0].notes), 3), item[0].id),
+    )
+
+
+def _list_queue_applications_with_jobs(
+    repository: JobRepository,
+) -> list[tuple[JobApplication, JobPosting | None]]:
+    list_with_jobs = getattr(repository, "list_applications_with_jobs_by_status", None)
+    tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit")
+    if list_with_jobs is not None:
+        applications: list[tuple[JobApplication, JobPosting | None]] = []
+        for status in tracked_statuses:
+            applications.extend(_sort_application_pairs_by_priority(list_with_jobs(status)))
+        return applications
+    applications: list[tuple[JobApplication, JobPosting | None]] = []
+    for status in tracked_statuses:
+        for application in _sort_applications_by_priority(repository.list_applications_by_status(status)):
+            applications.append((application, repository.get_job(application.job_id)))
+    return applications
 
 
 def summarize_operational_classifications(applications: list[JobApplication]) -> list[str]:

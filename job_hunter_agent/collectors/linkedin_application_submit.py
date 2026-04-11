@@ -8,6 +8,7 @@ from job_hunter_agent.collectors.linkedin_application_state import (
     describe_linkedin_easy_apply_entrypoint,
     describe_linkedin_modal_blocker,
 )
+from job_hunter_agent.collectors.linkedin_application_review import is_linkedin_review_final_available
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,7 @@ def evaluate_linkedin_submit_readiness(
     *,
     interpretation_detail: str = "",
 ) -> LinkedInSubmitReadinessDecision:
-    if state.modal_open and state.modal_submit_visible:
+    if is_linkedin_review_final_available(state):
         return LinkedInSubmitReadinessDecision(ready=True, detail="")
 
     snapshot_detail = f" | {build_linkedin_modal_snapshot(state)}" if state.modal_open else ""

@@ -381,6 +381,31 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual([item.job_id for item in ready], [first_job.id])
         self.assertEqual([item.job_id for item in cancelled], [second_job.id])
 
+    def test_list_applications_with_jobs_by_status_returns_joined_rows(self) -> None:
+        job = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        application = self.repository.create_application_draft(job.id, notes="contexto humano")
+        self.repository.mark_application_status(application.id, status="confirmed")
+
+        joined = self.repository.list_applications_with_jobs_by_status("confirmed")
+
+        self.assertEqual(len(joined), 1)
+        stored_application, stored_job = joined[0]
+        self.assertEqual(stored_application.id, application.id)
+        self.assertIsNotNone(stored_job)
+        self.assertEqual(stored_job.id, job.id)
+
+    def test_list_tracked_applications_with_jobs_limits_to_operational_statuses(self) -> None:
+        first_job = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
+        second_job = self.repository.save_new_jobs([sample_job("https://example.com/job-2", "key-2")])[0]
+        tracked = self.repository.create_application_draft(first_job.id)
+        cancelled = self.repository.create_application_draft(second_job.id)
+        self.repository.mark_application_status(tracked.id, status="authorized_submit")
+        self.repository.mark_application_status(cancelled.id, status="cancelled")
+
+        joined = self.repository.list_tracked_applications_with_jobs()
+
+        self.assertEqual([application.id for application, _job in joined], [tracked.id])
+
     def test_application_preparation_service_creates_drafts_only_for_approved_jobs(self) -> None:
         approved = self.repository.save_new_jobs([sample_job("https://example.com/job-1", "key-1")])[0]
         collected = self.repository.save_new_jobs([sample_job("https://example.com/job-2", "key-2")])[0]

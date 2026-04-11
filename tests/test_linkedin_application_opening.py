@@ -1,5 +1,9 @@
 import unittest
 
+from job_hunter_agent.collectors.linkedin_application_entry_strategies import (
+    LinkedInApplyHrefEntrypointStrategy,
+    LinkedInApplyHtmlRecoveryStrategy,
+)
 from job_hunter_agent.collectors.linkedin_application_opening import LinkedInEasyApplyFlowOpener
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationPageState,
@@ -18,13 +22,19 @@ class LinkedInEasyApplyFlowOpenerTests(unittest.TestCase):
         inspect_easy_apply_modal,
         is_page_closed,
     ) -> LinkedInEasyApplyFlowOpener:
+        href_entrypoint = LinkedInApplyHrefEntrypointStrategy(
+            extract_easy_apply_href=extract_easy_apply_href,
+            prepare_job_page_for_apply=prepare_job_page_for_apply,
+            read_page_state=read_page_state,
+            inspect_easy_apply_modal=inspect_easy_apply_modal,
+            is_page_closed=is_page_closed,
+        )
         return LinkedInEasyApplyFlowOpener(
             prepare_job_page_for_apply=prepare_job_page_for_apply,
             read_page_state=read_page_state,
             assess_job_page_readiness=assess_job_page_readiness,
-            extract_easy_apply_href=extract_easy_apply_href,
-            inspect_easy_apply_modal=inspect_easy_apply_modal,
-            is_page_closed=is_page_closed,
+            href_entrypoint=href_entrypoint,
+            html_recovery=LinkedInApplyHtmlRecoveryStrategy(),
         )
 
     def test_try_open_easy_apply_via_direct_url_reads_apply_route_when_modal_does_not_open(self) -> None:

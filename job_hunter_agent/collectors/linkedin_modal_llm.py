@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationPageState
+from job_hunter_agent.collectors.linkedin_application_review import (
+    is_linkedin_review_final_available,
+    is_linkedin_review_transition_available,
+)
 
 
 @dataclass(frozen=True)
@@ -36,11 +40,11 @@ def validate_linkedin_modal_interpretation(
             return interpretation
         return _fallback_guardrail("botao next nao esta disponivel", state)
     if action == "open_review":
-        if state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+        if is_linkedin_review_transition_available(state):
             return interpretation
         return _fallback_guardrail("etapa de review nao esta disponivel", state)
     if action == "submit_if_authorized":
-        if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+        if is_linkedin_review_final_available(state):
             return interpretation
         return _fallback_guardrail("botao final de submit nao esta visivel", state)
     return interpretation
@@ -90,7 +94,7 @@ def deterministic_interpret_linkedin_modal(state: LinkedInApplicationPageState) 
             confidence=1.0,
             rationale="o modal nao esta aberto",
         )
-    if state.ready_to_submit or (state.modal_submit_visible and not state.modal_next_visible):
+    if state.ready_to_submit or is_linkedin_review_final_available(state):
         return LinkedInModalInterpretation(
             step_type="review_final",
             recommended_action="submit_if_authorized",
@@ -111,7 +115,7 @@ def deterministic_interpret_linkedin_modal(state: LinkedInApplicationPageState) 
             confidence=0.9,
             rationale="ha perguntas obrigatorias sem resposta confirmada no perfil local",
         )
-    if state.modal_review_visible and not state.reached_review_step:
+    if is_linkedin_review_transition_available(state) and not state.reached_review_step:
         return LinkedInModalInterpretation(
             step_type="review_transition",
             recommended_action="open_review",

@@ -109,6 +109,12 @@ class JobRepository(Protocol):
     def list_applications_by_status(self, status: str) -> list[JobApplication]:
         raise NotImplementedError
 
+    def list_applications_with_jobs_by_status(self, status: str) -> list[tuple[JobApplication, Optional[JobPosting]]]:
+        raise NotImplementedError
+
+    def list_tracked_applications_with_jobs(self) -> list[tuple[JobApplication, Optional[JobPosting]]]:
+        raise NotImplementedError
+
     def application_summary(self) -> dict[str, int]:
         raise NotImplementedError
 
@@ -711,6 +717,44 @@ class SqliteJobRepository:
             ).fetchall()
         return [self._row_to_application(row) for row in rows]
 
+    def list_applications_with_jobs_by_status(self, status: str) -> list[tuple[JobApplication, Optional[JobPosting]]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    a.id, a.job_id, a.status, a.support_level, a.support_rationale, a.notes,
+                    a.last_preflight_detail, a.last_submit_detail, a.last_error, a.created_at, a.updated_at, a.submitted_at,
+                    j.id, j.title, j.company, j.location, j.work_mode, j.salary_text, j.url,
+                    j.source_site, j.summary, j.relevance, j.rationale, j.external_key, j.status, j.created_at
+                FROM job_applications a
+                LEFT JOIN jobs j ON j.id = a.job_id
+                WHERE a.status = ?
+                ORDER BY a.updated_at DESC, a.id DESC
+                """,
+                (status,),
+            ).fetchall()
+        return [self._row_to_application_with_job(row) for row in rows]
+
+    def list_tracked_applications_with_jobs(self) -> list[tuple[JobApplication, Optional[JobPosting]]]:
+        tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit", "submitted")
+        placeholders = ", ".join("?" for _ in tracked_statuses)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT
+                    a.id, a.job_id, a.status, a.support_level, a.support_rationale, a.notes,
+                    a.last_preflight_detail, a.last_submit_detail, a.last_error, a.created_at, a.updated_at, a.submitted_at,
+                    j.id, j.title, j.company, j.location, j.work_mode, j.salary_text, j.url,
+                    j.source_site, j.summary, j.relevance, j.rationale, j.external_key, j.status, j.created_at
+                FROM job_applications a
+                LEFT JOIN jobs j ON j.id = a.job_id
+                WHERE a.status IN ({placeholders})
+                ORDER BY a.updated_at DESC, a.id DESC
+                """,
+                tracked_statuses,
+            ).fetchall()
+        return [self._row_to_application_with_job(row) for row in rows]
+
     def application_summary(self) -> dict[str, int]:
         with self._connect() as connection:
             row = connection.execute(
@@ -949,6 +993,13 @@ class SqliteJobRepository:
             to_status=row[5],
             created_at=row[6],
         )
+
+    @classmethod
+    def _row_to_application_with_job(cls, row: tuple) -> tuple[JobApplication, Optional[JobPosting]]:
+        application = cls._row_to_application(row[:12])
+        if row[12] is None:
+            return application, None
+        return application, cls._row_to_job(row[12:])
 
     @staticmethod
     def _row_to_job_event(row: tuple) -> JobStatusEvent:

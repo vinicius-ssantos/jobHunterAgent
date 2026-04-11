@@ -17,6 +17,10 @@ from job_hunter_agent.collectors.linkedin_application_entrypoint import (
     needs_canonical_job_navigation,
     recover_linkedin_direct_apply_url_from_html,
 )
+from job_hunter_agent.collectors.linkedin_application_entry_strategies import (
+    LinkedInApplyHrefEntrypointStrategy,
+    LinkedInApplyHtmlRecoveryStrategy,
+)
 from job_hunter_agent.collectors.linkedin_application_execution import LinkedInEasyApplyExecution
 from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyApplyModalDriver
 from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
@@ -95,22 +99,31 @@ class LinkedInApplicationFlowInspector:
             try_submit_application=self._try_submit_application,
             read_page_state=self._read_page_state,
         )
+        self._href_entrypoint = LinkedInApplyHrefEntrypointStrategy(
+            extract_easy_apply_href=self._extract_easy_apply_href,
+            prepare_job_page_for_apply=self._prepare_job_page_for_apply,
+            read_page_state=self._read_page_state,
+            inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_opener,
+            is_page_closed=self._is_page_closed,
+        )
+        self._html_recovery = LinkedInApplyHtmlRecoveryStrategy()
         self._flow_opener = LinkedInEasyApplyFlowOpener(
             prepare_job_page_for_apply=self._prepare_job_page_for_apply,
             read_page_state=self._read_page_state,
             assess_job_page_readiness=self._assess_job_page_readiness,
-            extract_easy_apply_href=self._extract_easy_apply_href,
-            inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_opener,
-            is_page_closed=self._is_page_closed,
+            href_entrypoint=self._href_entrypoint,
+            html_recovery=self._html_recovery,
         )
 
     def _refresh_flow_opener_callbacks(self) -> None:
         self._flow_opener._prepare_job_page_for_apply = self._prepare_job_page_for_apply
         self._flow_opener._read_page_state = self._read_page_state
         self._flow_opener._assess_job_page_readiness = self._assess_job_page_readiness
-        self._flow_opener._extract_easy_apply_href = self._extract_easy_apply_href
-        self._flow_opener._inspect_easy_apply_modal = self._inspect_easy_apply_modal_via_opener
-        self._flow_opener._is_page_closed = self._is_page_closed
+        self._href_entrypoint._extract_easy_apply_href = self._extract_easy_apply_href
+        self._href_entrypoint._prepare_job_page_for_apply = self._prepare_job_page_for_apply
+        self._href_entrypoint._read_page_state = self._read_page_state
+        self._href_entrypoint._inspect_easy_apply_modal = self._inspect_easy_apply_modal_via_opener
+        self._href_entrypoint._is_page_closed = self._is_page_closed
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
         if "linkedin.com/jobs/" not in job.url.lower():

@@ -13,6 +13,7 @@ from job_hunter_agent.infrastructure.notifier_rendering import (
     build_missing_application_reply as rendering_build_missing_application_reply,
     build_missing_job_reply as rendering_build_missing_job_reply,
 )
+from job_hunter_agent.infrastructure.notifier_callbacks import NotifierCallbackService
 from job_hunter_agent.infrastructure.repository import JobRepository
 from job_hunter_agent.llm.review_rationale import ReviewRationaleFormatter
 from job_hunter_agent.application.review_workflow import (
@@ -97,6 +98,7 @@ class TelegramNotifier:
         self.on_application_preflight = on_application_preflight
         self.on_application_submit = on_application_submit
         self.review_rationale_formatter = review_rationale_formatter
+        self.callback_service = NotifierCallbackService(repository)
         self._inline_keyboard_button = InlineKeyboardButton
         self._inline_keyboard_markup = InlineKeyboardMarkup
         self.application = Application.builder().token(settings.telegram_token).build()
@@ -161,72 +163,34 @@ class TelegramNotifier:
     async def _handle_callback(self, update, context) -> None:
         query = update.callback_query
         await query.answer()
-        action, target_id_text = query.data.split(":", maxsplit=1)
-        target_id = int(target_id_text)
-        if action in {"approve", "reject"}:
-            job = self.repository.get_job(target_id)
-            if not job:
-                await query.edit_message_reply_markup(reply_markup=None)
-                await query.message.reply_text(build_missing_job_reply(target_id))
-                return
-
-            next_status, reply_text = resolve_review_action(job, action)
-            if next_status is None:
-                await query.edit_message_reply_markup(reply_markup=None)
-                await query.message.reply_text(reply_text)
-                return
-
-            if next_status == "approved":
-                self.repository.mark_status(target_id, next_status, detail=reply_text)
-                await query.edit_message_reply_markup(reply_markup=None)
-                await query.message.reply_text(reply_text)
-                if self.on_approved:
-                    await self.on_approved([target_id])
-            elif next_status == "rejected":
-                self.repository.mark_status(target_id, next_status, detail=reply_text)
-                await query.edit_message_reply_markup(reply_markup=None)
-                await query.message.reply_text(reply_text)
+        try:
+            outcome = self.callback_service.handle(query.data)
+        except Exception:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text("Falha ao processar a acao solicitada.")
             return
 
-        application = self.repository.get_application(target_id)
-        if not application:
+        if outcome.clear_reply_markup:
             await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(build_missing_application_reply(target_id))
-            return
-
-        if action == "app_preflight":
-            allowed, reply_text = resolve_application_preflight_request(application)
-            await query.edit_message_reply_markup(reply_markup=None)
-            if not allowed:
-                await query.message.reply_text(reply_text)
-                return
+        if outcome.requested_preflight_application_id is not None:
             if not self.on_application_preflight:
                 await query.message.reply_text("Preflight de candidatura indisponivel nesta execucao.")
                 return
-            await query.message.reply_text(await self.on_application_preflight(target_id))
+            await query.message.reply_text(
+                await self.on_application_preflight(outcome.requested_preflight_application_id)
+            )
             return
-
-        if action == "app_submit":
-            allowed, reply_text = resolve_application_submit_request(application)
-            await query.edit_message_reply_markup(reply_markup=None)
-            if not allowed:
-                await query.message.reply_text(reply_text)
-                return
+        if outcome.requested_submit_application_id is not None:
             if not self.on_application_submit:
                 await query.message.reply_text("Submissao real indisponivel nesta execucao.")
                 return
-            await query.message.reply_text(await self.on_application_submit(target_id))
+            await query.message.reply_text(
+                await self.on_application_submit(outcome.requested_submit_application_id)
+            )
             return
-
-        next_status, reply_text = resolve_application_action(application, action)
-        if next_status is None:
-            await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(reply_text)
-            return
-
-        self.repository.mark_application_status(target_id, status=next_status, event_detail=reply_text)
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(reply_text)
+        await query.message.reply_text(outcome.reply_text)
+        if outcome.approved_job_ids and self.on_approved:
+            await self.on_approved(list(outcome.approved_job_ids))
 
     async def _command_start(self, update, context) -> None:
         await update.message.reply_text(

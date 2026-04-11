@@ -41,7 +41,11 @@ class ApplicationQueryService:
             else tuple(current for current in APPLICATION_STATUS_ORDER if current in VALID_APPLICATION_STATUSES)
         )
         applications_with_jobs: list[tuple[object, object | None]] = []
+        list_with_jobs = getattr(self.repository, "list_applications_with_jobs_by_status", None)
         for current_status in requested_statuses:
+            if list_with_jobs is not None:
+                applications_with_jobs.extend(list_with_jobs(current_status))
+                continue
             applications = self.repository.list_applications_by_status(current_status)
             for application in applications:
                 applications_with_jobs.append((application, self.repository.get_job(application.job_id)))
@@ -115,6 +119,9 @@ class ApplicationQueryService:
         return render_execution_summary(events=events)
 
     def _list_tracked_applications(self) -> list[object]:
+        list_tracked = getattr(self.repository, "list_tracked_applications_with_jobs", None)
+        if list_tracked is not None:
+            return [application for application, _job in list_tracked()]
         tracked_statuses = ("draft", "ready_for_review", "confirmed", "authorized_submit", "error_submit", "submitted")
         applications: list[object] = []
         for status in tracked_statuses:

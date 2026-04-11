@@ -6,6 +6,10 @@ from typing import Callable
 from pathlib import Path
 
 from job_hunter_agent.collectors.linkedin_application_fields import LinkedInEasyApplyFieldFiller
+from job_hunter_agent.collectors.linkedin_application_review import (
+    is_linkedin_review_final_available,
+    is_linkedin_review_transition_available,
+)
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 
 
@@ -95,14 +99,14 @@ class LinkedInEasyApplyModalDriver:
                     }
                 )
 
-            if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+            if is_linkedin_review_final_available(state):
                 ready_to_submit = True
                 break
 
             moved = False
             interpretation = self.interpret_modal_state(state)
             action = interpretation.recommended_action
-            if action == "submit_if_authorized" and state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+            if action == "submit_if_authorized" and is_linkedin_review_final_available(state):
                 ready_to_submit = True
                 break
             if action == "upload_resume" and state.modal_open and state.modal_file_upload and not uploaded_resume:
@@ -111,7 +115,7 @@ class LinkedInEasyApplyModalDriver:
                     moved = True
                     await page.wait_for_timeout(1800)
                     state = await read_page_state(page)
-            elif action == "open_review" and state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+            elif action == "open_review" and is_linkedin_review_transition_available(state):
                 review_opened = await self.try_open_review_step(page)
                 if review_opened:
                     reached_review_step = True
@@ -131,7 +135,7 @@ class LinkedInEasyApplyModalDriver:
                     moved = True
                     await page.wait_for_timeout(1800)
                     state = await read_page_state(page)
-            elif state.modal_open and state.modal_review_visible and not state.modal_submit_visible:
+            elif is_linkedin_review_transition_available(state):
                 review_opened = await self.try_open_review_step(page)
                 if review_opened:
                     reached_review_step = True
@@ -146,7 +150,7 @@ class LinkedInEasyApplyModalDriver:
                     await page.wait_for_timeout(2200)
                     state = await read_page_state(page)
 
-            if state.modal_open and state.modal_submit_visible and not state.modal_next_visible:
+            if is_linkedin_review_final_available(state):
                 ready_to_submit = True
                 break
             if not moved:
