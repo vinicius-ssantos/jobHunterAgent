@@ -140,6 +140,7 @@ class ApplicationCliRenderingTests(unittest.TestCase):
 
         self.assertIn("classificacao_operacional=", rendered)
         self.assertIn("last_preflight_detail=preflight real ok", rendered)
+        self.assertIn("manual_review_detail=revisao_humana=necessaria", rendered)
 
     def test_render_failure_artifacts_handles_missing_directory(self) -> None:
         rendered = render_failure_artifacts(

@@ -3,6 +3,7 @@ from unittest import TestCase
 from job_hunter_agent.core.application_insights import (
     classify_application_operational_insight,
     classify_operational_detail,
+    describe_manual_review_need,
 )
 from job_hunter_agent.core.domain import JobApplication
 
@@ -54,3 +55,19 @@ class ApplicationOperationalInsightsTests(TestCase):
 
         self.assertEqual(insight.classification, "blocked")
         self.assertEqual(insight.reason_code, "candidatura_externa")
+
+    def test_describe_manual_review_need_combines_reason_and_next_step(self) -> None:
+        application = JobApplication(
+            id=1,
+            job_id=10,
+            status="confirmed",
+            support_level="manual_review",
+            support_rationale="linkedin interno ainda requer confirmacao",
+            last_preflight_detail="preflight real ok: CTA encontrado",
+        )
+
+        detail = describe_manual_review_need(application)
+
+        self.assertIn("revisao_humana=necessaria", detail)
+        self.assertIn("motivo_principal=linkedin interno ainda requer confirmacao", detail)
+        self.assertIn("proximo_passo=validar manualmente o fluxo antes de autorizar envio", detail)

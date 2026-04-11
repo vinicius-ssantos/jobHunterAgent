@@ -373,6 +373,8 @@ class PersistenceAndReviewIntegrationTests(TestCase):
         self.assertIn("Vaga: Senior Kotlin Engineer", message)
         self.assertIn("Suporte: manual_review", message)
         self.assertIn("Classificacao operacional: manual_review | cta detectado; validar fluxo", message)
+        self.assertIn("Revisao humana: revisao_humana=necessaria", message)
+        self.assertIn("proximo_passo=validar manualmente o fluxo antes de autorizar envio", message)
         self.assertIn("Prioridade: media", message)
         self.assertIn("Sinais: senioridade=senior | stack=java, spring | ingles=avancado | lideranca=sim", message)
         self.assertIn("Contexto: rascunho criado apos aprovacao humana", message)

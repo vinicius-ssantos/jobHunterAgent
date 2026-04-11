@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from job_hunter_agent.llm.application_priority import extract_application_priority_level
 from job_hunter_agent.core.application_insights import classify_application_operational_insight
+from job_hunter_agent.core.application_insights import describe_manual_review_need
 from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.llm.job_requirements import (
     extract_job_requirement_signals,
@@ -143,6 +144,11 @@ def build_application_card_message(repository: JobRepository, application: JobAp
     operation_summary = summarize_application_operation(application)
     operational = classify_application_operational_insight(application)
     if not job:
+        manual_review_detail = (
+            f"\nRevisao humana: {describe_manual_review_need(application)}"
+            if application.support_level == "manual_review"
+            else ""
+        )
         return (
             f"Candidatura {application.id}\n"
             f"Job id: {application.job_id}\n"
@@ -152,9 +158,15 @@ def build_application_card_message(repository: JobRepository, application: JobAp
             f"Classificacao operacional: {operational.classification} | {operational.summary}\n"
             f"Sinais: {requirement_summary}\n"
             f"Racional: {application.support_rationale or 'Nao informado'}\n"
+            f"{manual_review_detail}"
             f"Contexto: {summarized_notes}\n"
             f"Operacao: {operation_summary}"
         )
+    manual_review_detail = (
+        f"Revisao humana: {describe_manual_review_need(application)}\n"
+        if application.support_level == "manual_review"
+        else ""
+    )
     return (
         f"Candidatura {application.id}\n"
         f"Vaga: {job.title}\n"
@@ -165,6 +177,7 @@ def build_application_card_message(repository: JobRepository, application: JobAp
         f"Classificacao operacional: {operational.classification} | {operational.summary}\n"
         f"Sinais: {requirement_summary}\n"
         f"Racional: {application.support_rationale or 'Nao informado'}\n"
+        f"{manual_review_detail}"
         f"Contexto: {summarized_notes}\n"
         f"Operacao: {operation_summary}\n"
         f"Abrir vaga: {job.url}"

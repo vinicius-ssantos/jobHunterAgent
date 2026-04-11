@@ -109,3 +109,32 @@ def classify_application_operational_insight(application: JobApplication) -> App
         or ""
     ).strip()
     return classify_operational_detail(source_detail)
+
+
+def describe_manual_review_need(application: JobApplication) -> str:
+    insight = classify_application_operational_insight(application)
+    rationale = (application.support_rationale or "").strip()
+
+    main_reason = rationale or insight.summary or "fluxo exige revisao manual"
+    next_step = _next_step_for_manual_review(insight.reason_code)
+    return (
+        f"revisao_humana=necessaria | "
+        f"motivo_principal={main_reason} | "
+        f"proximo_passo={next_step}"
+    )
+
+
+def _next_step_for_manual_review(reason_code: str) -> str:
+    if reason_code == "perguntas_adicionais":
+        return "inspecionar as perguntas pendentes antes de autorizar envio"
+    if reason_code == "similar_jobs":
+        return "revisar a vaga original; nao autorizar submit a partir desta tela"
+    if reason_code == "candidatura_externa":
+        return "tratar fora do fluxo assistido do LinkedIn"
+    if reason_code == "cta_detectado":
+        return "validar manualmente o fluxo antes de autorizar envio"
+    if reason_code == "bloqueio_funcional":
+        return "verificar o detalhe operacional e decidir se cancela ou reprocessa"
+    if reason_code == "fluxo_inconclusivo":
+        return "abrir a candidatura e validar manualmente o fluxo"
+    return "confirmar manualmente o fluxo antes de autorizar envio"

@@ -84,6 +84,7 @@ Acoes de revisao de vaga:
 - detalhar vaga
 - aprovar vaga
 - rejeitar vaga
+- expor melhor o motivo principal e o proximo passo quando uma candidatura cair em `manual_review`
 
 Regra:
 

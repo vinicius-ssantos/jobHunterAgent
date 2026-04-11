@@ -6,6 +6,7 @@ from pathlib import Path
 from job_hunter_agent.core.application_insights import (
     classify_application_operational_insight,
     classify_operational_detail,
+    describe_manual_review_need,
 )
 
 
@@ -137,6 +138,8 @@ def render_application_detail(*, application: object, job: object | None, events
         f"submitted_at={application.submitted_at or '-'}",
         f"notes={application.notes or '-'}",
     ]
+    if application.support_level == "manual_review":
+        lines.append(f"manual_review_detail={describe_manual_review_need(application)}")
     if events:
         lines.append("eventos_recentes:")
         lines.extend(_render_event_lines(events))
