@@ -7,8 +7,16 @@ def format_preflight_cli_result(*, detail: str, application_status: str) -> str:
     return f"Preflight: {detail} (status={application_status})"
 
 
+def format_preflight_dry_run_cli_result(*, detail: str, application_status: str) -> str:
+    return f"Dry-run preflight: {detail} (status={application_status})"
+
+
 def format_submit_cli_result(*, detail: str, application_status: str) -> str:
     return f"Submissao: {detail} (status={application_status})"
+
+
+def format_submit_dry_run_cli_result(*, detail: str, application_status: str) -> str:
+    return f"Dry-run submissao: {detail} (status={application_status})"
 
 
 def format_preflight_requires_confirmed_status() -> str:
@@ -27,6 +35,12 @@ def format_linkedin_preflight_ready(*, support_level: str) -> str:
     if support_level == "auto_supported":
         return "preflight ok: fluxo do LinkedIn com indicio de candidatura simplificada"
     return "preflight ok: vaga interna do LinkedIn pronta para futura automacao assistida"
+
+
+def format_preflight_dry_run_ready(*, support_level: str) -> str:
+    if support_level == "auto_supported":
+        return "dry-run preflight: fluxo parece pronto para inspeção real, sem alterar estado"
+    return "dry-run preflight: candidatura parece apta para preflight real, sem alterar estado"
 
 
 def format_preflight_portal_not_supported(*, portal_name: str) -> str:
@@ -53,6 +67,10 @@ def format_submit_readiness_incomplete(*, failures: list[str]) -> str:
     if failures:
         return f"{detail} | faltando={'; '.join(failures)}"
     return detail
+
+
+def format_submit_dry_run_ready() -> str:
+    return "dry-run submit: candidatura parece apta para submit real, sem alterar estado nem tocar o portal"
 
 
 def format_submit_unavailable_in_execution() -> str:
