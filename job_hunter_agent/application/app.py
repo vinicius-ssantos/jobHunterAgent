@@ -12,6 +12,12 @@ from job_hunter_agent.application.application_health import (
     build_application_health_report,
     render_application_health_report,
 )
+from job_hunter_agent.application.application_messages import (
+    format_preflight_cli_result,
+    format_preflight_dry_run_cli_result,
+    format_submit_cli_result,
+    format_submit_dry_run_cli_result,
+)
 from job_hunter_agent.application.application_queries import ApplicationQueryService
 from job_hunter_agent.application.application_cli_rendering import render_failure_artifacts
 from job_hunter_agent.application.composition import (
@@ -129,6 +135,20 @@ class JobHunterApplication:
             self.application_submission,
             application_id,
             logger=logger,
+        )
+
+    def show_application_preflight_dry_run(self, application_id: int) -> str:
+        result = self.application_preflight.run_dry_run_for_application(application_id)
+        return format_preflight_dry_run_cli_result(
+            detail=result.detail,
+            application_status=result.application_status,
+        )
+
+    def show_application_submit_dry_run(self, application_id: int) -> str:
+        result = self.application_submission.run_dry_run_for_application(application_id)
+        return format_submit_dry_run_cli_result(
+            detail=result.detail,
+            application_status=result.application_status,
         )
 
     def list_applications(self, *, status: str | None = None) -> str:

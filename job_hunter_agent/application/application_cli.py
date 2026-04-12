@@ -133,6 +133,11 @@ def parse_args() -> argparse.Namespace:
         help="Roda o preflight de uma candidatura confirmada.",
     )
     applications_preflight_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+    applications_preflight_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Valida se o preflight poderia rodar agora, sem alterar estado nem tocar o portal.",
+    )
 
     applications_authorize_parser = applications_subparsers.add_parser(
         "authorize",
@@ -145,6 +150,11 @@ def parse_args() -> argparse.Namespace:
         help="Executa o envio real de uma candidatura autorizada.",
     )
     applications_submit_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+    applications_submit_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Valida se o submit poderia rodar agora, sem alterar estado nem tocar o portal.",
+    )
 
     candidate_profile_parser = subparsers.add_parser(
         "candidate-profile",

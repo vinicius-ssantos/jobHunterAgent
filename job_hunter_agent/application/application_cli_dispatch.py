@@ -100,9 +100,15 @@ def _run_applications_command(args: Namespace) -> None:
         return
     app = create_application_flow_app()
     if args.applications_command == "preflight":
+        if getattr(args, "dry_run", False):
+            print(app.show_application_preflight_dry_run(args.id))
+            return
         print(asyncio.run(app.handle_application_preflight(args.id)))
         return
     if args.applications_command == "submit":
+        if getattr(args, "dry_run", False):
+            print(app.show_application_submit_dry_run(args.id))
+            return
         print(asyncio.run(app.handle_application_submit(args.id)))
 
 

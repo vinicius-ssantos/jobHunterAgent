@@ -9,6 +9,7 @@ from job_hunter_agent.application.application_flow import (
 from job_hunter_agent.application.application_messages import (
     format_submit_applicant_error,
     format_submit_detail,
+    format_submit_dry_run_ready,
     format_submit_portal_not_supported,
     format_submit_readiness_incomplete,
     format_submit_requires_authorized_status,
@@ -42,6 +43,48 @@ class ApplicationSubmissionService:
         self.applicant = applicant
         self.flow = ApplicationFlowCoordinator(repository)
         self.readiness_checker = readiness_checker
+
+    def run_dry_run_for_application(self, application_id: int) -> ApplicationSubmitResult:
+        context = load_application_context(self.repository, application_id)
+        application = context.application
+        job = context.job
+
+        if application.status != "authorized_submit":
+            return ApplicationSubmitResult(
+                outcome="ignored",
+                detail=format_submit_requires_authorized_status(),
+                application_status=application.status,
+            )
+
+        capabilities = get_portal_capabilities(job)
+        if not capabilities.submit_supported:
+            return ApplicationSubmitResult(
+                outcome="blocked",
+                detail=format_submit_portal_not_supported(portal_name=capabilities.portal_name),
+                application_status=application.status,
+            )
+
+        if self.readiness_checker is not None:
+            readiness = self.readiness_checker.check_submit_ready(job)
+            if not readiness.ok:
+                return ApplicationSubmitResult(
+                    outcome="ignored",
+                    detail=format_submit_readiness_incomplete(failures=readiness.failures),
+                    application_status=application.status,
+                )
+
+        if self.applicant is None:
+            return ApplicationSubmitResult(
+                outcome="ignored",
+                detail=format_submit_unavailable_in_execution(),
+                application_status=application.status,
+            )
+
+        return ApplicationSubmitResult(
+            outcome="ready",
+            detail=format_submit_dry_run_ready(),
+            application_status=application.status,
+        )
 
     def run_for_application(self, application_id: int) -> ApplicationSubmitResult:
         context = load_application_context(self.repository, application_id)
