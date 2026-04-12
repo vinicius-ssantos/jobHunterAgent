@@ -137,6 +137,35 @@ Antes de implementar, confirme:
 
 Se a resposta for não, ajuste a estrutura antes de continuar.
 
+## Controle De Escopo E Refatoracao
+
+Siga um padrao de `AGENTS.md` curto, objetivo e acionavel:
+
+- use este arquivo como mapa de decisao, nao como licenca para reescrever areas vizinhas
+- execute apenas o menor recorte necessario para concluir a tarefa atual com seguranca
+- nao amplie escopo por "aproveitar o contexto" sem necessidade direta
+
+Refatoracao so e aceitavel sem confirmacao extra quando:
+
+- remove acoplamento que bloqueia a tarefa atual
+- corrige uma regressao descoberta durante a implementacao
+- reduz duplicacao estrutural no mesmo seam tocado pela tarefa
+
+Pare e replaneje antes de continuar quando a mudanca passar de um recorte local. Trate como refatoracao ampla quando ocorrer qualquer um destes sinais:
+
+- tocar mais de 3 modulos principais na mesma linha de trabalho
+- atravessar mais de uma camada arquitetural sem ser wiring explicito
+- misturar feature, refactor e limpeza geral no mesmo passo
+- exigir renomeacao ou redistribuicao de responsabilidades em cadeia
+- fechar mais de um item grande de checklist sem validacao intermediaria
+
+Quando houver refatoracao ampla:
+
+- quebre em etapas pequenas e testaveis
+- valide cada etapa antes de seguir para a proxima
+- atualize a checklist conforme cada seam for realmente concluido
+- nao marque item pai como concluido so por proximidade; marque apenas quando houver lastro claro no codigo e nos testes
+
 ## Regras de Estado
 
 Estados válidos de vaga:
