@@ -60,6 +60,22 @@ class LinkedInEasyApplyModalDriver:
                 break
         if not opened:
             return state
+        return await self.inspect_open_easy_apply_modal(
+            page,
+            state,
+            read_page_state=read_page_state,
+            close_modal=close_modal,
+        )
+
+    async def inspect_open_easy_apply_modal(
+        self,
+        page,
+        initial_state: LinkedInApplicationPageState,
+        *,
+        read_page_state,
+        close_modal: bool = True,
+    ) -> LinkedInApplicationPageState:
+        state = initial_state
 
         all_filled_fields: tuple[str, ...] = ()
         all_answered_questions: tuple[str, ...] = ()

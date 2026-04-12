@@ -1072,11 +1072,15 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         candidate_profile = object()
         formatter = object()
+        components = object()
 
         with patch(
             "job_hunter_agent.application.composition.load_candidate_profile",
             return_value=candidate_profile,
         ) as load_profile, patch(
+            "job_hunter_agent.application.composition.create_linkedin_application_flow_components",
+            return_value=components,
+        ) as create_components, patch(
             "job_hunter_agent.application.composition.create_linkedin_modal_interpretation_formatter",
             return_value=formatter,
         ) as create_formatter, patch(
@@ -1089,6 +1093,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         self.assertEqual(inspector, "inspector-preflight")
         load_profile.assert_called_once_with("candidate_profile.json")
+        create_components.assert_called_once()
         create_formatter.assert_called_once_with(settings)
         create_interpreter.assert_not_called()
         kwargs = inspector_factory.call_args.kwargs  # type: ignore[attr-defined]
@@ -1105,6 +1110,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["modal_interpretation_formatter"], formatter)
         self.assertTrue(kwargs["artifact_capture"].enabled)
         self.assertEqual(str(kwargs["artifact_capture"].artifacts_dir), ".tmp-tests/failure-artifacts")
+        self.assertIs(kwargs["components"], components)
 
     async def test_create_linkedin_application_flow_inspector_submit_uses_interpreter_only(self) -> None:
         settings = type(
@@ -1125,11 +1131,15 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         candidate_profile = object()
         interpreter = object()
+        components = object()
 
         with patch(
             "job_hunter_agent.application.composition.load_candidate_profile",
             return_value=candidate_profile,
         ) as load_profile, patch(
+            "job_hunter_agent.application.composition.create_linkedin_application_flow_components",
+            return_value=components,
+        ) as create_components, patch(
             "job_hunter_agent.application.composition.create_linkedin_modal_interpretation_formatter"
         ) as create_formatter, patch(
             "job_hunter_agent.application.composition.create_linkedin_modal_interpreter",
@@ -1142,6 +1152,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
 
         self.assertEqual(inspector, "inspector-submit")
         load_profile.assert_called_once_with("candidate_profile.json")
+        create_components.assert_called_once()
         create_formatter.assert_not_called()
         create_interpreter.assert_called_once_with(settings)
         kwargs = inspector_factory.call_args.kwargs  # type: ignore[attr-defined]
@@ -1158,6 +1169,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["modal_interpreter"], interpreter)
         self.assertFalse(kwargs["artifact_capture"].enabled)
         self.assertEqual(str(kwargs["artifact_capture"].artifacts_dir), ".tmp-tests/failure-artifacts")
+        self.assertIs(kwargs["components"], components)
 
     async def test_create_linkedin_application_flow_inspector_rejects_unsupported_mode(self) -> None:
         settings = type(
@@ -1199,7 +1211,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
         readiness_checker = object()
 
         with patch(
-            "job_hunter_agent.application.composition.create_linkedin_application_flow_inspector",
+            "job_hunter_agent.application.composition.create_linkedin_preflight_inspector",
             return_value="preflight-inspector",
         ) as create_inspector, patch(
             "job_hunter_agent.application.composition.ApplicationReadinessCheckService",
@@ -1207,7 +1219,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
         ) as readiness_factory:
             service = create_application_preflight_service(repository, settings)
 
-        create_inspector.assert_called_once_with(settings, mode="preflight")
+        create_inspector.assert_called_once_with(settings)
         readiness_factory.assert_called_once_with(
             linkedin_storage_state_path="linkedin-state.json",
             resume_path="resume.pdf",
@@ -1236,7 +1248,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
         readiness_checker = object()
 
         with patch(
-            "job_hunter_agent.application.composition.create_linkedin_application_flow_inspector",
+            "job_hunter_agent.application.composition.create_linkedin_submission_applicant",
             return_value="submit-inspector",
         ) as create_inspector, patch(
             "job_hunter_agent.application.composition.ApplicationReadinessCheckService",
@@ -1244,7 +1256,7 @@ class CompositionTests(IsolatedAsyncioTestCase):
         ) as readiness_factory:
             service = create_application_submission_service(repository, settings)
 
-        create_inspector.assert_called_once_with(settings, mode="submit")
+        create_inspector.assert_called_once_with(settings)
         readiness_factory.assert_called_once_with(
             linkedin_storage_state_path="linkedin-state.json",
             resume_path="resume.pdf",

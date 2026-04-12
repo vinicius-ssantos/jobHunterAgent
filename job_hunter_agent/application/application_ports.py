@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-from typing import Protocol
-
-from job_hunter_agent.application.contracts import ApplicationFlowInspection, ApplicationSubmissionResult
-from job_hunter_agent.core.domain import JobApplication, JobPosting
-
-
-class ApplicationFlowInspector(Protocol):
-    def inspect(self, job: JobPosting) -> ApplicationFlowInspection:
-        raise NotImplementedError
-
-
-class JobApplicant(Protocol):
-    def submit(self, application: JobApplication, job: JobPosting) -> ApplicationSubmissionResult:
-        raise NotImplementedError
+from job_hunter_agent.application.contracts import (
+    ApplicationFlowInspection,
+    ApplicationSubmissionResult,
+    InspectionPort,
+    PreparationPort,
+    SubmitPort,
+)
+from job_hunter_agent.core.domain import JobPosting
 
 
 def normalize_application_flow_inspection(result) -> ApplicationFlowInspection:

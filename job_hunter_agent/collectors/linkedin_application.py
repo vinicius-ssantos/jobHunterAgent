@@ -5,9 +5,13 @@ from typing import Callable, TYPE_CHECKING
 
 from job_hunter_agent.application.contracts import ApplicationSubmissionResult, ArtifactCapturePort
 from job_hunter_agent.collectors.linkedin_application_artifacts import (
-    LinkedInFailureArtifactCapture,
+    create_linkedin_failure_artifact_capture,
     is_closed_target_error,
     is_page_closed,
+)
+from job_hunter_agent.collectors.linkedin_application_components import (
+    LinkedInApplicationFlowComponents,
+    create_linkedin_application_flow_components,
 )
 from job_hunter_agent.collectors.linkedin_application_entrypoint import (
     canonical_linkedin_job_url,
@@ -16,15 +20,14 @@ from job_hunter_agent.collectors.linkedin_application_entrypoint import (
     needs_canonical_job_navigation,
 )
 from job_hunter_agent.collectors.linkedin_application_entry_strategies import (
+    LinkedInApplyClassicModalStrategy,
+    LinkedInApplyEntrypointSequence,
     LinkedInApplyHrefEntrypointStrategy,
-    LinkedInApplyHtmlRecoveryStrategy,
 )
 from job_hunter_agent.collectors.linkedin_application_execution import LinkedInEasyApplyExecution
 from job_hunter_agent.collectors.linkedin_application_inspection import inspect_linkedin_application
 from job_hunter_agent.collectors.linkedin_application_modal import LinkedInEasyApplyModalDriver
-from job_hunter_agent.collectors.linkedin_application_navigation import LinkedInEasyApplyNavigator
 from job_hunter_agent.collectors.linkedin_application_opening import LinkedInEasyApplyFlowOpener
-from job_hunter_agent.collectors.linkedin_application_reader import LinkedInApplicationPageReader
 from job_hunter_agent.collectors.linkedin_application_runtime import run_linkedin_async
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationInspection,
@@ -61,6 +64,7 @@ class LinkedInApplicationFlowInspector:
         save_failure_artifacts: bool = False,
         failure_artifacts_dir: str | Path | None = None,
         artifact_capture: ArtifactCapturePort | None = None,
+        components: LinkedInApplicationFlowComponents | None = None,
     ) -> None:
         self.storage_state_path = Path(storage_state_path).resolve()
         self.headless = headless
@@ -74,13 +78,11 @@ class LinkedInApplicationFlowInspector:
         self.modal_interpreter = modal_interpreter
         self.save_failure_artifacts = save_failure_artifacts
         self.failure_artifacts_dir = Path(failure_artifacts_dir).resolve() if failure_artifacts_dir else None
-        self._artifact_capture = artifact_capture or LinkedInFailureArtifactCapture(
+        self._artifact_capture = artifact_capture or create_linkedin_failure_artifact_capture(
             enabled=self.save_failure_artifacts,
             artifacts_dir=self.failure_artifacts_dir,
         )
-        self._navigator = LinkedInEasyApplyNavigator()
-        self._page_reader = LinkedInApplicationPageReader()
-        self._modal_driver = LinkedInEasyApplyModalDriver(
+        resolved_components = components or create_linkedin_application_flow_components(
             resume_path=self.resume_path,
             contact_email=self.contact_email,
             phone=self.phone,
@@ -89,12 +91,18 @@ class LinkedInApplicationFlowInspector:
             candidate_profile_path=self.candidate_profile_path,
             modal_interpreter=self.modal_interpreter,
         )
+        self._navigator = resolved_components.navigator
+        self._page_reader = resolved_components.page_reader
+        self._modal_driver = resolved_components.modal_driver
+        self._submitted_at_provider = resolved_components.submitted_at_provider
         self._execution = LinkedInEasyApplyExecution(
             inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_executor,
-            try_open_easy_apply_modal=self._try_open_easy_apply_modal,
-            try_open_easy_apply_via_direct_url=self._try_open_easy_apply_via_direct_url_via_executor,
             try_submit_application=self._try_submit_application,
+        )
+        self._classic_modal_entrypoint = LinkedInApplyClassicModalStrategy(
+            try_open_easy_apply_modal=self._try_open_easy_apply_modal,
             read_page_state=self._read_page_state,
+            inspect_open_easy_apply_modal=self._inspect_open_easy_apply_modal,
         )
         self._href_entrypoint = LinkedInApplyHrefEntrypointStrategy(
             extract_easy_apply_href=self._extract_easy_apply_href,
@@ -103,7 +111,10 @@ class LinkedInApplicationFlowInspector:
             inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_opener,
             is_page_closed=self._is_page_closed,
         )
-        self._html_recovery = LinkedInApplyHtmlRecoveryStrategy()
+        self._entrypoint_sequence = LinkedInApplyEntrypointSequence(
+            (self._classic_modal_entrypoint, self._href_entrypoint)
+        )
+        self._html_recovery = resolved_components.html_recovery
         self._flow_opener = LinkedInEasyApplyFlowOpener(
             prepare_job_page_for_apply=self._prepare_job_page_for_apply,
             read_page_state=self._read_page_state,
@@ -123,29 +134,9 @@ class LinkedInApplicationFlowInspector:
         self._href_entrypoint._is_page_closed = self._is_page_closed
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
-        if "linkedin.com/jobs/" not in job.url.lower():
-            return LinkedInApplicationInspection(
-                outcome="ignored",
-                detail="vaga nao pertence ao fluxo interno do LinkedIn",
-            )
-        if not self.storage_state_path.exists():
-            return LinkedInApplicationInspection(
-                outcome="error",
-                detail="sessao autenticada do LinkedIn nao encontrada para inspecao real",
-            )
         return self._inspect_sync(job)
 
     def submit(self, application, job: JobPosting) -> ApplicationSubmissionResult:
-        if "linkedin.com/jobs/" not in job.url.lower():
-            return ApplicationSubmissionResult(
-                status="error_submit",
-                detail="submissao real indisponivel para vaga fora do LinkedIn interno",
-            )
-        if not self.storage_state_path.exists():
-            return ApplicationSubmissionResult(
-                status="error_submit",
-                detail="sessao autenticada do LinkedIn nao encontrada para submissao real",
-            )
         return self._submit_sync(job)
 
     def _inspect_sync(self, job: JobPosting) -> LinkedInApplicationInspection:
@@ -179,6 +170,7 @@ class LinkedInApplicationFlowInspector:
             execution_submit=self._execution.submit,
             format_modal_interpretation_for_error=self._format_modal_interpretation_for_error,
             build_submit_exception_result=self._build_submit_exception_result,
+            submitted_at_provider=self._submitted_at_provider,
         )
 
     async def _read_page_state(self, page) -> LinkedInApplicationPageState:
@@ -226,11 +218,22 @@ class LinkedInApplicationFlowInspector:
         *,
         close_modal: bool = True,
     ) -> LinkedInApplicationPageState:
-        return await self._modal_driver.inspect_easy_apply_modal(
+        return await self._entrypoint_sequence.open(
             page,
             initial_state=initial_state,
+            close_modal=close_modal,
+        )
+
+    async def _inspect_open_easy_apply_modal(
+        self,
+        page,
+        initial_state: LinkedInApplicationPageState,
+        close_modal: bool,
+    ) -> LinkedInApplicationPageState:
+        return await self._modal_driver.inspect_open_easy_apply_modal(
+            page,
+            initial_state,
             read_page_state=self._read_page_state,
-            try_open_easy_apply_modal=self._try_open_easy_apply_modal,
             close_modal=close_modal,
         )
 
@@ -337,16 +340,6 @@ class LinkedInApplicationFlowInspector:
     ) -> LinkedInApplicationPageState:
         self._refresh_flow_opener_callbacks()
         return await self._flow_opener.try_open_easy_apply_via_direct_url(
-            page,
-            close_modal=close_modal,
-        )
-
-    async def _try_open_easy_apply_via_direct_url_via_executor(
-        self,
-        page,
-        close_modal: bool,
-    ) -> LinkedInApplicationPageState:
-        return await self._try_open_easy_apply_via_direct_url(
             page,
             close_modal=close_modal,
         )

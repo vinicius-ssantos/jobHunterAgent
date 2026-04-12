@@ -119,11 +119,11 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
   - [x] `app.py`
   - [x] `applicant.py`
   - [x] `linkedin_application.py`
-- [ ] Garantir que o modulo do LinkedIn contenha somente:
-  - [ ] navegacao
-  - [ ] leitura da pagina
-  - [ ] acoes do portal
-- [ ] Garantir que decisao de estado continue fora do adaptador Playwright
+- [x] Garantir que o modulo do LinkedIn contenha somente:
+  - [x] navegacao
+  - [x] leitura da pagina
+  - [x] acoes do portal
+- [x] Garantir que decisao de estado continue fora do adaptador Playwright
 
 ### Refatoracoes SOLID
 
@@ -136,17 +136,17 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
   - [x] decisao de submit
   - [x] captura de artefatos
 - [x] Reduzir o papel de `applicant.py` para servicos de caso de uso e transicao
-- [ ] Manter logs e persistencia fora de helpers de DOM quando possivel
+- [x] Manter logs e persistencia fora de helpers de DOM quando possivel
 
 #### Open/Closed Principle
 
-- [ ] Definir pontos de extensao para novos tipos de fluxo do LinkedIn sem branching espalhado
-- [ ] Isolar estrategias de deteccao do fluxo:
-  - [ ] modal classico
+- [x] Definir pontos de extensao para novos tipos de fluxo do LinkedIn sem branching espalhado
+- [x] Isolar estrategias de deteccao do fluxo:
+  - [x] modal classico
   - [x] `apply` por URL
-  - [ ] review final
+  - [x] review final
   - [x] bloqueios conhecidos
-- [ ] Tornar a classificacao de preflight extensivel por estrategia
+- [x] Tornar a classificacao de preflight extensivel por estrategia
 
 #### Liskov Substitution Principle
 
@@ -156,18 +156,18 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 
 #### Interface Segregation Principle
 
-- [ ] Quebrar interfaces grandes em contratos menores quando necessario
-- [ ] Separar interfaces de:
+- [x] Quebrar interfaces grandes em contratos menores quando necessario
+- [x] Separar interfaces de:
   - [x] inspecao
   - [x] submit
-  - [ ] captura de artefatos
-  - [ ] preparacao de candidatura
+  - [x] captura de artefatos
+  - [x] preparacao de candidatura
 
 #### Dependency Inversion Principle
 
-- [ ] Injetar dependencias de tempo, filesystem e geracao de artefatos onde hoje houver comportamento implicito
-- [ ] Evitar construcao profunda de dependencias dentro de fluxos de negocio
-- [ ] Padronizar factories na composition edge
+- [x] Injetar dependencias de tempo, filesystem e geracao de artefatos onde hoje houver comportamento implicito
+- [x] Evitar construcao profunda de dependencias dentro de fluxos de negocio
+- [x] Padronizar factories na composition edge
 
 ## P1: Clean Code
 

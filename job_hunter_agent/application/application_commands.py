@@ -5,7 +5,7 @@ from job_hunter_agent.application.application_messages import (
     format_existing_application_for_job,
     format_job_not_approved_for_draft,
 )
-from job_hunter_agent.application.application_preparation import ApplicationPreparationService
+from job_hunter_agent.application.contracts import PreparationPort
 from job_hunter_agent.application.review_workflow import resolve_application_action, resolve_review_action
 from job_hunter_agent.infrastructure.repository import JobRepository
 
@@ -29,7 +29,7 @@ class ApplicationDraftCommandService:
     def __init__(
         self,
         repository: JobRepository,
-        preparation_service: ApplicationPreparationService,
+        preparation_service: PreparationPort,
     ) -> None:
         self.repository = repository
         self.preparation_service = preparation_service

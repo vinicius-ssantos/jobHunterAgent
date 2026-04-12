@@ -17,7 +17,7 @@ from job_hunter_agent.application.application_messages import (
 )
 from job_hunter_agent.application.application_notes import append_note
 from job_hunter_agent.application.application_ports import (
-    JobApplicant,
+    SubmitPort,
     normalize_application_submission_result,
 )
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
@@ -36,7 +36,7 @@ class ApplicationSubmissionService:
     def __init__(
         self,
         repository: JobRepository,
-        applicant: JobApplicant | None = None,
+        applicant: SubmitPort | None = None,
         readiness_checker: ApplicationReadinessCheckService | None = None,
     ) -> None:
         self.repository = repository

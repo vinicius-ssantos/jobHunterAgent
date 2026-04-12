@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from job_hunter_agent.application.contracts import PreparationPort
 from job_hunter_agent.application.application_messages import (
     format_preflight_cli_result,
     format_submit_cli_result,
@@ -10,7 +11,7 @@ from job_hunter_agent.application.application_messages import (
 
 
 async def handle_approved_jobs(
-    application_preparation,
+    application_preparation: PreparationPort,
     job_ids: list[int],
     *,
     logger: logging.Logger,

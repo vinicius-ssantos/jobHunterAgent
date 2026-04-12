@@ -57,6 +57,7 @@ class LinkedInApplicationSubmissionFlowTests(unittest.TestCase):
                     execution_submit=fake_submit,
                     format_modal_interpretation_for_error=lambda state: "",
                     build_submit_exception_result=fake_exception_result,
+                    submitted_at_provider=lambda: "2026-04-12T12:00:00",
                 )
             )
 
@@ -114,8 +115,10 @@ class LinkedInApplicationSubmissionFlowTests(unittest.TestCase):
                     execution_submit=fake_submit,
                     format_modal_interpretation_for_error=lambda state: "",
                     build_submit_exception_result=fake_exception_result,
+                    submitted_at_provider=lambda: "2026-04-12T12:00:00",
                 )
             )
 
         self.assertEqual(result.status, "submitted")
         self.assertIn("submissao real concluida no LinkedIn", result.detail)
+        self.assertEqual(result.submitted_at, "2026-04-12T12:00:00")

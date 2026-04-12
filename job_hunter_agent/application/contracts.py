@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Protocol
 
 from job_hunter_agent.core.domain import JobApplication, JobPosting
@@ -39,6 +40,24 @@ class ArtifactCapturePort(Protocol):
         state,
         job: JobPosting,
     ) -> ApplicationSubmissionResult: ...
+
+
+class ArtifactClockPort(Protocol):
+    def filename_timestamp(self) -> str: ...
+
+    def event_timestamp(self) -> str: ...
+
+
+class ArtifactFilesystemPort(Protocol):
+    def ensure_directory(self, path: Path) -> None: ...
+
+    def write_text(self, path: Path, content: str, *, encoding: str = "utf-8") -> None: ...
+
+    def write_json(self, path: Path, payload: object, *, encoding: str = "utf-8") -> None: ...
+
+
+class ArtifactIdGeneratorPort(Protocol):
+    def next_short_id(self) -> str: ...
 
 
 class InspectionPort(Protocol):

@@ -16,7 +16,7 @@ from job_hunter_agent.application.application_messages import (
     format_preflight_unsupported_flow_blocked,
 )
 from job_hunter_agent.application.application_ports import (
-    ApplicationFlowInspector,
+    InspectionPort,
     normalize_application_flow_inspection,
 )
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
@@ -35,7 +35,7 @@ class ApplicationPreflightService:
     def __init__(
         self,
         repository: JobRepository,
-        flow_inspector: ApplicationFlowInspector | None = None,
+        flow_inspector: InspectionPort | None = None,
         readiness_checker: ApplicationReadinessCheckService | None = None,
     ) -> None:
         self.repository = repository

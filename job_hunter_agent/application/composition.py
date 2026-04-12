@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from job_hunter_agent.application.contracts import ArtifactCapturePort
 from job_hunter_agent.application.application_preflight import ApplicationPreflightService
 from job_hunter_agent.application.application_preparation import ApplicationPreparationService
 from job_hunter_agent.application.application_submission import ApplicationSubmissionService
@@ -18,6 +19,9 @@ from job_hunter_agent.collectors.linkedin_application_adapters import (
     LinkedInPreflightInspectorAdapter,
     LinkedInSubmissionApplicantAdapter,
 )
+from job_hunter_agent.collectors.linkedin_application_components import (
+    create_linkedin_application_flow_components,
+)
 from job_hunter_agent.collectors.linkedin_modal_llm import (
     OllamaLinkedInModalInterpreter,
     deterministic_interpret_linkedin_modal,
@@ -31,7 +35,7 @@ from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobR
 from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
 from job_hunter_agent.core.runtime import RuntimeGuard
 from job_hunter_agent.core.settings import Settings
-from job_hunter_agent.collectors.linkedin_application_artifacts import LinkedInFailureArtifactCapture
+from job_hunter_agent.collectors.linkedin_application_artifacts import create_linkedin_failure_artifact_capture
 
 
 def create_repository(settings: Settings) -> JobRepository:
@@ -95,10 +99,7 @@ def create_application_preparation_service(
 def create_application_preflight_service(repository: JobRepository, settings: Settings) -> ApplicationPreflightService:
     return ApplicationPreflightService(
         repository,
-        flow_inspector=create_linkedin_application_flow_inspector(
-            settings,
-            mode="preflight",
-        ),
+        flow_inspector=create_linkedin_preflight_inspector(settings),
         readiness_checker=ApplicationReadinessCheckService(
             linkedin_storage_state_path=settings.linkedin_storage_state_path,
             resume_path=settings.resume_path,
@@ -112,10 +113,7 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
 def create_application_submission_service(repository: JobRepository, settings: Settings) -> ApplicationSubmissionService:
     return ApplicationSubmissionService(
         repository,
-        applicant=create_linkedin_application_flow_inspector(
-            settings,
-            mode="submit",
-        ),
+        applicant=create_linkedin_submission_applicant(settings),
         readiness_checker=ApplicationReadinessCheckService(
             linkedin_storage_state_path=settings.linkedin_storage_state_path,
             resume_path=settings.resume_path,
@@ -206,7 +204,12 @@ def create_linkedin_field_repairer(settings: Settings) -> OllamaLinkedInFieldRep
     )
 
 
-def build_linkedin_application_flow_inspector_kwargs(settings: Settings) -> dict:
+def build_linkedin_application_flow_inspector_kwargs(
+    settings: Settings,
+    *,
+    candidate_profile,
+    modal_interpreter=None,
+) -> dict:
     return {
         "storage_state_path": settings.linkedin_storage_state_path,
         "headless": settings.browser_headless,
@@ -214,15 +217,28 @@ def build_linkedin_application_flow_inspector_kwargs(settings: Settings) -> dict
         "contact_email": settings.application_contact_email,
         "phone": settings.application_phone,
         "phone_country_code": settings.application_phone_country_code,
-        "candidate_profile": load_candidate_profile(settings.candidate_profile_path),
+        "candidate_profile": candidate_profile,
         "candidate_profile_path": settings.candidate_profile_path,
         "save_failure_artifacts": settings.save_failure_artifacts,
         "failure_artifacts_dir": settings.failure_artifacts_dir,
-        "artifact_capture": LinkedInFailureArtifactCapture(
-            enabled=settings.save_failure_artifacts,
-            artifacts_dir=settings.failure_artifacts_dir,
+        "artifact_capture": create_linkedin_artifact_capture(settings),
+        "components": create_linkedin_application_flow_components(
+            resume_path=settings.resume_path,
+            contact_email=settings.application_contact_email,
+            phone=settings.application_phone,
+            phone_country_code=settings.application_phone_country_code,
+            candidate_profile=candidate_profile,
+            candidate_profile_path=settings.candidate_profile_path,
+            modal_interpreter=modal_interpreter,
         ),
     }
+
+
+def create_linkedin_artifact_capture(settings: Settings) -> ArtifactCapturePort:
+    return create_linkedin_failure_artifact_capture(
+        enabled=settings.save_failure_artifacts,
+        artifacts_dir=settings.failure_artifacts_dir,
+    )
 
 
 def create_linkedin_application_flow_inspector(
@@ -230,29 +246,41 @@ def create_linkedin_application_flow_inspector(
     *,
     mode: str,
 ) -> LinkedInApplicationFlowInspector:
-    shared_kwargs = build_linkedin_application_flow_inspector_kwargs(settings)
+    candidate_profile = load_candidate_profile(settings.candidate_profile_path)
     if mode == "preflight":
+        shared_kwargs = build_linkedin_application_flow_inspector_kwargs(
+            settings,
+            candidate_profile=candidate_profile,
+        )
         return LinkedInApplicationFlowInspector(
             **shared_kwargs,
             modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
         )
     if mode == "submit":
+        modal_interpreter = create_linkedin_modal_interpreter(settings)
+        shared_kwargs = build_linkedin_application_flow_inspector_kwargs(
+            settings,
+            candidate_profile=candidate_profile,
+            modal_interpreter=modal_interpreter,
+        )
         return LinkedInApplicationFlowInspector(
             **shared_kwargs,
-            modal_interpreter=create_linkedin_modal_interpreter(settings),
+            modal_interpreter=modal_interpreter,
         )
     raise ValueError(f"modo de inspector do LinkedIn nao suportado: {mode}")
 
 
 def create_linkedin_preflight_inspector(settings: Settings) -> LinkedInPreflightInspectorAdapter:
     return LinkedInPreflightInspectorAdapter(
-        create_linkedin_application_flow_inspector(settings, mode="preflight")
+        create_linkedin_application_flow_inspector(settings, mode="preflight"),
+        storage_state_path=settings.linkedin_storage_state_path,
     )
 
 
 def create_linkedin_submission_applicant(settings: Settings) -> LinkedInSubmissionApplicantAdapter:
     return LinkedInSubmissionApplicantAdapter(
-        create_linkedin_application_flow_inspector(settings, mode="submit")
+        create_linkedin_application_flow_inspector(settings, mode="submit"),
+        storage_state_path=settings.linkedin_storage_state_path,
     )
 
 

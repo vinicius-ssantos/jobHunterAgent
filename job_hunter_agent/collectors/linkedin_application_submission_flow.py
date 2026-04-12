@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime
 from pathlib import Path
 
 from job_hunter_agent.application.contracts import ApplicationSubmissionResult
@@ -27,6 +26,7 @@ async def submit_linkedin_application(
     execution_submit: Callable[[object], Awaitable[bool]],
     format_modal_interpretation_for_error: Callable[[LinkedInApplicationPageState], str],
     build_submit_exception_result: Callable[..., Awaitable[ApplicationSubmissionResult]],
+    submitted_at_provider: Callable[[], str],
 ) -> ApplicationSubmissionResult:
     async def _operate(page) -> ApplicationSubmissionResult:
         state = LinkedInApplicationPageState()
@@ -90,7 +90,7 @@ async def submit_linkedin_application(
             return ApplicationSubmissionResult(
                 status="submitted",
                 detail="submissao real concluida no LinkedIn",
-                submitted_at=datetime.now().isoformat(timespec="seconds"),
+                submitted_at=submitted_at_provider(),
             )
         except Exception as exc:
             return await build_submit_exception_result(exc, page=page, state=state, job=job)

@@ -67,4 +67,8 @@ class LinkedInEasyApplyFlowOpener:
         *,
         close_modal: bool,
     ) -> LinkedInApplicationPageState:
-        return await self._href_entrypoint.open(page, close_modal=close_modal)
+        return await self._href_entrypoint.open(
+            page,
+            initial_state=LinkedInApplicationPageState(easy_apply=True),
+            close_modal=close_modal,
+        )

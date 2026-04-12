@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -25,11 +26,15 @@ class CompositionInjectionTests(unittest.TestCase):
 
         candidate_profile = object()
         sentinel_inspector = object()
+        components = object()
 
         with patch(
             "job_hunter_agent.application.composition.load_candidate_profile",
             return_value=candidate_profile,
         ) as load_profile, patch(
+            "job_hunter_agent.application.composition.create_linkedin_application_flow_components",
+            return_value=components,
+        ) as create_components, patch(
             "job_hunter_agent.application.composition.LinkedInApplicationFlowInspector",
             return_value=sentinel_inspector,
         ) as inspector_factory:
@@ -39,9 +44,12 @@ class CompositionInjectionTests(unittest.TestCase):
 
         kwargs = inspector_factory.call_args.kwargs  # type: ignore[attr-defined]
         self.assertIn("artifact_capture", kwargs)
+        self.assertIs(kwargs["components"], components)
         self.assertTrue(kwargs["artifact_capture"].enabled)
         self.assertEqual(str(kwargs["artifact_capture"].artifacts_dir), ".tmp-tests/failure-artifacts")
         self.assertIs(adapter._inspector, sentinel_inspector)
+        self.assertEqual(str(adapter._storage_state_path), str(Path("linkedin-state.json").resolve()))
+        create_components.assert_called_once()
         load_profile.assert_called_once_with("candidate_profile.json")
 
     def test_create_linkedin_submission_applicant_wraps_submit_mode_inspector(self) -> None:
@@ -68,6 +76,9 @@ class CompositionInjectionTests(unittest.TestCase):
             "job_hunter_agent.application.composition.load_candidate_profile",
             return_value=object(),
         ), patch(
+            "job_hunter_agent.application.composition.create_linkedin_application_flow_components",
+            return_value=object(),
+        ), patch(
             "job_hunter_agent.application.composition.LinkedInApplicationFlowInspector",
             return_value=object(),
         ) as inspector_factory:
@@ -79,3 +90,4 @@ class CompositionInjectionTests(unittest.TestCase):
         self.assertIn("modal_interpreter", kwargs)
         self.assertFalse(hasattr(adapter, "inspect"))
         self.assertTrue(hasattr(adapter, "submit"))
+        self.assertEqual(str(adapter._storage_state_path), str(Path("linkedin-state.json").resolve()))

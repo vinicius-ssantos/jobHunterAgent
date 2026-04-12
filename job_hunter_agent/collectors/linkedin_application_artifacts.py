@@ -1,23 +1,55 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import json
 from pathlib import Path
 import re
 from uuid import uuid4
 
-from job_hunter_agent.application.contracts import ApplicationSubmissionResult
+from job_hunter_agent.application.contracts import (
+    ApplicationSubmissionResult,
+    ArtifactClockPort,
+    ArtifactFilesystemPort,
+    ArtifactIdGeneratorPort,
+)
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 
 ARTIFACT_SCHEMA_VERSION = 1
 
 
+class SystemArtifactClock:
+    def filename_timestamp(self) -> str:
+        return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    def event_timestamp(self) -> str:
+        return datetime.now().isoformat(timespec="seconds")
+
+
+class LocalArtifactFilesystem:
+    def ensure_directory(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+    def write_text(self, path: Path, content: str, *, encoding: str = "utf-8") -> None:
+        path.write_text(content, encoding=encoding)
+
+    def write_json(self, path: Path, payload: object, *, encoding: str = "utf-8") -> None:
+        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding=encoding)
+
+
+class UuidArtifactIdGenerator:
+    def next_short_id(self) -> str:
+        return uuid4().hex[:8]
+
+
 @dataclass(frozen=True)
 class LinkedInFailureArtifactCapture:
     enabled: bool
     artifacts_dir: Path | None
+    clock: ArtifactClockPort = field(default_factory=SystemArtifactClock)
+    filesystem: ArtifactFilesystemPort = field(default_factory=LocalArtifactFilesystem)
+    artifact_id_generator: ArtifactIdGeneratorPort = field(default_factory=UuidArtifactIdGenerator)
 
     async def capture(
         self,
@@ -36,6 +68,9 @@ class LinkedInFailureArtifactCapture:
             detail=detail,
             enabled=self.enabled,
             artifacts_dir=self.artifacts_dir,
+            clock=self.clock,
+            filesystem=self.filesystem,
+            artifact_id_generator=self.artifact_id_generator,
         )
 
     async def build_submit_exception_result(
@@ -61,6 +96,23 @@ class LinkedInFailureArtifactCapture:
             status="error_submit",
             detail=f"{detail}{artifact_detail}",
         )
+
+
+def create_linkedin_failure_artifact_capture(
+    *,
+    enabled: bool,
+    artifacts_dir: Path | None,
+    clock: ArtifactClockPort | None = None,
+    filesystem: ArtifactFilesystemPort | None = None,
+    artifact_id_generator: ArtifactIdGeneratorPort | None = None,
+) -> LinkedInFailureArtifactCapture:
+    return LinkedInFailureArtifactCapture(
+        enabled=enabled,
+        artifacts_dir=artifacts_dir,
+        clock=clock or SystemArtifactClock(),
+        filesystem=filesystem or LocalArtifactFilesystem(),
+        artifact_id_generator=artifact_id_generator or UuidArtifactIdGenerator(),
+    )
 
 
 def is_page_closed(page) -> bool:
@@ -91,14 +143,17 @@ async def capture_failure_artifacts(
     detail: str,
     enabled: bool,
     artifacts_dir: Path | None,
+    clock: ArtifactClockPort,
+    filesystem: ArtifactFilesystemPort,
+    artifact_id_generator: ArtifactIdGeneratorPort,
 ) -> str:
     if not enabled or artifacts_dir is None:
         return ""
     try:
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filesystem.ensure_directory(artifacts_dir)
+        timestamp = clock.filename_timestamp()
         detail_slug = build_detail_slug(detail)
-        artifact_id = f"{phase}-job-{job.id}-{uuid4().hex[:8]}"
+        artifact_id = f"{phase}-job-{job.id}-{artifact_id_generator.next_short_id()}"
         stem = f"{timestamp}_{phase}_job-{job.id}_{detail_slug}"
         html_path = artifacts_dir / f"{stem}_dom.html"
         screenshot_path = artifacts_dir / f"{stem}_screenshot.png"
@@ -110,7 +165,7 @@ async def capture_failure_artifacts(
         if not page_closed:
             try:
                 html = await page.content()
-                html_path.write_text(html, encoding="utf-8")
+                filesystem.write_text(html_path, html)
                 html_saved = True
             except Exception as exc:
                 if is_closed_target_error(exc):
@@ -133,7 +188,7 @@ async def capture_failure_artifacts(
             "job_url": job.url,
             "phase": phase,
             "detail": detail,
-            "captured_at": datetime.now().isoformat(timespec="seconds"),
+            "captured_at": clock.event_timestamp(),
             "state": {
                 "easy_apply": state.easy_apply,
                 "modal_open": state.modal_open,
@@ -161,7 +216,7 @@ async def capture_failure_artifacts(
                 "screenshot": str(screenshot_path) if screenshot_saved else "",
             },
         }
-        meta_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+        filesystem.write_json(meta_path, payload)
         return f" | artefatos={meta_path.name}"
     except Exception:
         return ""

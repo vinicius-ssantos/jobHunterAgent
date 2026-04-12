@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from job_hunter_agent.collectors.linkedin_application_review import (
+    DEFAULT_LINKEDIN_REVIEW_FINAL_STRATEGY,
     is_linkedin_review_final_ready,
     is_linkedin_review_transition_available,
 )
@@ -54,6 +56,10 @@ class LinkedInApplicationPageState:
     modal_questions: tuple[str, ...] = ()
     answered_questions: tuple[str, ...] = ()
     unanswered_questions: tuple[str, ...] = ()
+
+
+class LinkedInPreflightClassificationStrategy(Protocol):
+    def classify(self, state: "LinkedInApplicationPageState") -> "LinkedInApplicationInspection | None": ...
 
 
 def build_linkedin_modal_snapshot(state: LinkedInApplicationPageState) -> str:
@@ -120,36 +126,49 @@ def describe_linkedin_job_page_readiness(readiness: LinkedInJobPageReadiness) ->
     return detail
 
 
-def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
-    if state.modal_open:
-        detail_parts: list[str] = ["preflight real"]
-        if state.resumable_fields:
-            detail_parts.append(f"campos={', '.join(state.resumable_fields)}")
-        if state.filled_fields:
-            detail_parts.append(f"preenchidos={', '.join(state.filled_fields)}")
-        if state.progressed_to_next_step:
-            detail_parts.append("avancou_proxima_etapa=sim")
-        if state.uploaded_resume:
-            detail_parts.append("curriculo_carregado=sim")
-        if state.reached_review_step:
-            detail_parts.append("revisao_final_alcancada=sim")
-        if state.ready_to_submit:
-            detail_parts.append("pronto_para_envio=sim")
-        if is_linkedin_review_final_ready(state):
-            detail_parts.append("ok: fluxo pronto para submissao assistida no LinkedIn")
-            if state.cta_text:
-                detail_parts.append(f"cta={state.cta_text}")
-            if state.modal_sample:
-                detail_parts.append(f"modal={state.modal_sample}")
-            detail_parts.append(build_linkedin_modal_snapshot(state))
-            return LinkedInApplicationInspection(
-                outcome="ready",
-                detail=" | ".join(detail_parts),
-            )
+def _build_modal_detail_parts(state: LinkedInApplicationPageState) -> list[str]:
+    detail_parts: list[str] = ["preflight real"]
+    if state.resumable_fields:
+        detail_parts.append(f"campos={', '.join(state.resumable_fields)}")
+    if state.filled_fields:
+        detail_parts.append(f"preenchidos={', '.join(state.filled_fields)}")
+    if state.progressed_to_next_step:
+        detail_parts.append("avancou_proxima_etapa=sim")
+    if state.uploaded_resume:
+        detail_parts.append("curriculo_carregado=sim")
+    if state.reached_review_step:
+        detail_parts.append("revisao_final_alcancada=sim")
+    if state.ready_to_submit:
+        detail_parts.append("pronto_para_envio=sim")
+    return detail_parts
 
-        if is_linkedin_review_final_ready(state):
-            detail_parts.append("ok: fluxo simplificado aberto no LinkedIn")
 
+@dataclass(frozen=True)
+class LinkedInModalReadyClassificationStrategy:
+    def classify(self, state: LinkedInApplicationPageState) -> LinkedInApplicationInspection | None:
+        if not state.modal_open:
+            return None
+        if not DEFAULT_LINKEDIN_REVIEW_FINAL_STRATEGY.is_final_ready(state):
+            return None
+        detail_parts = _build_modal_detail_parts(state)
+        detail_parts.append("ok: fluxo pronto para submissao assistida no LinkedIn")
+        if state.cta_text:
+            detail_parts.append(f"cta={state.cta_text}")
+        if state.modal_sample:
+            detail_parts.append(f"modal={state.modal_sample}")
+        detail_parts.append(build_linkedin_modal_snapshot(state))
+        return LinkedInApplicationInspection(
+            outcome="ready",
+            detail=" | ".join(detail_parts),
+        )
+
+
+@dataclass(frozen=True)
+class LinkedInModalManualReviewClassificationStrategy:
+    def classify(self, state: LinkedInApplicationPageState) -> LinkedInApplicationInspection | None:
+        if not state.modal_open:
+            return None
+        detail_parts = _build_modal_detail_parts(state)
         detail_parts.append("inconclusivo: fluxo do LinkedIn exige revisao manual")
         if state.modal_next_visible:
             detail_parts.append("passos_adicionais=sim")
@@ -173,7 +192,12 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
             detail=" | ".join(detail_parts),
         )
 
-    if state.easy_apply:
+
+@dataclass(frozen=True)
+class LinkedInEasyApplyWithoutModalClassificationStrategy:
+    def classify(self, state: LinkedInApplicationPageState) -> LinkedInApplicationInspection | None:
+        if not state.easy_apply or state.modal_open:
+            return None
         return LinkedInApplicationInspection(
             outcome="manual_review",
             detail=(
@@ -181,17 +205,55 @@ def classify_linkedin_application_page_state(state: LinkedInApplicationPageState
                 f" | {describe_linkedin_easy_apply_entrypoint(state)}"
             ),
         )
-    if state.external_apply:
+
+
+@dataclass(frozen=True)
+class LinkedInExternalApplyClassificationStrategy:
+    def classify(self, state: LinkedInApplicationPageState) -> LinkedInApplicationInspection | None:
+        if not state.external_apply:
+            return None
         return LinkedInApplicationInspection(
             outcome="blocked",
             detail="preflight real bloqueado: vaga redireciona para candidatura externa",
         )
-    if state.submit_visible:
+
+
+@dataclass(frozen=True)
+class LinkedInSubmitVisibleManualReviewClassificationStrategy:
+    def classify(self, state: LinkedInApplicationPageState) -> LinkedInApplicationInspection | None:
+        if not state.submit_visible:
+            return None
         return LinkedInApplicationInspection(
             outcome="manual_review",
             detail="preflight real inconclusivo: pagina interna com CTA de envio sem fluxo simples claro",
         )
+
+
+@dataclass(frozen=True)
+class LinkedInMissingCtaClassificationStrategy:
+    def classify(self, state: LinkedInApplicationPageState) -> LinkedInApplicationInspection | None:
+        return LinkedInApplicationInspection(
+            outcome="blocked",
+            detail="preflight real bloqueado: CTA de candidatura nao encontrado na pagina do LinkedIn",
+        )
+
+
+DEFAULT_LINKEDIN_PREFLIGHT_CLASSIFICATION_STRATEGIES: tuple[LinkedInPreflightClassificationStrategy, ...] = (
+    LinkedInModalReadyClassificationStrategy(),
+    LinkedInModalManualReviewClassificationStrategy(),
+    LinkedInEasyApplyWithoutModalClassificationStrategy(),
+    LinkedInExternalApplyClassificationStrategy(),
+    LinkedInSubmitVisibleManualReviewClassificationStrategy(),
+    LinkedInMissingCtaClassificationStrategy(),
+)
+
+
+def classify_linkedin_application_page_state(state: LinkedInApplicationPageState) -> LinkedInApplicationInspection:
+    for strategy in DEFAULT_LINKEDIN_PREFLIGHT_CLASSIFICATION_STRATEGIES:
+        inspection = strategy.classify(state)
+        if inspection is not None:
+            return inspection
     return LinkedInApplicationInspection(
         outcome="blocked",
-        detail="preflight real bloqueado: CTA de candidatura nao encontrado na pagina do LinkedIn",
+        detail="preflight real bloqueado: classificacao do fluxo indisponivel",
     )
