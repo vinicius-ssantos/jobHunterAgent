@@ -26,6 +26,10 @@ def execute_cli_command(args: Namespace) -> bool:
         app = create_query_app()
         print(app.show_status_overview())
         return True
+    if args.command == "health":
+        app = create_query_app()
+        print(app.show_health_report())
+        return True
     if args.command == "jobs":
         _run_jobs_command(args)
         return True
