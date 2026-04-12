@@ -1,0 +1,106 @@
+# Remove Legacy Matching Hardcodes
+
+## Papel Deste Documento
+
+- [x] Este arquivo abre a proxima fase da limpeza de matching
+- [x] O objetivo aqui nao e criar um modelo novo; e reduzir residuos do caminho legado depois da consolidacao do `job_target.json`
+- [x] A branch desta fase foi aberta: `refactor/remove-legacy-matching-hardcodes`
+
+## Objetivo Da Fase
+
+Levar o projeto de:
+
+- fonte de verdade estruturada com compatibilidade ampla
+
+para:
+
+- fonte de verdade estruturada dominante, com legado residual minimo e encapsulado
+
+## Escopo
+
+Esta fase cobre:
+
+- [ ] remocao de hardcodes residuais de matching fora do `job_target.json`
+- [ ] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
+- [ ] revisao das heuristicas de senioridade ainda espalhadas
+- [ ] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
+- [ ] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
+
+Esta fase nao cobre por padrao:
+
+- [ ] remocao imediata e definitiva de todo fallback legado sem plano de migracao
+- [ ] mudanca de produto no fluxo principal de coleta/revisao
+- [ ] reescrita completa da fase de candidatura
+
+## Problemas Residuais Esperados
+
+Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
+
+- [ ] defaults ou listas de matching ainda acoplados ao `Settings`
+- [ ] heuristicas de senioridade duplicadas entre modulos
+- [ ] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial
+- [ ] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo
+- [ ] documentacao que ainda descreve o legado com peso excessivo
+
+## Linha De Trabalho Recomendada
+
+### P0 — Mapear e isolar residuos
+
+- [ ] localizar hardcodes residuais de senioridade em `core/`, `collectors/` e `llm/`
+- [ ] localizar termos de matching ainda espalhados fora do `job_target.json`
+- [ ] separar claramente o que e:
+  - [ ] regra oficial de dominio
+  - [ ] compatibilidade temporaria
+  - [ ] heuristica local de suporte
+
+### P0 — Reduzir peso do legado no runtime principal
+
+- [ ] revisar `Settings` para manter apenas o minimo de compatibilidade necessario
+- [ ] reduzir defaults legados que ainda parecem fonte primaria
+- [ ] revisar `JOB_HUNTER_PROFILE_TEXT` para que continue apenas como compatibilidade passiva
+- [ ] garantir que o caminho principal do runtime continue nascendo do `job_target.json`
+
+### P0 — Senioridade
+
+- [ ] centralizar inferencia e normalizacao de senioridade em um unico ponto
+- [ ] eliminar heuristicas duplicadas ou divergentes
+- [ ] revisar aliases como `pleno -> mid`
+- [ ] revisar tokens como `staff`, `principal`, `lead`, `specialist`, `coord`, `head` quando fizer sentido
+- [ ] manter politica explicita para senioridade desconhecida sem espalhar `if` local
+
+### P1 — Prompt e rationale
+
+- [ ] revisar o prompt do scorer para garantir que nao restaram termos legados irrelevantes
+- [ ] revisar a rationale para manter tokens curtos e consistentes
+- [ ] evitar drift entre rationale deterministica e rationale do scorer
+
+### P1 — Documentacao e setup
+
+- [ ] revisar `.env.example` para ver se algum campo legado ainda pode sair do exemplo principal
+- [ ] revisar `README.md` para diminuir ainda mais o protagonismo do legado
+- [ ] atualizar `AGENTS.md` se a fase alterar regras arquiteturais ou de migracao
+
+### P1 — Testes
+
+- [ ] adicionar testes para garantir ausencia de regressao ao podar defaults legados
+- [ ] adicionar testes cobrindo centralizacao da senioridade
+- [ ] adicionar testes de regressao do caminho principal sem depender de `PROFILE_TEXT`
+
+## Definicao De Conclusao
+
+Esta fase so fecha quando:
+
+- [ ] o caminho principal de matching depender claramente do `job_target.json`
+- [ ] os residuos legados estiverem encapsulados e minimizados
+- [ ] heuristicas de senioridade estiverem centralizadas
+- [ ] documentacao refletir o novo peso do legado
+- [ ] os testes cobrirem a reducao de acoplamento sem quebrar o runtime
+
+## Primeira Sequencia Recomendada
+
+- [ ] mapear hardcodes residuais
+- [ ] centralizar senioridade
+- [ ] reduzir defaults legados no runtime principal
+- [ ] revisar prompt/rationale
+- [ ] revisar `.env.example`, `README.md` e `AGENTS.md`
+- [ ] fechar com testes de regressao
