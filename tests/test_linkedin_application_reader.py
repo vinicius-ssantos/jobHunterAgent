@@ -5,6 +5,10 @@ from job_hunter_agent.collectors.linkedin_application_reader import (
     LinkedInApplicationPageReader,
     normalize_linkedin_application_page_state_payload,
 )
+from job_hunter_agent.collectors.linkedin_application_state import (
+    LinkedInApplicationOperationalSignals,
+    LinkedInApplicationPageSignals,
+)
 
 
 class LinkedInApplicationReaderTests(unittest.TestCase):
@@ -34,6 +38,46 @@ class LinkedInApplicationReaderTests(unittest.TestCase):
         self.assertEqual(state.modal_headings, ("informacoes de contato",))
         self.assertEqual(state.answered_questions, ("java",))
         self.assertEqual(state.unanswered_questions, ("ejb",))
+
+    def test_state_exposes_page_and_operational_signal_views(self) -> None:
+        state = normalize_linkedin_application_page_state_payload(
+            {
+                "current_url": "https://www.linkedin.com/jobs/view/123/",
+                "easy_apply": True,
+                "modal_open": True,
+                "modal_submit_visible": True,
+                "modal_headings": ["review"],
+                "resumable_fields": ["email"],
+                "filled_fields": ["email"],
+                "ready_to_submit": True,
+                "answered_questions": ["java"],
+            }
+        )
+
+        page = state.page_signals()
+        progress = state.operational_signals()
+
+        self.assertEqual(
+            page,
+            LinkedInApplicationPageSignals(
+                current_url="https://www.linkedin.com/jobs/view/123/",
+                easy_apply=True,
+                modal_open=True,
+                modal_submit_visible=True,
+                modal_headings=("review",),
+            ),
+        )
+        self.assertEqual(
+            progress,
+            LinkedInApplicationOperationalSignals(
+                resumable_fields=("email",),
+                filled_fields=("email",),
+                ready_to_submit=True,
+                answered_questions=("java",),
+            ),
+        )
+        self.assertTrue(state.has_resumable_fields())
+        self.assertTrue(state.has_any_filled_fields())
 
     def test_reader_evaluates_script_and_returns_state(self) -> None:
         class _Page:

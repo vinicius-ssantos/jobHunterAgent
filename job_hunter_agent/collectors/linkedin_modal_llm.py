@@ -22,21 +22,23 @@ def validate_linkedin_modal_interpretation(
     state: LinkedInApplicationPageState,
     interpretation: LinkedInModalInterpretation,
 ) -> LinkedInModalInterpretation:
+    page = state.page_signals()
+    progress = state.operational_signals()
     action = interpretation.recommended_action
     if action == "reopen_modal":
-        if not state.modal_open:
+        if not page.modal_open:
             return interpretation
         return _fallback_guardrail("modal ja esta aberto", state)
     if action == "fill_contact":
-        if state.modal_open and bool(state.resumable_fields):
+        if page.modal_open and bool(progress.resumable_fields):
             return interpretation
         return _fallback_guardrail("nao ha campos de contato suficientes no modal", state)
     if action == "upload_resume":
-        if state.modal_open and state.modal_file_upload and not state.uploaded_resume:
+        if page.modal_open and page.modal_file_upload and not progress.uploaded_resume:
             return interpretation
         return _fallback_guardrail("upload de curriculo nao esta pendente", state)
     if action == "click_next":
-        if state.modal_open and state.modal_next_visible and not state.modal_submit_visible:
+        if page.modal_open and page.modal_next_visible and not page.modal_submit_visible:
             return interpretation
         return _fallback_guardrail("botao next nao esta disponivel", state)
     if action == "open_review":
@@ -61,75 +63,79 @@ def _fallback_guardrail(reason: str, state: LinkedInApplicationPageState) -> Lin
 
 
 def build_linkedin_modal_snapshot_payload(state: LinkedInApplicationPageState) -> dict:
+    page = state.page_signals()
+    progress = state.operational_signals()
     return {
-        "modal_open": state.modal_open,
-        "headings": list(state.modal_headings),
-        "buttons": list(state.modal_buttons),
-        "fields": list(state.modal_fields),
-        "questions": list(state.modal_questions),
-        "answered_questions": list(state.answered_questions),
-        "unanswered_questions": list(state.unanswered_questions),
-        "resumable_fields": list(state.resumable_fields),
-        "filled_fields": list(state.filled_fields),
+        "modal_open": page.modal_open,
+        "headings": list(page.modal_headings),
+        "buttons": list(page.modal_buttons),
+        "fields": list(page.modal_fields),
+        "questions": list(page.modal_questions),
+        "answered_questions": list(progress.answered_questions),
+        "unanswered_questions": list(progress.unanswered_questions),
+        "resumable_fields": list(progress.resumable_fields),
+        "filled_fields": list(progress.filled_fields),
         "signals": {
-            "next_visible": state.modal_next_visible,
-            "review_visible": state.modal_review_visible,
-            "submit_visible": state.modal_submit_visible,
-            "file_upload": state.modal_file_upload,
-            "questions_visible": state.modal_questions_visible,
-            "uploaded_resume": state.uploaded_resume,
-            "progressed_to_next_step": state.progressed_to_next_step,
-            "reached_review_step": state.reached_review_step,
-            "ready_to_submit": state.ready_to_submit,
+            "next_visible": page.modal_next_visible,
+            "review_visible": page.modal_review_visible,
+            "submit_visible": page.modal_submit_visible,
+            "file_upload": page.modal_file_upload,
+            "questions_visible": page.modal_questions_visible,
+            "uploaded_resume": progress.uploaded_resume,
+            "progressed_to_next_step": progress.progressed_to_next_step,
+            "reached_review_step": progress.reached_review_step,
+            "ready_to_submit": progress.ready_to_submit,
         },
-        "sample": state.modal_sample,
+        "sample": page.modal_sample,
     }
 
 
 def deterministic_interpret_linkedin_modal(state: LinkedInApplicationPageState) -> LinkedInModalInterpretation:
-    if not state.modal_open:
+    page = state.page_signals()
+    progress = state.operational_signals()
+    if not page.modal_open:
         return LinkedInModalInterpretation(
             step_type="closed",
             recommended_action="reopen_modal",
             confidence=1.0,
             rationale="o modal nao esta aberto",
         )
-    if state.ready_to_submit or is_linkedin_review_final_available(state):
+    if progress.ready_to_submit or is_linkedin_review_final_available(state):
         return LinkedInModalInterpretation(
             step_type="review_final",
             recommended_action="submit_if_authorized",
             confidence=0.95,
             rationale="o botao final de envio esta visivel",
         )
-    if state.modal_file_upload and not state.uploaded_resume:
+    if page.modal_file_upload and not progress.uploaded_resume:
         return LinkedInModalInterpretation(
             step_type="resume_upload",
             recommended_action="upload_resume",
             confidence=0.9,
             rationale="o modal exige upload de curriculo antes de prosseguir",
         )
-    if state.unanswered_questions:
+    if progress.unanswered_questions:
         return LinkedInModalInterpretation(
             step_type="screening_questions",
             recommended_action="manual_review",
             confidence=0.9,
             rationale="ha perguntas obrigatorias sem resposta confirmada no perfil local",
         )
-    if is_linkedin_review_transition_available(state) and not state.reached_review_step:
+    if is_linkedin_review_transition_available(state) and not progress.reached_review_step:
         return LinkedInModalInterpretation(
             step_type="review_transition",
             recommended_action="open_review",
             confidence=0.85,
             rationale="a etapa de revisao esta disponivel e ainda nao foi aberta",
         )
-    if state.modal_next_visible:
+    if page.modal_next_visible:
         return LinkedInModalInterpretation(
             step_type="multi_step_form",
             recommended_action="click_next",
             confidence=0.8,
             rationale="o fluxo ainda possui etapas intermediarias",
         )
-    if state.modal_questions_visible:
+    if page.modal_questions_visible:
         return LinkedInModalInterpretation(
             step_type="screening_questions",
             recommended_action="manual_review",

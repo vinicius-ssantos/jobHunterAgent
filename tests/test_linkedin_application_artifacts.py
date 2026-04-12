@@ -3,6 +3,9 @@ from pathlib import Path
 import unittest
 
 from job_hunter_agent.collectors.linkedin_application_artifacts import LinkedInFailureArtifactCapture
+from job_hunter_agent.collectors.linkedin_application_diagnostics import (
+    build_preflight_inconclusive_modal_not_open_detail,
+)
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
@@ -40,7 +43,7 @@ class LinkedInFailureArtifactCaptureTests(unittest.TestCase):
                 ),
                 job=_Job(),
                 phase="preflight",
-                detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+                detail=build_preflight_inconclusive_modal_not_open_detail(),
             )
         )
 
@@ -49,6 +52,7 @@ class LinkedInFailureArtifactCaptureTests(unittest.TestCase):
         self.assertEqual(len(meta_files), 1)
         payload = json.loads(meta_files[0].read_text(encoding="utf-8"))
         self.assertEqual(payload["artifact_type"], "preflight")
+        self.assertEqual(payload["detail_category"], "estado_inconclusivo")
         self.assertIn("modal nao abriu", payload["detail"])
         self.assertTrue(payload["files"]["html"].endswith("_dom.html"))
 

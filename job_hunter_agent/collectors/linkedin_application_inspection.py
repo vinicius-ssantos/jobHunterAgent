@@ -3,11 +3,14 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+from job_hunter_agent.collectors.linkedin_application_diagnostics import (
+    build_preflight_blocked_readiness_detail,
+    build_preflight_inconclusive_modal_not_open_detail,
+)
 from job_hunter_agent.collectors.linkedin_application_runtime import run_with_linkedin_page
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationInspection,
     LinkedInApplicationPageState,
-    describe_linkedin_job_page_readiness,
 )
 from job_hunter_agent.core.domain import JobPosting
 
@@ -29,25 +32,27 @@ async def inspect_linkedin_application(
         await ensure_target_job_page(page, job)
         state, readiness = await read_state_with_hydration(page, job)
         if readiness.result != "ready":
+            detail = build_preflight_blocked_readiness_detail(readiness)
             artifact_detail = await capture_failure_artifacts(
                 page,
                 state=state,
                 job=job,
                 phase="preflight",
-                detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}",
+                detail=detail,
             )
             return LinkedInApplicationInspection(
                 outcome="blocked",
-                detail=f"preflight real bloqueado: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
+                detail=f"{detail}{artifact_detail}",
             )
         state = await inspect_preflight_state(page, state)
         if state.easy_apply and not state.modal_open:
+            detail = build_preflight_inconclusive_modal_not_open_detail()
             artifact_detail = await capture_failure_artifacts(
                 page,
                 state=state,
                 job=job,
                 phase="preflight",
-                detail="preflight real inconclusivo: CTA de candidatura simplificada encontrado, mas modal nao abriu",
+                detail=detail,
             )
         else:
             artifact_detail = ""

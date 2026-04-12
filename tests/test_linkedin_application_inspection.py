@@ -55,6 +55,7 @@ class LinkedInApplicationInspectionFlowTests(unittest.TestCase):
             inspection = __import__("asyncio").run(result)
 
         self.assertEqual(inspection.outcome, "blocked")
+        self.assertIn("bloqueio_funcional:", inspection.detail)
         self.assertIn("preflight real bloqueado", inspection.detail)
         self.assertIn("artefatos=ok", inspection.detail)
 

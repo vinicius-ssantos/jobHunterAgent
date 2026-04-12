@@ -173,34 +173,34 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 
 ### Nomes e intencao
 
-- [ ] Revisar nomes ambigos de metodos e helpers
-- [ ] Garantir que nomes expressem efeito observavel
-- [ ] Remover metodos utilitarios que misturam decisao e side effect
+- [x] Revisar nomes ambigos de metodos e helpers
+- [x] Garantir que nomes expressem efeito observavel
+- [x] Remover metodos utilitarios que misturam decisao e side effect
 
 ### Tamanho e legibilidade
 
-- [ ] Reduzir funcoes longas com muitos caminhos de erro
+- [x] Reduzir funcoes longas com muitos caminhos de erro
 - [x] Extrair blocos de fallback do LinkedIn para helpers nomeados
-- [ ] Consolidar trechos repetidos de clique, espera e recuperacao
+- [x] Consolidar trechos repetidos de clique, espera e recuperacao
 
 ### Dados e modelos
 
-- [ ] Revisar se `LinkedInApplicationPageState` ja esta no limite de responsabilidade
-- [ ] Separar o que e:
-  - [ ] sinal bruto de pagina
-  - [ ] interpretacao operacional
-  - [ ] decisao de fluxo
-- [ ] Evitar strings compostas manualmente como unica fonte de diagnostico
+- [x] Revisar se `LinkedInApplicationPageState` ja esta no limite de responsabilidade
+- [x] Separar o que e:
+  - [x] sinal bruto de pagina
+  - [x] interpretacao operacional
+  - [x] decisao de fluxo
+- [x] Evitar strings compostas manualmente como unica fonte de diagnostico
 
 ### Erros e logging
 
-- [ ] Padronizar mensagens de erro por categoria
-- [ ] Diferenciar claramente:
-  - [ ] erro de portal
-  - [ ] bloqueio funcional
-  - [ ] estado inconclusivo
-  - [ ] falha inesperada
-- [ ] Garantir que logs internos preservem contexto, mas mensagens operacionais sejam curtas
+- [x] Padronizar mensagens de erro por categoria
+- [x] Diferenciar claramente:
+  - [x] erro de portal
+  - [x] bloqueio funcional
+  - [x] estado inconclusivo
+  - [x] falha inesperada
+- [x] Garantir que logs internos preservem contexto, mas mensagens operacionais sejam curtas
 
 ## P1: Persistencia e Modelo de Dados
 

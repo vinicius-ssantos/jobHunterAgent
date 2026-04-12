@@ -10,18 +10,22 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class LinkedInReviewFinalStrategy:
     def is_transition_available(self, state: "LinkedInApplicationPageState") -> bool:
-        return state.modal_open and state.modal_review_visible and not state.modal_submit_visible
+        page = state.page_signals()
+        return page.modal_open and page.modal_review_visible and not page.modal_submit_visible
 
     def is_final_available(self, state: "LinkedInApplicationPageState") -> bool:
-        return state.modal_open and state.modal_submit_visible and not state.modal_next_visible
+        page = state.page_signals()
+        return page.modal_open and page.modal_submit_visible and not page.modal_next_visible
 
     def is_final_ready(self, state: "LinkedInApplicationPageState") -> bool:
-        return state.ready_to_submit or (
+        page = state.page_signals()
+        progress = state.operational_signals()
+        return progress.ready_to_submit or (
             self.is_final_available(state)
             and not (
-                state.modal_review_visible
-                or state.modal_file_upload
-                or state.modal_questions_visible
+                page.modal_review_visible
+                or page.modal_file_upload
+                or page.modal_questions_visible
             )
         )
 

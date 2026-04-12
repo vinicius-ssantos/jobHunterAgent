@@ -4,11 +4,16 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from job_hunter_agent.application.contracts import ApplicationSubmissionResult
+from job_hunter_agent.collectors.linkedin_application_diagnostics import (
+    build_submit_blocked_readiness_detail,
+    build_submit_flow_not_ready_detail,
+    build_submit_missing_easy_apply_detail,
+    build_submit_not_confirmed_detail,
+    build_submit_success_detail,
+)
 from job_hunter_agent.collectors.linkedin_application_runtime import run_with_linkedin_page
 from job_hunter_agent.collectors.linkedin_application_state import (
     LinkedInApplicationPageState,
-    describe_linkedin_job_page_readiness,
-    describe_linkedin_modal_blocker,
 )
 from job_hunter_agent.collectors.linkedin_application_submit import evaluate_linkedin_submit_readiness
 from job_hunter_agent.core.domain import JobPosting
@@ -35,21 +40,22 @@ async def submit_linkedin_application(
             await ensure_target_job_page(page, job)
             state, readiness = await read_state_with_hydration(page, job)
             if readiness.result != "ready":
+                detail = build_submit_blocked_readiness_detail(readiness)
                 artifact_detail = await capture_failure_artifacts(
                     page,
                     state=state,
                     job=job,
                     phase="submit",
-                    detail=f"submissao real bloqueada: {describe_linkedin_job_page_readiness(readiness)}",
+                    detail=detail,
                 )
                 return ApplicationSubmissionResult(
                     status="error_submit",
-                    detail=f"submissao real bloqueada: {describe_linkedin_job_page_readiness(readiness)}{artifact_detail}",
+                    detail=f"{detail}{artifact_detail}",
                 )
             if not state.easy_apply:
                 return ApplicationSubmissionResult(
                     status="error_submit",
-                    detail="submissao real bloqueada: CTA de candidatura simplificada nao encontrado",
+                    detail=build_submit_missing_easy_apply_detail(),
                 )
             state = await prepare_submit_state(page, state)
             if not state.modal_open or not state.modal_submit_visible:
@@ -57,15 +63,13 @@ async def submit_linkedin_application(
                     state,
                     interpretation_detail=format_modal_interpretation_for_error(state),
                 )
+                detail = build_submit_flow_not_ready_detail(state)
                 artifact_detail = await capture_failure_artifacts(
                     page,
                     state=state,
                     job=job,
                     phase="submit",
-                    detail=(
-                        "submissao real bloqueada: fluxo nao chegou ao botao de envio"
-                        f" | bloqueio={describe_linkedin_modal_blocker(state)}"
-                    ),
+                    detail=detail,
                 )
                 return ApplicationSubmissionResult(
                     status="error_submit",
@@ -73,23 +77,21 @@ async def submit_linkedin_application(
                 )
             submitted = await execution_submit(page)
             if not submitted:
+                detail = build_submit_not_confirmed_detail()
                 artifact_detail = await capture_failure_artifacts(
                     page,
                     state=state,
                     job=job,
                     phase="submit",
-                    detail="submissao real falhou: clique final de envio nao confirmou sucesso",
+                    detail=detail,
                 )
                 return ApplicationSubmissionResult(
                     status="error_submit",
-                    detail=(
-                        "submissao real falhou: clique final de envio nao confirmou sucesso"
-                        f"{artifact_detail}"
-                    ),
+                    detail=f"{detail}{artifact_detail}",
                 )
             return ApplicationSubmissionResult(
                 status="submitted",
-                detail="submissao real concluida no LinkedIn",
+                detail=build_submit_success_detail(),
                 submitted_at=submitted_at_provider(),
             )
         except Exception as exc:

@@ -689,7 +689,10 @@ class LinkedInApplicationInspectorTests(unittest.TestCase):
         self.assertEqual(len(meta_files), 1)
         payload = json.loads(meta_files[0].read_text(encoding="utf-8"))
         self.assertEqual(payload["artifact_schema_version"], 1)
-        self.assertEqual(payload["detail_slug"], "submissao-real-falhou-com-erro-inesperado-boom")
+        self.assertEqual(
+            payload["detail_slug"],
+            "falha-inesperada-submissao-real-falhou-com-erro-inesperado-boom",
+        )
         self.assertTrue(payload["files"]["html"].endswith("_dom.html"))
         self.assertTrue(payload["files"]["screenshot"].endswith("_screenshot.png"))
 

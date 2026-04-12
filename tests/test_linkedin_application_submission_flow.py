@@ -62,6 +62,7 @@ class LinkedInApplicationSubmissionFlowTests(unittest.TestCase):
             )
 
         self.assertEqual(result.status, "error_submit")
+        self.assertIn("bloqueio_funcional:", result.detail)
         self.assertIn("CTA de candidatura simplificada nao encontrado", result.detail)
 
     def test_submit_linkedin_application_returns_submitted_when_flow_succeeds(self) -> None:

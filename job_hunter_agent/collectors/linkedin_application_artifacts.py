@@ -13,6 +13,11 @@ from job_hunter_agent.application.contracts import (
     ArtifactFilesystemPort,
     ArtifactIdGeneratorPort,
 )
+from job_hunter_agent.collectors.linkedin_application_diagnostics import (
+    build_submit_closed_page_detail,
+    build_submit_unexpected_failure_detail,
+    extract_operational_detail_category,
+)
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
 
@@ -82,9 +87,9 @@ class LinkedInFailureArtifactCapture:
         job: JobPosting,
     ) -> ApplicationSubmissionResult:
         if is_closed_target_error(exc):
-            detail = "submissao real interrompida: pagina do LinkedIn foi fechada durante a automacao"
+            detail = build_submit_closed_page_detail()
         else:
-            detail = f"submissao real falhou com erro inesperado: {exc}"
+            detail = build_submit_unexpected_failure_detail(exc)
         artifact_detail = await self.capture(
             page,
             state=state,
@@ -188,6 +193,7 @@ async def capture_failure_artifacts(
             "job_url": job.url,
             "phase": phase,
             "detail": detail,
+            "detail_category": extract_operational_detail_category(detail),
             "captured_at": clock.event_timestamp(),
             "state": {
                 "easy_apply": state.easy_apply,

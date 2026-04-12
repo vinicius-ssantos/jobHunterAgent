@@ -96,7 +96,7 @@ class LinkedInApplicationFlowInspector:
         self._modal_driver = resolved_components.modal_driver
         self._submitted_at_provider = resolved_components.submitted_at_provider
         self._execution = LinkedInEasyApplyExecution(
-            inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_executor,
+            inspect_easy_apply_modal=self._inspect_easy_apply_modal,
             try_submit_application=self._try_submit_application,
         )
         self._classic_modal_entrypoint = LinkedInApplyClassicModalStrategy(
@@ -108,7 +108,7 @@ class LinkedInApplicationFlowInspector:
             extract_easy_apply_href=self._extract_easy_apply_href,
             prepare_job_page_for_apply=self._prepare_job_page_for_apply,
             read_page_state=self._read_page_state,
-            inspect_easy_apply_modal=self._inspect_easy_apply_modal_via_opener,
+            inspect_easy_apply_modal=self._inspect_easy_apply_modal,
             is_page_closed=self._is_page_closed,
         )
         self._entrypoint_sequence = LinkedInApplyEntrypointSequence(
@@ -130,7 +130,7 @@ class LinkedInApplicationFlowInspector:
         self._href_entrypoint._extract_easy_apply_href = self._extract_easy_apply_href
         self._href_entrypoint._prepare_job_page_for_apply = self._prepare_job_page_for_apply
         self._href_entrypoint._read_page_state = self._read_page_state
-        self._href_entrypoint._inspect_easy_apply_modal = self._inspect_easy_apply_modal_via_opener
+        self._href_entrypoint._inspect_easy_apply_modal = self._inspect_easy_apply_modal
         self._href_entrypoint._is_page_closed = self._is_page_closed
 
     def inspect(self, job: JobPosting) -> LinkedInApplicationInspection:
@@ -242,30 +242,6 @@ class LinkedInApplicationFlowInspector:
 
     def _format_modal_interpretation_for_error(self, state: LinkedInApplicationPageState) -> str:
         return self._modal_driver.format_modal_interpretation_for_error(state)
-
-    async def _inspect_easy_apply_modal_via_opener(
-        self,
-        page,
-        initial_state: LinkedInApplicationPageState,
-        close_modal: bool,
-    ) -> LinkedInApplicationPageState:
-        return await self._inspect_easy_apply_modal(
-            page,
-            initial_state,
-            close_modal=close_modal,
-        )
-
-    async def _inspect_easy_apply_modal_via_executor(
-        self,
-        page,
-        initial_state: LinkedInApplicationPageState,
-        close_modal: bool,
-    ) -> LinkedInApplicationPageState:
-        return await self._inspect_easy_apply_modal(
-            page,
-            initial_state,
-            close_modal=close_modal,
-        )
 
     async def _capture_failure_artifacts(
         self,
