@@ -33,16 +33,16 @@ Documentacao historica:
 - enviar vagas para revisao humana via Telegram
 - registrar aprovacao ou rejeicao manual
 
-Candidatura automatica esta fora do caminho critico desta versao.
+Candidatura automatica continua fora do caminho critico desta versao.
 
-Ja existe uma pre-fase de candidatura assistida preparada na arquitetura:
+O projeto ja possui um fluxo de candidatura assistida operacional, separado do loop principal de coleta e revisao:
 
 - contratos em `job_hunter_agent/application/applicant.py`
 - persistencia separada de candidaturas em `job_applications`
 - criacao de rascunho quando uma vaga e aprovada no Telegram
 - classificacao conservadora de suporte: `auto_supported`, `manual_review` ou `unsupported`
 
-Isso ainda nao dispara aplicacao automatica. Serve apenas para preparar a proxima fase sem contaminar o loop atual de coleta e revisao.
+Esse fluxo nao faz parte do loop automatico principal. Ele existe como trilha assistida e explicitamente autorizada pelo usuario.
 
 Para o primeiro teste real controlado, o projeto fica reduzido por padrao a `1 portal`:
 
@@ -459,9 +459,9 @@ python main.py
 - O SQLite registra vagas, logs de coleta e execucoes de coleta.
 - Falhas por portal nao interrompem as demais fontes.
 
-## Pre-fase de candidatura assistida
+## Fluxo de candidatura assistida
 
-O projeto agora possui a base estrutural para uma fase futura de candidatura assistida, sem ativar submissao automatica ainda.
+O projeto possui um fluxo de candidatura assistida operacional, mas separado do loop automatico principal.
 
 Estados de candidatura ficam separados dos estados de vaga:
 
@@ -481,7 +481,7 @@ Cada rascunho de candidatura tambem recebe uma classificacao de suporte:
 - `manual_review`
 - `unsupported`
 
-No estado atual, essa classificacao e conservadora e serve para filtrar o que pode entrar numa futura automacao, sem ainda disparar submissao real.
+No estado atual, essa classificacao e conservadora e serve para separar o que parece simples, o que exige revisao manual pesada e o que nao deve seguir no fluxo assistido.
 
 Depois da confirmacao humana, a candidatura tambem pode passar por um `preflight` manual.
 Esse preflight:
@@ -501,7 +501,7 @@ Se a candidatura estiver em `authorized_submit`, o Telegram tambem pode expor:
 
 - `Enviar candidatura`
 
-Esse passo e o primeiro submit real controlado do projeto:
+Esse passo e o submit real controlado do projeto:
 
 - nao faz parte do loop automatico principal
 - depende de clique humano explicito no Telegram

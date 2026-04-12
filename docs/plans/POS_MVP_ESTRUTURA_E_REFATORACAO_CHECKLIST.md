@@ -7,7 +7,7 @@
 - [x] O fechamento da refatoracao estrutural principal ja foi absorvido em `master`
 - [x] Itens ainda abertos abaixo representam endurecimento residual, produto futuro ou analise arquitetural, e nao bloqueiam mais o encerramento da fase estrutural
 - [x] Nao criar novos arquivos de checklist sem dono e sem funcao explicita
-- [x] Checklist atualizada com os merges recentes ja absorvidos em `master`, incluindo os PRs `#6`, `#7` e `#8`
+- [x] Checklist revisada para refletir o estado atual ja absorvido em `master`
 
 ## Estado Atual Validado
 

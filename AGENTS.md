@@ -117,7 +117,7 @@ Use estas responsabilidades:
 - `job_hunter_agent/infrastructure/`
   persistência e notificações
 - `job_hunter_agent/llm/`
-  scoring assistivo, extração de requisitos, rationale e priorização
+  scoring assistivo, extração de requisitos, rationale, priorização, interpretação assistida de modal e sugestão de perfil estruturado do candidato
 
 Regra de dependência:
 
