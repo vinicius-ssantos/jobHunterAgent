@@ -8,6 +8,10 @@ from job_hunter_agent.application.application_commands import (
     ApplicationTransitionCommandService,
     JobReviewCommandService,
 )
+from job_hunter_agent.application.application_health import (
+    build_application_health_report,
+    render_application_health_report,
+)
 from job_hunter_agent.application.application_queries import ApplicationQueryService
 from job_hunter_agent.application.application_cli_rendering import render_failure_artifacts
 from job_hunter_agent.application.composition import (
@@ -138,6 +142,9 @@ class JobHunterApplication:
 
     def show_status_overview(self) -> str:
         return self._query_service().show_status_overview()
+
+    def show_health_report(self) -> str:
+        return render_application_health_report(build_application_health_report(self.settings))
 
     def review_job(self, job_id: int, action: str) -> str:
         return self._job_review_commands().review_job(job_id, action)

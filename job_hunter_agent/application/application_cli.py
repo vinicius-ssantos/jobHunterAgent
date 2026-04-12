@@ -46,6 +46,7 @@ def parse_args() -> argparse.Namespace:
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("status", help="Mostra um resumo operacional de vagas e candidaturas.")
+    subparsers.add_parser("health", help="Mostra health checks operacionais locais.")
     jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
     jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", required=True)
 
