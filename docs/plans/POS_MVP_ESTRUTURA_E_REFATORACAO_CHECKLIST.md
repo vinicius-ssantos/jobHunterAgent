@@ -7,6 +7,7 @@
 - [x] O fechamento da refatoracao estrutural principal ja foi absorvido em `master`
 - [x] Itens ainda abertos abaixo representam endurecimento residual, produto futuro ou analise arquitetural, e nao bloqueiam mais o encerramento da fase estrutural
 - [x] Nao criar novos arquivos de checklist sem dono e sem funcao explicita
+- [x] Checklist atualizada com os merges recentes ja absorvidos em `master`, incluindo os PRs `#6`, `#7` e `#8`
 
 ## Estado Atual Validado
 
@@ -18,6 +19,8 @@
 - [x] Gate explicito em `authorized_submit`
 - [x] Submit real assistido no LinkedIn validado em producao
 - [x] Captura de artefatos em falhas relevantes
+- [x] Health checks operacionais locais disponiveis via CLI
+- [x] Modo formal de validacao seca para preflight e submit disponivel via CLI
 
 ## Objetivo Desta Fase
 
@@ -94,6 +97,9 @@ Regra da fase atual:
   - [x] autorizar submit
   - [x] executar submit
   - [x] ver artefatos da ultima falha
+  - [x] rodar health checks operacionais locais
+  - [x] rodar validacao seca de preflight
+  - [x] rodar validacao seca de submit
 - [x] Explicitar na UX que CLI e Telegram cobrem o fluxo operacional principal, com Telegram opcional para revisao assincrona
 - [x] Definir uma interface principal:
   - [x] CLI como interface operacional principal
@@ -109,10 +115,10 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 ### Separacao de responsabilidades
 
 - [x] Extrair uma camada de orquestracao explicita para o fluxo de candidatura
-- [ ] Reduzir o acoplamento entre:
-  - [ ] `app.py`
-  - [ ] `applicant.py`
-  - [ ] `linkedin_application.py`
+- [x] Reduzir o acoplamento entre:
+  - [x] `app.py`
+  - [x] `applicant.py`
+  - [x] `linkedin_application.py`
 - [ ] Garantir que o modulo do LinkedIn contenha somente:
   - [ ] navegacao
   - [ ] leitura da pagina
@@ -123,7 +129,7 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 
 #### Single Responsibility Principle
 
-- [ ] Quebrar `linkedin_application.py` em componentes menores:
+- [x] Quebrar `linkedin_application.py` em componentes menores:
   - [x] leitura do estado da pagina
   - [x] localizacao e abertura do fluxo apply
   - [x] preenchimento de campos
@@ -152,8 +158,8 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 
 - [ ] Quebrar interfaces grandes em contratos menores quando necessario
 - [ ] Separar interfaces de:
-  - [ ] inspecao
-  - [ ] submit
+  - [x] inspecao
+  - [x] submit
   - [ ] captura de artefatos
   - [ ] preparacao de candidatura
 
@@ -205,14 +211,14 @@ Os itens remanescentes desta secao devem ser lidos como backlog tecnico residual
 
 ## P1: Qualidade e Testes
 
-- [ ] Adicionar testes para:
+- [x] Adicionar testes para:
   - [x] redirecionamento para `similar jobs`
   - [x] perguntas adicionais obrigatorias
   - [x] fluxo `apply` por URL direta
   - [x] review final com `submit` visivel
   - [x] artefatos de preflight inconclusivo
 - [ ] Criar fixtures HTML reais anonimizadas dos casos validados
-- [ ] Adicionar testes focados em transicoes de estado
+- [x] Adicionar testes focados em transicoes de estado
 - [x] Garantir uma suite rapida de regressao operacional
 
 ## P2: Melhoria de Produto
@@ -249,13 +255,13 @@ As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ai
 - [ ] Avaliar e implementar busca dirigida por empresas prioritarias, usando grupos de prioridade de empresas, familias de cargo, senioridade alvo e janela temporal para gerar uma fila priorizada de revisao em lote
 - [ ] Avaliar registrar motivo curto e padronizado para descarte por regra ou por score
 - [ ] Avaliar criar um feedback loop local de revisao humana para refinar criterios de triagem
-- [ ] Avaliar um modo formal de `dry-run` para preflight e submit, com relatorio e artefatos
-- [ ] Avaliar adicionar health checks antes de operacoes criticas:
-  - [ ] `Ollama`
-  - [ ] Playwright
-  - [ ] sessao autenticada do LinkedIn
-  - [ ] Telegram
-  - [ ] caminhos obrigatorios como curriculo e banco
+- [x] Avaliar um modo formal de `dry-run` para preflight e submit, com relatorio e artefatos
+- [x] Avaliar adicionar health checks antes de operacoes criticas:
+  - [x] `Ollama`
+  - [x] Playwright
+  - [x] sessao autenticada do LinkedIn
+  - [x] Telegram
+  - [x] caminhos obrigatorios como curriculo e banco
 - [ ] Avaliar rate limiting, retry e backoff explicitos por portal
 - [ ] Avaliar enriquecimento local de metadados da vaga:
   - [ ] idioma
@@ -267,7 +273,7 @@ As possibilidades abaixo parecem potencialmente beneficas para o produto, mas ai
 - [ ] Avaliar a necessidade de uma acao de revisao adiada sem distorcer os estados oficiais de vaga
 - [ ] Avaliar agrupamento de vagas muito parecidas para reduzir ruido no Telegram
 - [ ] Avaliar um ranking operacional de atencao para destacar o que merece preflight primeiro
-- [ ] Avaliar checklist de prontidao antes do preflight ou submit real
+- [x] Avaliar checklist de prontidao antes do preflight ou submit real
 - [ ] Avaliar catalogo local de perguntas recorrentes de candidatura e respostas sugeridas, sempre com aprovacao humana antes de uso
 - [ ] Avaliar deteccao antecipada de bloqueios recorrentes que hoje so aparecem no preflight
 - [ ] Avaliar metricas locais simples por ciclo e por portal:
@@ -464,11 +470,11 @@ Existe uma hipotese de evolucao em que o OpenClaw opere a aplicacao como camada 
 - [ ] Avaliar a necessidade de expor operacoes formais para o operador externo:
   - [x] listar fila
   - [x] detalhar vaga
-  - [ ] aprovar ou rejeitar
-  - [ ] preparar candidatura
-  - [ ] rodar preflight
-  - [ ] autorizar submit
-  - [ ] executar submit quando permitido
+  - [x] aprovar ou rejeitar
+  - [x] preparar candidatura
+  - [x] rodar preflight
+  - [x] autorizar submit
+  - [x] executar submit quando permitido
 - [ ] Definir o pacote minimo de contexto consolidado que deve voltar ao humano antes do `sim` ou `nao`:
   - [ ] dados normalizados da vaga
   - [ ] score e rationale
