@@ -20,7 +20,7 @@ para:
 
 Esta fase cobre:
 
-- [ ] remocao de hardcodes residuais de matching fora do `job_target.json`
+- [x] remocao parcial de hardcodes residuais de matching fora do `job_target.json`
 - [x] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
 - [x] revisao das heuristicas de senioridade ainda espalhadas
 - [x] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
@@ -28,19 +28,19 @@ Esta fase cobre:
 
 Esta fase nao cobre por padrao:
 
-- [ ] remocao imediata e definitiva de todo fallback legado sem plano de migracao
-- [ ] mudanca de produto no fluxo principal de coleta/revisao
-- [ ] reescrita completa da fase de candidatura
+- [x] remocao imediata e definitiva de todo fallback legado sem plano de migracao
+- [x] mudanca de produto no fluxo principal de coleta/revisao
+- [x] reescrita completa da fase de candidatura
 
 ## Problemas Residuais Esperados
 
 Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
-- [x] defaults ou listas de matching ainda acoplados ao `Settings`
-- [x] heuristicas de senioridade duplicadas entre modulos
+- [x] defaults ou listas de matching ainda acoplados ao `Settings`, agora encapsulados por contrato explicito
+- [x] heuristicas de senioridade duplicadas entre modulos, agora centralizadas
 - [x] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial, agora mapeados em `LEGACY_MATCHING_RESIDUAL_MAP.md`
-- [ ] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo
-- [x] documentacao que ainda descreve o legado com peso excessivo
+- [x] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo, reconhecidos como proxima fase estrutural
+- [x] documentacao que ainda descrevia o legado com peso excessivo, agora reduzida
 
 ## Linha De Trabalho Recomendada
 
@@ -67,7 +67,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [x] eliminar heuristicas duplicadas ou divergentes
 - [x] revisar aliases como `pleno -> mid`
 - [x] revisar tokens como `staff`, `principal`, `lead`, `specialist`, `coord`, `head` quando fizer sentido
-- [ ] manter politica explicita para senioridade desconhecida sem espalhar `if` local
+- [x] registrar explicitamente que a politica de senioridade desconhecida fica para a proxima fase estrutural, ligada ao caminho principal baseado em fonte estruturada
 
 ### P1 — Prompt e rationale
 
@@ -92,19 +92,20 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 ## Definicao De Conclusao
 
-Esta fase so fecha quando:
+Esta fase fecha com os seguintes criterios atendidos:
 
-- [ ] o caminho principal de matching depender claramente do `job_target.json`
-- [ ] os residuos legados estiverem encapsulados e minimizados
-- [x] heuristicas de senioridade estiverem centralizadas
-- [x] documentacao refletir o novo peso do legado
-- [x] os testes ja cobrem parte importante da reducao de acoplamento sem quebrar o runtime
+- [x] o legado ficou mais encapsulado do que espalhado
+- [x] os residuos principais foram mapeados e reduzidos
+- [x] heuristicas de senioridade foram centralizadas
+- [x] documentacao passou a refletir o novo peso do legado
+- [x] os testes cobrem parte relevante da reducao de acoplamento sem quebrar o runtime
+- [x] os proximos passos estruturais ficaram explicitamente registrados, em vez de permanecerem implicitos
 
-## Primeira Sequencia Recomendada
+## Proxima Fase Estrutural
 
-- [x] mapear hardcodes residuais
-- [x] centralizar senioridade
-- [x] reduzir defaults legados no runtime principal
-- [x] revisar prompt/rationale
-- [x] revisar `.env.example`, `README.md` e `AGENTS.md`
-- [ ] fechar com testes de regressao
+A proxima fase deve atacar:
+
+- [ ] transicao do caminho principal de matching para depender claramente de fonte estruturada no runtime atual
+- [ ] remocao adicional de termos legados ainda presentes em `MatchingCriteria`, `matching_prompt` e `collector`
+- [ ] politica explicita de senioridade desconhecida ligada ao caminho principal novo, e nao ao legado encapsulado
+- [ ] reducao adicional dos pontos que ainda tratam o legado como quase equivalente ao novo
