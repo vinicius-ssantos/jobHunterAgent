@@ -1,6 +1,5 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -37,8 +36,8 @@ class CompositionLegacyMatchingTests(TestCase):
                 minimum_relevance=7,
             )
 
-            with patch.object(settings, "build_legacy_matching_config", return_value=legacy), patch(
-                "job_hunter_agent.application.composition.build_matching_criteria",
+            with patch.object(Settings, "build_legacy_matching_config", return_value=legacy) as mocked_build_legacy, patch(
+                "job_hunter_agent.application.composition.build_matching_criteria_from_legacy_config",
                 return_value="criteria",
             ) as mocked_build_matching_criteria, patch(
                 "job_hunter_agent.application.composition.LinkedInDeterministicCollector",
@@ -53,13 +52,9 @@ class CompositionLegacyMatchingTests(TestCase):
                 service = create_collection_service(settings, repository)
 
         self.assertIsNotNone(service)
+        mocked_build_legacy.assert_called_once_with()
         mocked_build_matching_criteria.assert_called_once_with(
-            profile_text="LEGACY PROFILE CONTRACT",
-            include_keywords=("java",),
-            exclude_keywords=("junior",),
-            accepted_work_modes=("remote",),
-            minimum_salary_brl=12345,
-            minimum_relevance=7,
+            legacy_matching=legacy,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
