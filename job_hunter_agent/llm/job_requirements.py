@@ -5,6 +5,7 @@ from typing import Protocol
 
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.core.domain import JobPosting
+from job_hunter_agent.core.seniority import infer_seniority_from_text, normalize_seniority_label
 
 
 @dataclass(frozen=True)
@@ -25,14 +26,14 @@ class JobRequirementsExtractor(Protocol):
 class DeterministicJobRequirementsExtractor:
     def extract(self, job: JobPosting) -> JobRequirementSignals:
         combined = f"{job.title} {job.summary}".lower()
-        seniority = _infer_seniority(combined)
+        seniority = infer_seniority_from_text(combined)
         primary_stack = _find_keywords(combined, ("java", "kotlin", "spring", "spring boot", "angular", "react"))
         secondary_stack = _find_keywords(
             combined,
             ("aws", "azure", "docker", "kubernetes", "postgresql", "sql", "microservices"),
         )
         english_level = _infer_english_level(combined)
-        leadership_signals = any(
+        leadership_signals = seniority == "lideranca" or any(
             token in combined
             for token in ("lideranca", "liderar", "tech lead", "mentoria", "coordenar", "ownership")
         )
@@ -98,9 +99,7 @@ def parse_job_requirements_response(response_text: str) -> JobRequirementSignals
     if not payload:
         return JobRequirementSignals(rationale="resposta do modelo sem JSON valido")
 
-    seniority = str(payload.get("seniority", "nao_informada")).strip().lower() or "nao_informada"
-    if seniority not in {"junior", "pleno", "senior", "especialista", "lideranca", "nao_informada"}:
-        seniority = "nao_informada"
+    seniority = normalize_seniority_label(str(payload.get("seniority", "nao_informada")))
 
     english_level = str(payload.get("english_level", "nao_informado")).strip().lower() or "nao_informado"
     if english_level not in {"nao_informado", "basico", "intermediario", "avancado", "fluente"}:
@@ -145,7 +144,7 @@ def extract_job_requirement_signals(notes: str) -> JobRequirementSignals:
         fields[key.strip().lower()] = value.strip()
 
     return JobRequirementSignals(
-        seniority=fields.get("senioridade", "nao_informada") or "nao_informada",
+        seniority=normalize_seniority_label(fields.get("senioridade", "nao_informada")),
         primary_stack=_parse_stack_field(fields.get("stack_principal", "")),
         secondary_stack=_parse_stack_field(fields.get("stack_secundaria", "")),
         english_level=fields.get("ingles", "nao_informado") or "nao_informado",
@@ -165,20 +164,6 @@ def format_job_requirement_summary(signals: JobRequirementSignals) -> str:
     if signals.leadership_signals:
         parts.append("lideranca=sim")
     return " | ".join(parts) if parts else "nao informados"
-
-
-def _infer_seniority(text: str) -> str:
-    if any(token in text for token in ("tech lead", "lideranca", "lead ", "liderar")):
-        return "lideranca"
-    if any(token in text for token in ("especialista", "staff", "principal")):
-        return "especialista"
-    if "senior" in text or "sênior" in text:
-        return "senior"
-    if "pleno" in text or "mid-level" in text:
-        return "pleno"
-    if "junior" in text or "júnior" in text:
-        return "junior"
-    return "nao_informada"
 
 
 def _infer_english_level(text: str) -> str:

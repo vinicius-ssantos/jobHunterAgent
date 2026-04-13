@@ -22,7 +22,7 @@ Esta fase cobre:
 
 - [ ] remocao de hardcodes residuais de matching fora do `job_target.json`
 - [ ] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
-- [ ] revisao das heuristicas de senioridade ainda espalhadas
+- [x] revisao das heuristicas de senioridade ainda espalhadas
 - [ ] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
 - [ ] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
 
@@ -37,7 +37,7 @@ Esta fase nao cobre por padrao:
 Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 - [ ] defaults ou listas de matching ainda acoplados ao `Settings`
-- [ ] heuristicas de senioridade duplicadas entre modulos
+- [x] heuristicas de senioridade duplicadas entre modulos
 - [ ] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial
 - [ ] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo
 - [ ] documentacao que ainda descreve o legado com peso excessivo
@@ -46,12 +46,12 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 ### P0 — Mapear e isolar residuos
 
-- [ ] localizar hardcodes residuais de senioridade em `core/`, `collectors/` e `llm/`
+- [x] localizar hardcodes residuais de senioridade em `core/`, `collectors/` e `llm/`
 - [ ] localizar termos de matching ainda espalhados fora do `job_target.json`
-- [ ] separar claramente o que e:
-  - [ ] regra oficial de dominio
+- [x] separar claramente o que e:
+  - [x] regra oficial de dominio
   - [ ] compatibilidade temporaria
-  - [ ] heuristica local de suporte
+  - [x] heuristica local de suporte
 
 ### P0 — Reduzir peso do legado no runtime principal
 
@@ -62,10 +62,10 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 ### P0 — Senioridade
 
-- [ ] centralizar inferencia e normalizacao de senioridade em um unico ponto
-- [ ] eliminar heuristicas duplicadas ou divergentes
-- [ ] revisar aliases como `pleno -> mid`
-- [ ] revisar tokens como `staff`, `principal`, `lead`, `specialist`, `coord`, `head` quando fizer sentido
+- [x] centralizar inferencia e normalizacao de senioridade em um unico ponto
+- [x] eliminar heuristicas duplicadas ou divergentes
+- [x] revisar aliases como `pleno -> mid`
+- [x] revisar tokens como `staff`, `principal`, `lead`, `specialist`, `coord`, `head` quando fizer sentido
 - [ ] manter politica explicita para senioridade desconhecida sem espalhar `if` local
 
 ### P1 — Prompt e rationale
@@ -83,7 +83,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 ### P1 — Testes
 
 - [ ] adicionar testes para garantir ausencia de regressao ao podar defaults legados
-- [ ] adicionar testes cobrindo centralizacao da senioridade
+- [x] adicionar testes cobrindo centralizacao da senioridade
 - [ ] adicionar testes de regressao do caminho principal sem depender de `PROFILE_TEXT`
 
 ## Definicao De Conclusao
@@ -92,14 +92,14 @@ Esta fase so fecha quando:
 
 - [ ] o caminho principal de matching depender claramente do `job_target.json`
 - [ ] os residuos legados estiverem encapsulados e minimizados
-- [ ] heuristicas de senioridade estiverem centralizadas
+- [x] heuristicas de senioridade estiverem centralizadas
 - [ ] documentacao refletir o novo peso do legado
 - [ ] os testes cobrirem a reducao de acoplamento sem quebrar o runtime
 
 ## Primeira Sequencia Recomendada
 
-- [ ] mapear hardcodes residuais
-- [ ] centralizar senioridade
+- [x] mapear hardcodes residuais
+- [x] centralizar senioridade
 - [ ] reduzir defaults legados no runtime principal
 - [ ] revisar prompt/rationale
 - [ ] revisar `.env.example`, `README.md` e `AGENTS.md`
