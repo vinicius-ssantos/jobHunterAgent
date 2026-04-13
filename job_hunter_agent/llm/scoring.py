@@ -33,7 +33,7 @@ def parse_scoring_response(response_text: str, policy: MatchingPolicy | int) -> 
     if not payload:
         return ScoredJob(
             relevance=1,
-            rationale="resposta_invalida",
+            rationale="resposta sem JSON valido",
             accepted=False,
         )
 
