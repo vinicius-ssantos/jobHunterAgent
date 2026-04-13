@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     application_phone_country_code: str = ""
     resume_path: Path = Path("./curriculo.pdf")
     candidate_profile_path: Path = Path("./candidate_profile.json")
+    structured_matching_config_path: Path = Path("./job_target.json")
+    structured_matching_fallback_enabled: bool = True
     database_path: Path = Path("./jobs.db")
     browser_use_config_dir: Path = Path("./.browseruse")
     linkedin_persistent_profile_dir: Path = Path("./.browseruse/profiles/linkedin-bootstrap")
@@ -50,8 +52,6 @@ class Settings(BaseSettings):
     ollama_url: str = "http://localhost:11434"
 
     # Matching legado de compatibilidade
-    # Estes campos permanecem ativos apenas enquanto o caminho principal ainda nao estiver
-    # completamente desacoplado do legado.
     profile_text: str = (
         "Engenheiro de Software Senior com experiencia em Java, Kotlin, Spring Boot, "
         "PostgreSQL, Docker e cloud."
@@ -151,7 +151,7 @@ class Settings(BaseSettings):
             )
         return normalized
 
-    @field_validator("resume_path", "linkedin_storage_state_path")
+    @field_validator("resume_path", "linkedin_storage_state_path", "structured_matching_config_path")
     @classmethod
     def validate_runtime_paths(cls, value: Path, info) -> Path:
         path = Path(value)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from job_hunter_agent.core.legacy_matching_config import LegacyMatchingConfig
+from job_hunter_agent.core.structured_matching_config import StructuredMatchingSource
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,28 @@ def build_matching_criteria_from_legacy_config(
         accepted_work_modes=legacy_matching.accepted_work_modes,
         minimum_salary_brl=legacy_matching.minimum_salary_brl,
         minimum_relevance=legacy_matching.minimum_relevance,
+        relaxed_matching_for_testing=relaxed_matching_for_testing,
+        relaxed_testing_profile_hint=relaxed_testing_profile_hint,
+        relaxed_testing_remove_exclude_keywords=relaxed_testing_remove_exclude_keywords,
+        relaxed_testing_minimum_relevance=relaxed_testing_minimum_relevance,
+    )
+
+
+def build_matching_criteria_from_structured_config(
+    *,
+    structured_matching: StructuredMatchingSource,
+    relaxed_matching_for_testing: bool,
+    relaxed_testing_profile_hint: str,
+    relaxed_testing_remove_exclude_keywords: tuple[str, ...],
+    relaxed_testing_minimum_relevance: int,
+) -> MatchingCriteria:
+    return build_matching_criteria(
+        profile_text=structured_matching.profile.summary,
+        include_keywords=structured_matching.matching.include_keywords,
+        exclude_keywords=structured_matching.matching.exclude_keywords,
+        accepted_work_modes=structured_matching.matching.accepted_work_modes,
+        minimum_salary_brl=structured_matching.matching.minimum_salary_brl,
+        minimum_relevance=structured_matching.matching.minimum_relevance,
         relaxed_matching_for_testing=relaxed_matching_for_testing,
         relaxed_testing_profile_hint=relaxed_testing_profile_hint,
         relaxed_testing_remove_exclude_keywords=relaxed_testing_remove_exclude_keywords,

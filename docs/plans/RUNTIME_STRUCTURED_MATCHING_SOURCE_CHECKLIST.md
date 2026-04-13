@@ -20,17 +20,17 @@ para:
 
 Esta fase cobre:
 
-- [ ] introduzir no runtime principal uma fonte estruturada explícita de matching
+- [x] introduzir no runtime principal uma fonte estruturada explícita de matching
 - [ ] reduzir o papel central de `MatchingCriteria` legado
 - [ ] ligar a política de senioridade desconhecida ao caminho principal novo
 - [ ] reduzir ainda mais termos legados em `matching_prompt`, `collector` e `scoring`
-- [ ] preservar compatibilidade enquanto a transição estiver incompleta
+- [x] preservar compatibilidade enquanto a transição estiver incompleta
 
 Esta fase não cobre por padrão:
 
-- [ ] remoção imediata de todo fallback legado sem plano de migração
-- [ ] mudança de produto no fluxo principal de coleta/revisão
-- [ ] reescrita ampla do fluxo de candidatura
+- [x] remoção imediata de todo fallback legado sem plano de migração
+- [x] mudança de produto no fluxo principal de coleta/revisão
+- [x] reescrita ampla do fluxo de candidatura
 
 ## Problema Atual
 
@@ -47,10 +47,10 @@ O resultado é melhor do que antes, mas a fonte estruturada ainda não domina o 
 
 ### P0 — Fonte estruturada no runtime
 
-- [ ] definir o contrato estruturado mínimo que o runtime principal vai consumir
-- [ ] introduzir loader/bootstrap desse contrato no fluxo atual
-- [ ] fazer a composição depender desse contrato como caminho principal
-- [ ] manter fallback legado explícito e bem delimitado
+- [x] definir o contrato estruturado mínimo que o runtime principal vai consumir
+- [x] introduzir loader/bootstrap desse contrato no fluxo atual
+- [x] fazer a composição depender desse contrato como caminho principal
+- [x] manter fallback legado explícito e bem delimitado
 
 ### P0 — Senioridade como policy do caminho novo
 
@@ -73,8 +73,8 @@ O resultado é melhor do que antes, mas a fonte estruturada ainda não domina o 
 
 ### P1 — Testes
 
-- [ ] adicionar testes do runtime principal usando a fonte estruturada
-- [ ] preservar testes de compatibilidade do legado enquanto necessário
+- [x] adicionar testes do runtime principal usando a fonte estruturada
+- [x] preservar testes de compatibilidade do legado enquanto necessário
 - [ ] adicionar testes da policy de senioridade desconhecida no caminho novo
 
 ## Definição De Conclusão

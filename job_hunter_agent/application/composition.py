@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from job_hunter_agent.application.contracts import ArtifactCapturePort
@@ -12,7 +13,7 @@ from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityA
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.core.candidate_profile import load_candidate_profile
 from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
-from job_hunter_agent.core.matching import build_matching_criteria_from_legacy_config
+from job_hunter_agent.core.matching import build_matching_criteria_from_structured_config
 from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationFlowInspector
 from job_hunter_agent.collectors.linkedin_application_adapters import (
@@ -35,7 +36,11 @@ from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobR
 from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
 from job_hunter_agent.core.runtime import RuntimeGuard
 from job_hunter_agent.core.settings import Settings
+from job_hunter_agent.core.structured_matching_config import resolve_structured_matching_source
 from job_hunter_agent.collectors.linkedin_application_artifacts import create_linkedin_failure_artifact_capture
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_repository(settings: Settings) -> JobRepository:
@@ -155,11 +160,19 @@ def create_linkedin_modal_interpreter(settings: Settings):
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
     known_job_lookup = build_known_job_lookup(repository)
-    legacy_matching = settings.build_legacy_matching_config()
+    resolved_matching = resolve_structured_matching_source(
+        structured_matching_config_path=settings.structured_matching_config_path,
+        legacy_matching=settings.build_legacy_matching_config(),
+        legacy_fallback_enabled=settings.structured_matching_fallback_enabled,
+    )
+    if resolved_matching.used_legacy_fallback:
+        logger.warning(resolved_matching.describe_source())
+    else:
+        logger.info(resolved_matching.describe_source())
     return JobCollectionService(
         settings=settings,
-        matching_criteria=build_matching_criteria_from_legacy_config(
-            legacy_matching=legacy_matching,
+        matching_criteria=build_matching_criteria_from_structured_config(
+            structured_matching=resolved_matching.config,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
