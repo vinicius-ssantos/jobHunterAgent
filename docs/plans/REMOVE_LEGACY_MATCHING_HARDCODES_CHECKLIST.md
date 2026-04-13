@@ -23,7 +23,7 @@ Esta fase cobre:
 - [ ] remocao de hardcodes residuais de matching fora do `job_target.json`
 - [ ] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
 - [x] revisao das heuristicas de senioridade ainda espalhadas
-- [ ] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
+- [x] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
 - [ ] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
 
 Esta fase nao cobre por padrao:
@@ -70,8 +70,8 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 ### P1 — Prompt e rationale
 
-- [ ] revisar o prompt do scorer para garantir que nao restaram termos legados irrelevantes
-- [ ] revisar a rationale para manter tokens curtos e consistentes
+- [x] revisar o prompt do scorer para garantir que nao restaram termos legados irrelevantes em hardcodes soltos
+- [x] revisar a rationale para manter tokens curtos e consistentes
 - [ ] evitar drift entre rationale deterministica e rationale do scorer
 
 ### P1 — Documentacao e setup
@@ -84,6 +84,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 - [ ] adicionar testes para garantir ausencia de regressao ao podar defaults legados
 - [x] adicionar testes cobrindo centralizacao da senioridade
+- [x] adicionar testes cobrindo helper de prompt/rationale legado
 - [ ] adicionar testes de regressao do caminho principal sem depender de `PROFILE_TEXT`
 
 ## Definicao De Conclusao
@@ -101,6 +102,6 @@ Esta fase so fecha quando:
 - [x] mapear hardcodes residuais
 - [x] centralizar senioridade
 - [ ] reduzir defaults legados no runtime principal
-- [ ] revisar prompt/rationale
+- [x] revisar prompt/rationale
 - [ ] revisar `.env.example`, `README.md` e `AGENTS.md`
 - [ ] fechar com testes de regressao
