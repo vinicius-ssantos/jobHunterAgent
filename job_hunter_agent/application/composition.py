@@ -12,7 +12,7 @@ from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityA
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
 from job_hunter_agent.core.candidate_profile import load_candidate_profile
 from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
-from job_hunter_agent.core.matching import build_matching_criteria
+from job_hunter_agent.core.matching import build_matching_criteria_from_legacy_config
 from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationFlowInspector
 from job_hunter_agent.collectors.linkedin_application_adapters import (
@@ -158,13 +158,8 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
     legacy_matching = settings.build_legacy_matching_config()
     return JobCollectionService(
         settings=settings,
-        matching_criteria=build_matching_criteria(
-            profile_text=legacy_matching.profile_text,
-            include_keywords=legacy_matching.include_keywords,
-            exclude_keywords=legacy_matching.exclude_keywords,
-            accepted_work_modes=legacy_matching.accepted_work_modes,
-            minimum_salary_brl=legacy_matching.minimum_salary_brl,
-            minimum_relevance=legacy_matching.minimum_relevance,
+        matching_criteria=build_matching_criteria_from_legacy_config(
+            legacy_matching=legacy_matching,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,

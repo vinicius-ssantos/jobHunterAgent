@@ -59,6 +59,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [x] reduzir defaults legados que ainda parecem fonte primaria
 - [x] revisar `JOB_HUNTER_PROFILE_TEXT` para que continue apenas como compatibilidade passiva
 - [x] garantir que o caminho principal do runtime continue nascendo de um contrato explicito, e nao do shape inteiro de `Settings`
+- [x] encapsular a ponte `LegacyMatchingConfig -> MatchingCriteria` em helper dedicado
 
 ### P0 — Senioridade
 
@@ -86,6 +87,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [x] adicionar testes cobrindo centralizacao da senioridade
 - [x] adicionar testes cobrindo helper de prompt/rationale legado
 - [x] adicionar teste do contrato explicito de matching legado
+- [x] adicionar teste do helper `LegacyMatchingConfig -> MatchingCriteria`
 - [ ] adicionar testes de regressao do caminho principal sem depender de `PROFILE_TEXT`
 
 ## Definicao De Conclusao
