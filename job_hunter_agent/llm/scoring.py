@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
+from job_hunter_agent.core.matching_prompt import build_legacy_scoring_prompt
 from job_hunter_agent.core.domain import RawJob, ScoredJob
 
 
@@ -19,38 +20,9 @@ class HybridJobScorer:
         policy = MatchingPolicy(criteria)
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
         if policy.contains_excluded_keywords(combined_text):
-            return ScoredJob(relevance=1, rationale="Contem termos excluidos do perfil.", accepted=False)
+            return ScoredJob(relevance=1, rationale="termos_excluidos", accepted=False)
 
-        prompt = f"""
-        Avalie aderencia de uma vaga ao perfil profissional abaixo.
-
-        Perfil:
-        {criteria.profile_text}
-
-        Regras:
-        - Nota de 1 a 10.
-        - Considere palavras positivas: {", ".join(criteria.include_keywords)}
-        - Considere palavras negativas: {", ".join(criteria.exclude_keywords)}
-        - Modalidades aceitas: {", ".join(criteria.accepted_work_modes) or "qualquer"}
-        - Salario minimo em BRL: {criteria.minimum_salary_brl}
-        - Seja conservador. So aprove quando a vaga realmente fizer sentido.
-
-        Vaga:
-        titulo: {raw_job.title}
-        empresa: {raw_job.company}
-        local: {raw_job.location}
-        modalidade: {raw_job.work_mode}
-        salario: {raw_job.salary_text}
-        resumo: {raw_job.summary}
-        descricao: {raw_job.description}
-
-        Retorne apenas JSON:
-        {{
-          "relevance": 7,
-          "rationale": "motivo curto em portugues"
-        }}
-        """
-
+        prompt = build_legacy_scoring_prompt(raw_job, criteria)
         response = self._llm.invoke(prompt)
         response_text = response.content if hasattr(response, "content") else str(response)
         return parse_scoring_response(response_text, policy)
@@ -61,7 +33,7 @@ def parse_scoring_response(response_text: str, policy: MatchingPolicy | int) -> 
     if not payload:
         return ScoredJob(
             relevance=1,
-            rationale="Resposta do modelo sem JSON valido.",
+            rationale="resposta sem JSON valido",
             accepted=False,
         )
 
@@ -71,7 +43,7 @@ def parse_scoring_response(response_text: str, policy: MatchingPolicy | int) -> 
         relevance = 0
 
     relevance = max(1, min(relevance, 10))
-    rationale = str(payload.get("rationale", "")).strip() or "Sem justificativa do modelo."
+    rationale = str(payload.get("rationale", "")).strip() or "sem_justificativa"
     if isinstance(policy, int):
         accepted = relevance >= policy
     else:

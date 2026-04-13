@@ -20,6 +20,7 @@ O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 Documentacao ativa:
 
 - `docs/plans/POS_MVP_ESTRUTURA_E_REFATORACAO_CHECKLIST.md`
+- `docs/plans/REMOVE_LEGACY_MATCHING_HARDCODES_CHECKLIST.md`
 
 Documentacao historica:
 
@@ -90,7 +91,6 @@ python -m playwright install chromium
 
 O projeto le configuracao de `.env` e variaveis de ambiente via `pydantic-settings`.
 Use `.env.example` como base para o seu `.env`.
-Um `.env` local inicial pode ser criado com placeholders seguros, mas o token e o chat id do Telegram precisam ser substituidos antes do primeiro teste real.
 
 Para reduzir atrito no uso diario, a recomendacao agora e:
 
@@ -104,11 +104,10 @@ Os wrappers ja:
 - configuram `PLAYWRIGHT_BROWSERS_PATH=.playwright-browsers` quando necessario
 - adicionam o binario local do Ollama ao `PATH` quando ele existir no caminho padrao
 
-Variaveis principais:
+### Variaveis principais de runtime
 
 - `JOB_HUNTER_TELEGRAM_TOKEN`
 - `JOB_HUNTER_TELEGRAM_CHAT_ID`
-- `JOB_HUNTER_PROFILE_TEXT`
 - `JOB_HUNTER_APPLICATION_CONTACT_EMAIL`
 - `JOB_HUNTER_APPLICATION_PHONE`
 - `JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE`
@@ -122,10 +121,6 @@ Variaveis principais:
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
-- `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
-- `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
-- `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
-- `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
 - `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
 - `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED`
@@ -133,6 +128,28 @@ Variaveis principais:
 - `JOB_HUNTER_APPLICATION_PRIORITY_LLM_ENABLED`
 - `JOB_HUNTER_OLLAMA_MODEL`
 - `JOB_HUNTER_OLLAMA_URL`
+
+### Matching legado de compatibilidade
+
+Neste momento, o runtime ainda depende de um contrato legado de matching encapsulado, derivado de `Settings`.
+Nao amplie esse caminho em codigo novo.
+
+Campo legado principal:
+
+- `JOB_HUNTER_PROFILE_TEXT`
+
+Tratamento esperado:
+
+- ele existe por compatibilidade
+- nao deve voltar a ser apresentado como fonte estrategica de evolucao do matching
+- codigo novo deve depender de contratos explicitos, nao do shape inteiro de `Settings`
+
+### Toggles operacionais de teste
+
+- `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING`
+- `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
+- `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
+- `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 
 Modelo recomendado para este MVP e para a configuracao de hardware avaliada:
 
@@ -149,11 +166,6 @@ Para gerar mais vagas novas durante testes de parsing, voce pode ativar temporar
 - `JOB_HUNTER_RELAXED_MATCHING_FOR_TESTING=true`
 
 Esse modo remove `junior` dos termos excluidos para scoring e reduz a nota minima exigida, sem alterar o comportamento padrao quando desligado.
-Os knobs desse modo tambem podem ser ajustados por ambiente:
-
-- `JOB_HUNTER_RELAXED_TESTING_PROFILE_HINT`
-- `JOB_HUNTER_RELAXED_TESTING_REMOVE_EXCLUDE_KEYWORDS`
-- `JOB_HUNTER_RELAXED_TESTING_MINIMUM_RELEVANCE`
 
 Tambem existe um fallback opcional de reparo local de campos do LinkedIn:
 
@@ -184,116 +196,6 @@ Tambem existe um assessor opcional de prioridade operacional para candidaturas:
 - `JOB_HUNTER_APPLICATION_PRIORITY_LLM_ENABLED=true`
 
 Ele sugere uma prioridade assistiva (`alta`, `media`, `baixa`) para ordenar a fila de rascunhos e candidaturas em andamento. Se o modelo falhar ou estiver desligado, o sistema usa uma heuristica local conservadora.
-
-Os cards de `/candidaturas` tambem reaproveitam os sinais estruturados ja extraidos da vaga, exibindo um resumo curto com senioridade, stack, ingles e sinais de lideranca quando houver dados uteis.
-
-Tambem existe um interpretador opcional do modal do LinkedIn com LLM local:
-
-- `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`
-
-Quando ativado, ele nao controla cliques livremente. Ele apenas interpreta o snapshot estruturado do modal, sugere a proxima acao provavel e passa por guardrails antes de influenciar o preflight ou o submit real. Se falhar, o fluxo volta para o comportamento deterministico conservador.
-
-O preflight de candidatura do LinkedIn agora pode usar a pagina real da vaga, e nao apenas a URL:
-
-- para candidaturas `confirmed`, o botao `Validar fluxo` pode abrir a vaga no navegador automatizado
-- o inspetor procura sinais como `Easy Apply`, candidatura externa ou ausencia de CTA
-- quando encontra `Easy Apply`, ele tenta abrir o modal e mapear se o fluxo parece simples ou multi-etapas
-- o preflight tambem registra campos basicos detectados no modal, como email, telefone e codigo do pais
-- quando os dados de contato estiverem configurados, ele tenta preencher esses campos em dry-run, sem enviar candidatura
-- se houver `Next/Continuar`, o inspetor tambem tenta avancar uma etapa e registrar se houve progresso real no fluxo
-- quando o modal exigir curriculo, o inspetor tambem pode carregar o arquivo configurado em `resume_path` em dry-run
-- se a etapa `Review/Revisar` aparecer, o inspetor tambem tenta alcanca-la e registrar quando o fluxo fica pronto para um submit humano
-- se `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o detalhe do preflight tambem inclui a interpretacao assistida da etapa atual do modal
-- antes de abrir o modal, o fluxo tambem valida se a pagina ainda e a vaga alvo certa, se nao caiu em `similar-jobs/collections` e se ainda existe CTA de candidatura
-- nesta fase, o sistema ainda nao envia candidatura real; ele apenas inspeciona e registra o fluxo encontrado
-
-A coleta do LinkedIn tambem pode paginar de forma conservadora quando necessario:
-
-- `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`
-- `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH=6`
-- `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES=3`
-- `JOB_HUNTER_SAVE_FAILURE_ARTIFACTS=false`
-- `JOB_HUNTER_FAILURE_ARTIFACTS_DIR=./.artifacts/linkedin_failures`
-
-O recomendado para a fase atual e manter essa janela pequena por ciclo.
-Cada ciclo sempre comeca pela pagina `1`, desce a pagina ate o rodape enquanto tenta esgotar a lista interna de resultados e so depois avanca pela paginacao da propria interface do LinkedIn para a pagina seguinte.
-
-Na pratica, com `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE=2`, o comportamento esperado por ciclo e:
-
-- abrir a busca padrao
-- estabilizar a pagina `1` com scroll ate o rodape e da lista interna
-- extrair os cards visiveis da pagina `1`
-- clicar na pagina `2` pela UI
-- estabilizar a pagina `2` com o mesmo processo
-- extrair os cards visiveis da pagina `2`
-
-`JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH` continua como limite de seguranca para nao aprofundar demais a navegacao dentro de um unico ciclo.
-
-Para diagnostico de falhas do LinkedIn, tambem existe uma captura opcional de artefatos locais:
-
-- `JOB_HUNTER_SAVE_FAILURE_ARTIFACTS=true`
-- `JOB_HUNTER_FAILURE_ARTIFACTS_DIR=./.artifacts/linkedin_failures`
-
-Quando habilitada, falhas de submit real do LinkedIn salvam:
-
-- HTML da pagina no momento do erro
-- screenshot em PNG
-- metadata JSON com estado do modal e contexto da vaga
-
-Antes do submit real, o sistema tambem executa checks locais de prontidao operacional:
-
-- sessao autenticada do LinkedIn presente no `storage_state`
-- curriculo configurado e existente em disco
-- email, telefone e codigo do pais preenchidos
-
-Se algum desses itens faltar, o submit e bloqueado antes de abrir o applicant e a candidatura permanece em `authorized_submit`.
-
-Perguntas adicionais do `Easy Apply` agora tambem podem usar um perfil estruturado local do candidato:
-
-- `JOB_HUNTER_CANDIDATE_PROFILE_PATH=./candidate_profile.json`
-- existe um exemplo versionado em `candidate_profile.example.json`
-- hoje o fluxo usa automaticamente apenas valores `confirmed`
-- perguntas de experiencia numerica por stack, como `Java`, `Angular` e `EJB`, podem ser respondidas automaticamente quando houver valor confirmado no arquivo
-- perguntas novas, ambiguas ou sem valor confirmado continuam bloqueadas e sao reportadas nos artefatos e no erro operacional
-- quando uma pergunta nova aparece no formulario, ela tambem pode ser registrada automaticamente em `candidate_profile.json` com `confirmed=null`
-
-Essa trilha do LinkedIn ja foi validada em casos reais suportados:
-
-- vagas com `Easy Apply` interno ja chegaram a `submitted` em execucoes reais
-- vagas externas bloqueiam cedo em `no_apply_cta`
-- vagas indisponiveis bloqueiam cedo em `expired`
-- o fluxo continua exigindo `authorized_submit` antes de qualquer envio real
-
-As capacidades do portal tambem ficaram explicitas no codigo:
-
-- `LinkedIn` suporta coleta, preflight real, submit real e artefatos locais
-- portais sem suporte real de preflight/submit falham cedo com mensagem operacional curta
-
-Para estabilizar a coleta no LinkedIn, o projeto pode reutilizar uma sessao autenticada local.
-O perfil persistente do LinkedIn fica, por padrao, em:
-
-- `.browseruse/profiles/linkedin-bootstrap/`
-
-O coletor prefere um `storage_state` exportado, por padrao em:
-
-- `.browseruse/linkedin-storage-state.json`
-
-Fluxo recomendado:
-
-1. Rode `python main.py --bootstrap-linkedin-session`
-2. Quando o Chromium abrir, confirme que a sessao do LinkedIn esta logada
-3. Pressione Enter no terminal para exportar o `storage_state`
-4. Nas proximas execucoes, o coletor usa `linkedin-storage-state.json` em vez de copiar o perfil bruto
-
-4. Inicie o Ollama local.
-
-Se quiser um setup hibrido, esta e a parte mais natural para rodar em Docker. O browser deve continuar local neste momento para simplificar a automacao e o debug.
-O `browser-use` foi ajustado para usar uma pasta local do projeto, por padrao `.browseruse/`, evitando escrita em diretorios globais do usuario.
-
-```bash
-ollama pull qwen2.5:7b
-ollama serve
-```
 
 ## Execucao
 
@@ -379,59 +281,10 @@ Atalhos PowerShell para o fluxo de candidatura:
 .\scripts\submit_application.ps1 8
 ```
 
-Se quiser manter o Telegram ativo nesses atalhos:
-
-```powershell
-.\scripts\authorize_application.ps1 8 -ComTelegram
-.\scripts\preflight_application.ps1 8 -ComTelegram
-.\scripts\submit_application.ps1 8 -ComTelegram
-```
-
 Atalho PowerShell para gerar sugestoes do perfil do candidato:
 
 ```powershell
 .\scripts\suggest_candidate_profile.ps1
-```
-
-Opcionalmente, voce pode informar caminhos explicitos:
-
-```powershell
-.\scripts\suggest_candidate_profile.ps1 -ResumePath .\curriculo_vinicius_desenvolvedor_v6_pt.pdf -Output .\candidate_profile.json
-```
-
-Com essa CLI, o fluxo operacional principal pode ser executado sem Telegram quando necessario:
-
-- acompanhar a fila e o estado geral (`status`, `jobs show`, `applications show`, `applications events`)
-- revisar vagas (`jobs list`, `jobs approve`, `jobs reject`)
-- criar e inspecionar rascunhos (`applications create`, `applications list`, `applications show`)
-- avancar estados (`prepare`, `confirm`, `cancel`)
-- validar e enviar (`preflight`, `authorize`, `submit`)
-- consultar falhas recentes (`artifacts`, `events`)
-- gerar sugestoes para o perfil estruturado do candidato (`candidate-profile suggest`)
-
-O comando abaixo le o curriculo em PDF, usa a LLM local para sugerir anos de experiencia por stack e atualiza apenas o campo `suggested` no arquivo de perfil:
-
-```bash
-python main.py candidate-profile suggest
-```
-
-Por padrao ele usa:
-
-- `JOB_HUNTER_RESUME_PATH`
-- `JOB_HUNTER_CANDIDATE_PROFILE_PATH`
-
-O runtime de submit continua usando apenas valores `confirmed`.
-
-Dry-run de limpeza controlada de jobs antigos poluidos:
-
-```bash
-python scripts/cleanup_legacy_jobs.py --before-id 15
-```
-
-Aplicar a limpeza somente em vagas antigas ainda `collected`:
-
-```bash
-python scripts/cleanup_legacy_jobs.py --before-id 15 --apply
 ```
 
 Rodar em modo agendado com polling do Telegram:
@@ -446,12 +299,6 @@ python main.py
 - `/pendentes` lista vagas aguardando revisao
 - `/recentes` mostra as ultimas vagas registradas
 - `/candidaturas` mostra rascunhos e candidaturas em andamento
-  - `Preparar` move `draft -> ready_for_review`
-  - `Confirmar` move `ready_for_review -> confirmed`
-  - `Validar fluxo` executa um preflight manual em candidaturas `confirmed`
-  - `Autorizar envio` move `confirmed -> authorized_submit`
-  - `Enviar candidatura` executa o submit real apenas para candidaturas `authorized_submit`
-  - `Cancelar` move o rascunho para `cancelled`
 
 ## Observabilidade
 
@@ -459,85 +306,12 @@ python main.py
 - O SQLite registra vagas, logs de coleta e execucoes de coleta.
 - Falhas por portal nao interrompem as demais fontes.
 
-## Fluxo de candidatura assistida
-
-O projeto possui um fluxo de candidatura assistida operacional, mas separado do loop automatico principal.
-
-Estados de candidatura ficam separados dos estados de vaga:
-
-- `draft`
-- `ready_for_review`
-- `confirmed`
-- `authorized_submit`
-- `submitted`
-- `error_submit`
-- `cancelled`
-
-Esses estados vivem em uma tabela separada (`job_applications`) para evitar misturar revisao humana de vaga com tentativa de candidatura.
-
-Cada rascunho de candidatura tambem recebe uma classificacao de suporte:
-
-- `auto_supported`
-- `manual_review`
-- `unsupported`
-
-No estado atual, essa classificacao e conservadora e serve para separar o que parece simples, o que exige revisao manual pesada e o que nao deve seguir no fluxo assistido.
-
-Depois da confirmacao humana, a candidatura tambem pode passar por um `preflight` manual.
-Esse preflight:
-
-- nao envia candidatura
-- valida se o fluxo esta num portal minimamente suportado
-- registra sucesso mantendo `confirmed`
-- ou registra bloqueio em `error_submit` quando o fluxo nao e suportado
-
-Quando o preflight indicar que o fluxo esta pronto para envio, ainda existe uma etapa humana final:
-
-- `Autorizar envio` move `confirmed -> authorized_submit`
-- esse estado existe para separar "fluxo pronto" de "usuario permitiu submit real"
-- qualquer tentativa futura de submit real deve partir apenas de `authorized_submit`
-
-Se a candidatura estiver em `authorized_submit`, o Telegram tambem pode expor:
-
-- `Enviar candidatura`
-
-Esse passo e o submit real controlado do projeto:
-
-- nao faz parte do loop automatico principal
-- depende de clique humano explicito no Telegram
-- usa o fluxo interno do LinkedIn e os dados locais configurados
-- quando `JOB_HUNTER_LINKEDIN_MODAL_LLM_ENABLED=true`, o submit continua deterministico, mas pode consultar a interpretacao assistida do modal antes de desistir
-
-## Como adicionar um novo adapter
-
-1. Defina um `SiteConfig` novo em `Settings` ou no ambiente, com `name` e `search_url`.
-2. Crie um adapter pequeno em `job_hunter_agent/portal_collectors.py` implementando o contrato `PortalCollectorAdapter`.
-3. Faça o adapter:
-   - responder `supports(site)`
-   - construir o task em `build_task(...)`
-   - converter o payload em `RawJob` em `normalize(...)`
-4. Se o portal precisar de fluxo mais confiavel que o agent genérico, prefira um coletor determinístico separado, como o LinkedIn.
-5. Registre o adapter na tupla `portal_adapters` de `BrowserUseSiteCollector` em `job_hunter_agent/portal_collectors.py`.
-6. Adicione testes cobrindo:
-   - `supports`
-   - `normalize`
-   - `RawJob` minimo valido
-   - falha isolada do portal
-
-Checklist mínimo do `RawJob`:
-
-- `title`
-- `company`
-- `url`
-- `source_site`
-
-Os demais campos podem usar fallback textual controlado, mas nao devem ser inventados.
-
 ## Testes
 
 ```bash
 pytest
 ```
+
 ## Regressao Operacional Rapida
 
 Para rodar a suite curta de regressao operacional:
@@ -545,12 +319,3 @@ Para rodar a suite curta de regressao operacional:
 ```powershell
 ./scripts/run_operational_regression.ps1
 ```
-
-Ela cobre os casos principais do fluxo atual:
-
-- prontidao minima de preflight e submit
-- classificacao operacional de `similar jobs`
-- perguntas adicionais obrigatorias
-- review final com submit visivel
-- artefatos de falha do LinkedIn
-- rendering principal de CLI e Telegram

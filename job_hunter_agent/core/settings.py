@@ -7,6 +7,10 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from job_hunter_agent.core.domain import SiteConfig
+from job_hunter_agent.core.legacy_matching_config import (
+    LegacyMatchingConfig,
+    build_legacy_matching_config_from_settings,
+)
 
 
 class Settings(BaseSettings):
@@ -17,11 +21,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Identidade e runtime principal
     user_name: str = "Seu Nome"
-    profile_text: str = (
-        "Engenheiro de Software Senior com experiencia em Java, Kotlin, Spring Boot, "
-        "PostgreSQL, Docker e cloud."
-    )
     application_contact_email: str = ""
     application_phone: str = ""
     application_phone_country_code: str = ""
@@ -37,7 +38,24 @@ class Settings(BaseSettings):
     linkedin_scroll_stabilization_passes: int = 3
     save_failure_artifacts: bool = False
     failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
+    max_jobs_per_site: int = 20
+    portal_collection_timeout_seconds: int = 180
+    review_polling_grace_seconds: int = 120
+    collection_time: str = "08:00"
 
+    telegram_token: str = "SEU_TOKEN_AQUI"
+    telegram_chat_id: str = "SEU_CHAT_ID_AQUI"
+
+    ollama_model: str = "qwen2.5:7b"
+    ollama_url: str = "http://localhost:11434"
+
+    # Matching legado de compatibilidade
+    # Estes campos permanecem ativos apenas enquanto o caminho principal ainda nao estiver
+    # completamente desacoplado do legado.
+    profile_text: str = (
+        "Engenheiro de Software Senior com experiencia em Java, Kotlin, Spring Boot, "
+        "PostgreSQL, Docker e cloud."
+    )
     include_keywords: tuple[str, ...] = (
         "java",
         "kotlin",
@@ -59,28 +77,22 @@ class Settings(BaseSettings):
     accepted_work_modes: tuple[str, ...] = ("remoto", "hibrido", "hybrid")
     minimum_salary_brl: int = 10000
     minimum_relevance: int = 6
+
+    # Toggles operacionais de teste
     relaxed_matching_for_testing: bool = False
     relaxed_testing_profile_hint: str = (
         "Para testes controlados de parsing, considere tambem vagas junior e pleno como aceitaveis."
     )
     relaxed_testing_remove_exclude_keywords: tuple[str, ...] = ("junior",)
     relaxed_testing_minimum_relevance: int = 4
+
+    # Toggles assistivos locais
     linkedin_field_repair_enabled: bool = True
     linkedin_modal_llm_enabled: bool = False
     application_support_llm_enabled: bool = True
     job_requirements_llm_enabled: bool = True
     review_rationale_llm_enabled: bool = True
     application_priority_llm_enabled: bool = True
-    max_jobs_per_site: int = 20
-    portal_collection_timeout_seconds: int = 180
-    review_polling_grace_seconds: int = 120
-    collection_time: str = "08:00"
-
-    telegram_token: str = "SEU_TOKEN_AQUI"
-    telegram_chat_id: str = "SEU_CHAT_ID_AQUI"
-
-    ollama_model: str = "qwen2.5:7b"
-    ollama_url: str = "http://localhost:11434"
 
     sites: tuple[SiteConfig, ...] = Field(
         default_factory=lambda: (
@@ -90,6 +102,9 @@ class Settings(BaseSettings):
             ),
         )
     )
+
+    def build_legacy_matching_config(self) -> LegacyMatchingConfig:
+        return build_legacy_matching_config_from_settings(self)
 
     @field_validator("profile_text")
     @classmethod

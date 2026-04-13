@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from job_hunter_agent.core.legacy_matching_config import LegacyMatchingConfig
+
 
 @dataclass(frozen=True)
 class MatchingCriteria:
@@ -70,4 +72,26 @@ def build_matching_criteria(
         accepted_work_modes=accepted_work_modes,
         minimum_salary_brl=minimum_salary_brl,
         minimum_relevance=resolved_minimum_relevance,
+    )
+
+
+def build_matching_criteria_from_legacy_config(
+    *,
+    legacy_matching: LegacyMatchingConfig,
+    relaxed_matching_for_testing: bool,
+    relaxed_testing_profile_hint: str,
+    relaxed_testing_remove_exclude_keywords: tuple[str, ...],
+    relaxed_testing_minimum_relevance: int,
+) -> MatchingCriteria:
+    return build_matching_criteria(
+        profile_text=legacy_matching.profile_text,
+        include_keywords=legacy_matching.include_keywords,
+        exclude_keywords=legacy_matching.exclude_keywords,
+        accepted_work_modes=legacy_matching.accepted_work_modes,
+        minimum_salary_brl=legacy_matching.minimum_salary_brl,
+        minimum_relevance=legacy_matching.minimum_relevance,
+        relaxed_matching_for_testing=relaxed_matching_for_testing,
+        relaxed_testing_profile_hint=relaxed_testing_profile_hint,
+        relaxed_testing_remove_exclude_keywords=relaxed_testing_remove_exclude_keywords,
+        relaxed_testing_minimum_relevance=relaxed_testing_minimum_relevance,
     )

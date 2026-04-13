@@ -1,0 +1,111 @@
+# Remove Legacy Matching Hardcodes
+
+## Papel Deste Documento
+
+- [x] Este arquivo abre a proxima fase da limpeza de matching
+- [x] O objetivo aqui nao e criar um modelo novo; e reduzir residuos do caminho legado depois da consolidacao do `job_target.json`
+- [x] A branch desta fase foi aberta: `refactor/remove-legacy-matching-hardcodes`
+
+## Objetivo Da Fase
+
+Levar o projeto de:
+
+- fonte de verdade estruturada com compatibilidade ampla
+
+para:
+
+- fonte de verdade estruturada dominante, com legado residual minimo e encapsulado
+
+## Escopo
+
+Esta fase cobre:
+
+- [x] remocao parcial de hardcodes residuais de matching fora do `job_target.json`
+- [x] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
+- [x] revisao das heuristicas de senioridade ainda espalhadas
+- [x] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
+- [x] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
+
+Esta fase nao cobre por padrao:
+
+- [x] remocao imediata e definitiva de todo fallback legado sem plano de migracao
+- [x] mudanca de produto no fluxo principal de coleta/revisao
+- [x] reescrita completa da fase de candidatura
+
+## Problemas Residuais Esperados
+
+Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
+
+- [x] defaults ou listas de matching ainda acoplados ao `Settings`, agora encapsulados por contrato explicito
+- [x] heuristicas de senioridade duplicadas entre modulos, agora centralizadas
+- [x] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial, agora mapeados em `LEGACY_MATCHING_RESIDUAL_MAP.md`
+- [x] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo, reconhecidos como proxima fase estrutural
+- [x] documentacao que ainda descrevia o legado com peso excessivo, agora reduzida
+
+## Linha De Trabalho Recomendada
+
+### P0 — Mapear e isolar residuos
+
+- [x] localizar hardcodes residuais de senioridade em `core/`, `collectors/` e `llm/`
+- [x] localizar termos de matching ainda espalhados fora do `job_target.json`
+- [x] separar claramente o que e:
+  - [x] regra oficial de dominio
+  - [x] compatibilidade temporaria
+  - [x] heuristica local de suporte
+
+### P0 — Reduzir peso do legado no runtime principal
+
+- [x] revisar `Settings` para manter apenas o minimo de compatibilidade necessario
+- [x] reduzir defaults legados que ainda parecem fonte primaria
+- [x] revisar `JOB_HUNTER_PROFILE_TEXT` para que continue apenas como compatibilidade passiva
+- [x] garantir que o caminho principal do runtime continue nascendo de um contrato explicito, e nao do shape inteiro de `Settings`
+- [x] encapsular a ponte `LegacyMatchingConfig -> MatchingCriteria` em helper dedicado
+
+### P0 — Senioridade
+
+- [x] centralizar inferencia e normalizacao de senioridade em um unico ponto
+- [x] eliminar heuristicas duplicadas ou divergentes
+- [x] revisar aliases como `pleno -> mid`
+- [x] revisar tokens como `staff`, `principal`, `lead`, `specialist`, `coord`, `head` quando fizer sentido
+- [x] registrar explicitamente que a politica de senioridade desconhecida fica para a proxima fase estrutural, ligada ao caminho principal baseado em fonte estruturada
+
+### P1 — Prompt e rationale
+
+- [x] revisar o prompt do scorer para garantir que nao restaram termos legados irrelevantes em hardcodes soltos
+- [x] revisar a rationale para manter tokens curtos e consistentes
+- [x] reduzir drift entre rationale deterministica e rationale do scorer onde ja houver helper comum
+
+### P1 — Documentacao e setup
+
+- [x] revisar `.env.example` para reduzir o protagonismo do legado
+- [x] revisar `README.md` para diminuir o protagonismo do legado
+- [x] atualizar `AGENTS.md` para refletir encapsulamento explicito da compatibilidade legada
+
+### P1 — Testes
+
+- [x] adicionar testes para garantir ausencia de regressao ao podar defaults legados na composicao
+- [x] adicionar testes cobrindo centralizacao da senioridade
+- [x] adicionar testes cobrindo helper de prompt/rationale legado
+- [x] adicionar teste do contrato explicito de matching legado
+- [x] adicionar teste do helper `LegacyMatchingConfig -> MatchingCriteria`
+- [x] adicionar teste de regressao da composicao sem depender de `profile_text` como atributo solto
+
+## Definicao De Conclusao
+
+Esta fase fecha com os seguintes criterios atendidos:
+
+- [x] o legado ficou mais encapsulado do que espalhado
+- [x] os residuos principais foram mapeados e reduzidos
+- [x] heuristicas de senioridade foram centralizadas
+- [x] documentacao passou a refletir o novo peso do legado
+- [x] os testes cobrem parte relevante da reducao de acoplamento sem quebrar o runtime
+- [x] os proximos passos estruturais ficaram explicitamente registrados, em vez de permanecerem implicitos
+
+## Proxima Fase Estrutural
+
+A proxima fase deve atacar:
+
+- [ ] transicao do caminho principal de matching para depender claramente de fonte estruturada no runtime atual
+- [ ] remocao adicional de termos legados ainda presentes em `MatchingCriteria`, `matching_prompt` e `collector`
+- [ ] politica explicita de senioridade desconhecida ligada ao caminho principal novo, e nao ao legado encapsulado
+- [ ] reducao adicional dos pontos que ainda tratam o legado como quase equivalente ao novo
