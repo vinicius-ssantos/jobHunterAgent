@@ -155,15 +155,16 @@ def create_linkedin_modal_interpreter(settings: Settings):
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
     known_job_lookup = build_known_job_lookup(repository)
+    legacy_matching = settings.build_legacy_matching_config()
     return JobCollectionService(
         settings=settings,
         matching_criteria=build_matching_criteria(
-            profile_text=settings.profile_text,
-            include_keywords=settings.include_keywords,
-            exclude_keywords=settings.exclude_keywords,
-            accepted_work_modes=settings.accepted_work_modes,
-            minimum_salary_brl=settings.minimum_salary_brl,
-            minimum_relevance=settings.minimum_relevance,
+            profile_text=legacy_matching.profile_text,
+            include_keywords=legacy_matching.include_keywords,
+            exclude_keywords=legacy_matching.exclude_keywords,
+            accepted_work_modes=legacy_matching.accepted_work_modes,
+            minimum_salary_brl=legacy_matching.minimum_salary_brl,
+            minimum_relevance=legacy_matching.minimum_relevance,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,

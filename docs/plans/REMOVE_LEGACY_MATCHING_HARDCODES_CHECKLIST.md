@@ -21,7 +21,7 @@ para:
 Esta fase cobre:
 
 - [ ] remocao de hardcodes residuais de matching fora do `job_target.json`
-- [ ] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
+- [x] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
 - [x] revisao das heuristicas de senioridade ainda espalhadas
 - [x] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
 - [ ] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
@@ -36,7 +36,7 @@ Esta fase nao cobre por padrao:
 
 Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
-- [ ] defaults ou listas de matching ainda acoplados ao `Settings`
+- [x] defaults ou listas de matching ainda acoplados ao `Settings`
 - [x] heuristicas de senioridade duplicadas entre modulos
 - [ ] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial
 - [ ] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo
@@ -50,15 +50,15 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [ ] localizar termos de matching ainda espalhados fora do `job_target.json`
 - [x] separar claramente o que e:
   - [x] regra oficial de dominio
-  - [ ] compatibilidade temporaria
+  - [x] compatibilidade temporaria
   - [x] heuristica local de suporte
 
 ### P0 — Reduzir peso do legado no runtime principal
 
-- [ ] revisar `Settings` para manter apenas o minimo de compatibilidade necessario
-- [ ] reduzir defaults legados que ainda parecem fonte primaria
-- [ ] revisar `JOB_HUNTER_PROFILE_TEXT` para que continue apenas como compatibilidade passiva
-- [ ] garantir que o caminho principal do runtime continue nascendo do `job_target.json`
+- [x] revisar `Settings` para manter apenas o minimo de compatibilidade necessario
+- [x] reduzir defaults legados que ainda parecem fonte primaria
+- [x] revisar `JOB_HUNTER_PROFILE_TEXT` para que continue apenas como compatibilidade passiva
+- [x] garantir que o caminho principal do runtime continue nascendo de um contrato explicito, e nao do shape inteiro de `Settings`
 
 ### P0 — Senioridade
 
@@ -85,6 +85,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [ ] adicionar testes para garantir ausencia de regressao ao podar defaults legados
 - [x] adicionar testes cobrindo centralizacao da senioridade
 - [x] adicionar testes cobrindo helper de prompt/rationale legado
+- [x] adicionar teste do contrato explicito de matching legado
 - [ ] adicionar testes de regressao do caminho principal sem depender de `PROFILE_TEXT`
 
 ## Definicao De Conclusao
@@ -101,7 +102,7 @@ Esta fase so fecha quando:
 
 - [x] mapear hardcodes residuais
 - [x] centralizar senioridade
-- [ ] reduzir defaults legados no runtime principal
+- [x] reduzir defaults legados no runtime principal
 - [x] revisar prompt/rationale
 - [ ] revisar `.env.example`, `README.md` e `AGENTS.md`
 - [ ] fechar com testes de regressao
