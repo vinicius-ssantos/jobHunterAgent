@@ -13,6 +13,11 @@ from job_hunter_agent.core.browser_support import (
     resolve_local_chromium,
 )
 from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
+from job_hunter_agent.core.matching_reasons import (
+    REASON_EXCLUDED_KEYWORDS,
+    REASON_SALARY_BELOW_MINIMUM,
+    REASON_WORK_MODE_MISMATCH,
+)
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
 from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
@@ -224,23 +229,23 @@ class JobCollectionService:
         policy = MatchingPolicy(self.matching_criteria)
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
         if policy.contains_excluded_keywords(combined_text):
-            return "conta com termos excluidos"
+            return REASON_EXCLUDED_KEYWORDS
 
         if not policy.accepts_work_mode(raw_job.work_mode):
-            return "modalidade fora do perfil"
+            return REASON_WORK_MODE_MISMATCH
 
         work_mode = raw_job.work_mode.strip().lower()
         if work_mode and work_mode not in {"nao informado", "nÃ£o informado"}:
             if self.matching_criteria.accepted_work_modes and not any(
                 mode in work_mode for mode in self.matching_criteria.accepted_work_modes
             ):
-                return "modalidade fora do perfil"
+                return REASON_WORK_MODE_MISMATCH
 
         salary_floor = parse_salary_floor(raw_job.salary_text)
         if not policy.accepts_salary_floor(salary_floor):
-            return "salario abaixo do minimo"
+            return REASON_SALARY_BELOW_MINIMUM
         if salary_floor is not None and salary_floor < self.matching_criteria.minimum_salary_brl:
-            return "salario abaixo do minimo"
+            return REASON_SALARY_BELOW_MINIMUM
 
         return None
 

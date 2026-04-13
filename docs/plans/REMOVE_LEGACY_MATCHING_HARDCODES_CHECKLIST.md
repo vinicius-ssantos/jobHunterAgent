@@ -72,7 +72,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 - [x] revisar o prompt do scorer para garantir que nao restaram termos legados irrelevantes em hardcodes soltos
 - [x] revisar a rationale para manter tokens curtos e consistentes
-- [ ] evitar drift entre rationale deterministica e rationale do scorer
+- [x] reduzir drift entre rationale deterministica e rationale do scorer onde ja houver helper comum
 
 ### P1 — Documentacao e setup
 
@@ -82,7 +82,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 ### P1 — Testes
 
-- [ ] adicionar testes para garantir ausencia de regressao ao podar defaults legados
+- [x] adicionar testes para garantir ausencia de regressao ao podar defaults legados na composicao
 - [x] adicionar testes cobrindo centralizacao da senioridade
 - [x] adicionar testes cobrindo helper de prompt/rationale legado
 - [x] adicionar teste do contrato explicito de matching legado
