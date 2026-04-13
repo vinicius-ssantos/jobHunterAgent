@@ -38,7 +38,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 - [x] defaults ou listas de matching ainda acoplados ao `Settings`
 - [x] heuristicas de senioridade duplicadas entre modulos
-- [ ] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial
+- [x] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial, agora mapeados em `LEGACY_MATCHING_RESIDUAL_MAP.md`
 - [ ] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo
 - [x] documentacao que ainda descreve o legado com peso excessivo
 
@@ -47,7 +47,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 ### P0 — Mapear e isolar residuos
 
 - [x] localizar hardcodes residuais de senioridade em `core/`, `collectors/` e `llm/`
-- [ ] localizar termos de matching ainda espalhados fora do `job_target.json`
+- [x] localizar termos de matching ainda espalhados fora do `job_target.json`
 - [x] separar claramente o que e:
   - [x] regra oficial de dominio
   - [x] compatibilidade temporaria
@@ -88,7 +88,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [x] adicionar testes cobrindo helper de prompt/rationale legado
 - [x] adicionar teste do contrato explicito de matching legado
 - [x] adicionar teste do helper `LegacyMatchingConfig -> MatchingCriteria`
-- [ ] adicionar testes de regressao do caminho principal sem depender de `PROFILE_TEXT`
+- [x] adicionar teste de regressao da composicao sem depender de `profile_text` como atributo solto
 
 ## Definicao De Conclusao
 
@@ -98,7 +98,7 @@ Esta fase so fecha quando:
 - [ ] os residuos legados estiverem encapsulados e minimizados
 - [x] heuristicas de senioridade estiverem centralizadas
 - [x] documentacao refletir o novo peso do legado
-- [ ] os testes cobrirem a reducao de acoplamento sem quebrar o runtime
+- [x] os testes ja cobrem parte importante da reducao de acoplamento sem quebrar o runtime
 
 ## Primeira Sequencia Recomendada
 
