@@ -24,7 +24,7 @@ Esta fase cobre:
 - [x] reducao da dependencia de `JOB_HUNTER_PROFILE_TEXT` no caminho principal
 - [x] revisao das heuristicas de senioridade ainda espalhadas
 - [x] reducao de duplicacao entre prefiltro, scorer e defaults operacionais
-- [ ] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
+- [x] deixar mais claro o que permanece como compatibilidade e o que sai do caminho principal
 
 Esta fase nao cobre por padrao:
 
@@ -40,7 +40,7 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 - [x] heuristicas de senioridade duplicadas entre modulos
 - [ ] termos de matching ainda presentes em prompts ou helpers fora do caminho oficial
 - [ ] pontos do runtime que ainda tratam o legado como caminho quase equivalente ao novo
-- [ ] documentacao que ainda descreve o legado com peso excessivo
+- [x] documentacao que ainda descreve o legado com peso excessivo
 
 ## Linha De Trabalho Recomendada
 
@@ -76,9 +76,9 @@ Mesmo com `job_target.json` consolidado, ainda podem existir residuos como:
 
 ### P1 — Documentacao e setup
 
-- [ ] revisar `.env.example` para ver se algum campo legado ainda pode sair do exemplo principal
-- [ ] revisar `README.md` para diminuir ainda mais o protagonismo do legado
-- [ ] atualizar `AGENTS.md` se a fase alterar regras arquiteturais ou de migracao
+- [x] revisar `.env.example` para reduzir o protagonismo do legado
+- [x] revisar `README.md` para diminuir o protagonismo do legado
+- [x] atualizar `AGENTS.md` para refletir encapsulamento explicito da compatibilidade legada
 
 ### P1 — Testes
 
@@ -95,7 +95,7 @@ Esta fase so fecha quando:
 - [ ] o caminho principal de matching depender claramente do `job_target.json`
 - [ ] os residuos legados estiverem encapsulados e minimizados
 - [x] heuristicas de senioridade estiverem centralizadas
-- [ ] documentacao refletir o novo peso do legado
+- [x] documentacao refletir o novo peso do legado
 - [ ] os testes cobrirem a reducao de acoplamento sem quebrar o runtime
 
 ## Primeira Sequencia Recomendada
@@ -104,5 +104,5 @@ Esta fase so fecha quando:
 - [x] centralizar senioridade
 - [x] reduzir defaults legados no runtime principal
 - [x] revisar prompt/rationale
-- [ ] revisar `.env.example`, `README.md` e `AGENTS.md`
+- [x] revisar `.env.example`, `README.md` e `AGENTS.md`
 - [ ] fechar com testes de regressao
