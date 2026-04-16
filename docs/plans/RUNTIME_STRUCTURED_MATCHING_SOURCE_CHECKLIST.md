@@ -22,8 +22,8 @@ Esta fase cobre:
 
 - [x] introduzir no runtime principal uma fonte estruturada explícita de matching
 - [ ] reduzir o papel central de `MatchingCriteria` legado
-- [ ] ligar a política de senioridade desconhecida ao caminho principal novo
-- [ ] reduzir ainda mais termos legados em `matching_prompt`, `collector` e `scoring`
+- [x] ligar a política de senioridade desconhecida ao caminho principal novo
+- [x] reduzir ainda mais termos legados em `matching_prompt`, `collector` e `scoring`
 - [x] preservar compatibilidade enquanto a transição estiver incompleta
 
 Esta fase não cobre por padrão:
@@ -54,15 +54,15 @@ O resultado é melhor do que antes, mas a fonte estruturada ainda não domina o 
 
 ### P0 — Senioridade como policy do caminho novo
 
-- [ ] mover a política de senioridade desconhecida para o contrato estruturado
-- [ ] fazer prefiltro/scoring respeitarem a mesma policy sem `if` espalhado
-- [ ] revisar integração com `core/seniority.py`
+- [x] mover a política de senioridade desconhecida para o contrato estruturado
+- [x] fazer prefiltro/scoring respeitarem a mesma policy sem `if` espalhado
+- [x] revisar integração com `core/seniority.py`
 
 ### P1 — Coleta, prompt e scoring
 
-- [ ] reduzir dependência do shape legado em `collector.py`
-- [ ] reduzir dependência do shape legado em `matching_prompt.py`
-- [ ] reduzir dependência do shape legado em `scoring.py`
+- [x] reduzir dependência do shape legado em `collector.py`
+- [x] reduzir dependência do shape legado em `matching_prompt.py`
+- [x] reduzir dependência do shape legado em `scoring.py`
 - [ ] revisar rationale e descarte para o caminho principal novo
 
 ### P1 — Compatibilidade e documentação
@@ -75,7 +75,7 @@ O resultado é melhor do que antes, mas a fonte estruturada ainda não domina o 
 
 - [x] adicionar testes do runtime principal usando a fonte estruturada
 - [x] preservar testes de compatibilidade do legado enquanto necessário
-- [ ] adicionar testes da policy de senioridade desconhecida no caminho novo
+- [x] adicionar testes da policy de senioridade desconhecida no caminho novo
 
 ## Definição De Conclusão
 
@@ -83,5 +83,5 @@ Esta fase só fecha quando:
 
 - [ ] o runtime principal depender claramente da fonte estruturada
 - [ ] o legado estiver reduzido a compatibilidade marginal
-- [ ] senioridade desconhecida estiver modelada como policy do caminho novo
+- [x] senioridade desconhecida estiver modelada como policy do caminho novo
 - [ ] documentação e testes refletirem esse novo centro de gravidade

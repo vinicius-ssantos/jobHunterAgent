@@ -25,6 +25,9 @@
     ],
     "minimum_salary_brl": 10000,
     "minimum_relevance": 6,
+    "target_seniorities": [
+      "senior"
+    ],
     "allow_unknown_seniority": true
   }
 }

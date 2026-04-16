@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from job_hunter_agent.core.legacy_matching_config import LegacyMatchingConfig
+from job_hunter_agent.core.seniority import normalize_seniority_label
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class StructuredMatchingConfig:
     accepted_work_modes: tuple[str, ...]
     minimum_salary_brl: int
     minimum_relevance: int
+    target_seniorities: tuple[str, ...] = ()
     allow_unknown_seniority: bool = True
 
 
@@ -83,6 +85,7 @@ def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatch
                 minimum=1,
                 maximum=10,
             ),
+            target_seniorities=_optional_seniority_list(matching_payload, "target_seniorities"),
             allow_unknown_seniority=_optional_bool(
                 matching_payload,
                 "allow_unknown_seniority",
@@ -96,6 +99,10 @@ def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatch
 def build_structured_matching_source_from_legacy(
     legacy_matching: LegacyMatchingConfig,
 ) -> StructuredMatchingSource:
+    from job_hunter_agent.core.seniority import infer_seniority_from_text
+
+    inferred = infer_seniority_from_text(legacy_matching.profile_text)
+    target_seniorities = () if inferred == "nao_informada" else (inferred,)
     return StructuredMatchingSource(
         profile=StructuredCandidateProfile(summary=legacy_matching.profile_text),
         matching=StructuredMatchingConfig(
@@ -104,6 +111,7 @@ def build_structured_matching_source_from_legacy(
             accepted_work_modes=legacy_matching.accepted_work_modes,
             minimum_salary_brl=legacy_matching.minimum_salary_brl,
             minimum_relevance=legacy_matching.minimum_relevance,
+            target_seniorities=target_seniorities,
             allow_unknown_seniority=True,
         ),
     )
@@ -170,6 +178,20 @@ def _optional_string_list(payload: dict[str, Any], key: str) -> tuple[str, ...]:
             raise ValueError("Arquivo de matching estruturado invalido: listas devem conter apenas strings.")
         token = item.strip().lower()
         if token and token not in normalized:
+            normalized.append(token)
+    return tuple(normalized)
+
+
+def _optional_seniority_list(payload: dict[str, Any], key: str) -> tuple[str, ...]:
+    raw_values = _optional_string_list(payload, key)
+    normalized: list[str] = []
+    for value in raw_values:
+        token = normalize_seniority_label(value)
+        if token == "nao_informada":
+            raise ValueError(
+                f"Arquivo de matching estruturado invalido: campo '{key}' contem senioridade invalida: {value}."
+            )
+        if token not in normalized:
             normalized.append(token)
     return tuple(normalized)
 

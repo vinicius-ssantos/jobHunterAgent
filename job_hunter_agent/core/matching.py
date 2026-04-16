@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from job_hunter_agent.core.legacy_matching_config import LegacyMatchingConfig
+from job_hunter_agent.core.matching_reasons import (
+    REASON_SENIORITY_OUTSIDE_TARGET,
+    REASON_UNKNOWN_SENIORITY,
+)
+from job_hunter_agent.core.seniority import infer_seniority_from_text, normalize_seniority_label
 from job_hunter_agent.core.structured_matching_config import StructuredMatchingSource
 
 
@@ -14,6 +19,8 @@ class MatchingCriteria:
     accepted_work_modes: tuple[str, ...]
     minimum_salary_brl: int
     minimum_relevance: int
+    target_seniorities: tuple[str, ...] = ()
+    allow_unknown_seniority: bool = True
 
 
 @dataclass(frozen=True)
@@ -40,6 +47,15 @@ class MatchingPolicy:
     def accepts_relevance(self, relevance: int) -> bool:
         return relevance >= self.criteria.minimum_relevance
 
+    def evaluate_seniority_reason(self, text: str) -> str | None:
+        if not self.criteria.target_seniorities:
+            return None
+        detected = infer_seniority_from_text(text)
+        if detected == "nao_informada":
+            return None if self.criteria.allow_unknown_seniority else REASON_UNKNOWN_SENIORITY
+        accepted = {normalize_seniority_label(value) for value in self.criteria.target_seniorities}
+        return None if detected in accepted else REASON_SENIORITY_OUTSIDE_TARGET
+
 
 def build_matching_criteria(
     *,
@@ -53,6 +69,8 @@ def build_matching_criteria(
     relaxed_testing_profile_hint: str,
     relaxed_testing_remove_exclude_keywords: tuple[str, ...],
     relaxed_testing_minimum_relevance: int,
+    target_seniorities: tuple[str, ...] = (),
+    allow_unknown_seniority: bool = True,
 ) -> MatchingCriteria:
     resolved_profile_text = profile_text
     resolved_exclude_keywords = exclude_keywords
@@ -73,6 +91,8 @@ def build_matching_criteria(
         accepted_work_modes=accepted_work_modes,
         minimum_salary_brl=minimum_salary_brl,
         minimum_relevance=resolved_minimum_relevance,
+        target_seniorities=target_seniorities,
+        allow_unknown_seniority=allow_unknown_seniority,
     )
 
 
@@ -84,6 +104,8 @@ def build_matching_criteria_from_legacy_config(
     relaxed_testing_remove_exclude_keywords: tuple[str, ...],
     relaxed_testing_minimum_relevance: int,
 ) -> MatchingCriteria:
+    inferred = infer_seniority_from_text(legacy_matching.profile_text)
+    target_seniorities = () if inferred == "nao_informada" else (inferred,)
     return build_matching_criteria(
         profile_text=legacy_matching.profile_text,
         include_keywords=legacy_matching.include_keywords,
@@ -95,6 +117,8 @@ def build_matching_criteria_from_legacy_config(
         relaxed_testing_profile_hint=relaxed_testing_profile_hint,
         relaxed_testing_remove_exclude_keywords=relaxed_testing_remove_exclude_keywords,
         relaxed_testing_minimum_relevance=relaxed_testing_minimum_relevance,
+        target_seniorities=target_seniorities,
+        allow_unknown_seniority=True,
     )
 
 
@@ -117,4 +141,6 @@ def build_matching_criteria_from_structured_config(
         relaxed_testing_profile_hint=relaxed_testing_profile_hint,
         relaxed_testing_remove_exclude_keywords=relaxed_testing_remove_exclude_keywords,
         relaxed_testing_minimum_relevance=relaxed_testing_minimum_relevance,
+        target_seniorities=structured_matching.matching.target_seniorities,
+        allow_unknown_seniority=structured_matching.matching.allow_unknown_seniority,
     )
