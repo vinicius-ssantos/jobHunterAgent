@@ -21,6 +21,14 @@ class HybridJobScorer:
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
         if policy.contains_excluded_keywords(combined_text):
             return ScoredJob(relevance=1, rationale="termos_excluidos", accepted=False)
+        seniority_reason = policy.evaluate_seniority_reason(combined_text)
+        if seniority_reason is not None:
+            token = (
+                "senioridade_nao_informada"
+                if "nao informada" in seniority_reason
+                else "senioridade_fora_do_alvo"
+            )
+            return ScoredJob(relevance=1, rationale=token, accepted=False)
 
         prompt = build_legacy_scoring_prompt(raw_job, criteria)
         response = self._llm.invoke(prompt)

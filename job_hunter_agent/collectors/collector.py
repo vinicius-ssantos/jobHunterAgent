@@ -16,6 +16,8 @@ from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
 from job_hunter_agent.core.matching_reasons import (
     REASON_EXCLUDED_KEYWORDS,
     REASON_SALARY_BELOW_MINIMUM,
+    REASON_SENIORITY_OUTSIDE_TARGET,
+    REASON_UNKNOWN_SENIORITY,
     REASON_WORK_MODE_MISMATCH,
 )
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
@@ -230,6 +232,10 @@ class JobCollectionService:
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
         if policy.contains_excluded_keywords(combined_text):
             return REASON_EXCLUDED_KEYWORDS
+
+        seniority_reason = policy.evaluate_seniority_reason(combined_text)
+        if seniority_reason is not None:
+            return seniority_reason
 
         if not policy.accepts_work_mode(raw_job.work_mode):
             return REASON_WORK_MODE_MISMATCH
