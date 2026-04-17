@@ -1,12 +1,12 @@
 from unittest import TestCase
 
 from job_hunter_agent.core.domain import RawJob
-from job_hunter_agent.core.matching import MatchingCriteria
 from job_hunter_agent.core.matching_prompt import build_legacy_scoring_prompt, build_scoring_rationale_guidance
+from job_hunter_agent.core.runtime_matching import RuntimeMatchingProfile
 
 
 class MatchingPromptTests(TestCase):
-    def test_build_legacy_scoring_prompt_includes_guidance_and_criteria(self) -> None:
+    def test_build_legacy_scoring_prompt_includes_guidance_and_runtime_profile(self) -> None:
         raw_job = RawJob(
             title="Senior Backend Engineer",
             company="Acme",
@@ -18,8 +18,8 @@ class MatchingPromptTests(TestCase):
             summary="Java e Kotlin",
             description="Atuacao com Spring Boot e AWS.",
         )
-        criteria = MatchingCriteria(
-            profile_text="Engenheiro backend com foco em Java.",
+        profile = RuntimeMatchingProfile(
+            candidate_summary="Engenheiro backend com foco em Java.",
             include_keywords=("java", "kotlin"),
             exclude_keywords=("junior", ".net"),
             accepted_work_modes=("remote", "hybrid"),
@@ -27,7 +27,7 @@ class MatchingPromptTests(TestCase):
             minimum_relevance=6,
         )
 
-        prompt = build_legacy_scoring_prompt(raw_job, criteria)
+        prompt = build_legacy_scoring_prompt(raw_job, profile)
 
         self.assertIn("Perfil:", prompt)
         self.assertIn("Engenheiro backend com foco em Java.", prompt)
@@ -41,3 +41,4 @@ class MatchingPromptTests(TestCase):
         self.assertIn("tokens curtos", guidance)
         self.assertIn("senioridade_compativel", guidance)
         self.assertIn("sinais_insuficientes", guidance)
+        self.assertIn("modalidade_incompativel", guidance)
