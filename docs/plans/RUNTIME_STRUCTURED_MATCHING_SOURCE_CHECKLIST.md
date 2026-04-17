@@ -5,6 +5,7 @@
 - [x] Este arquivo abre a próxima fase estrutural após a redução de hardcodes do legado
 - [x] O objetivo aqui é fazer o runtime principal depender claramente de uma fonte estruturada de matching
 - [x] A branch desta fase foi aberta: `refactor/runtime-structured-matching-source`
+- [x] Continuidade desta fase em branch dedicada: `refactor/runtime-structured-matching-docs-and-exit-criteria`
 
 ## Objetivo Da Fase
 
@@ -41,7 +42,7 @@ Mesmo após a fase anterior, o runtime ainda opera principalmente com:
 - `matching_prompt` legado
 - `collector` e `scoring` ainda orientados por contrato antigo
 
-O resultado é melhor do que antes, mas a fonte estruturada ainda não domina o runtime principal.
+O resultado é melhor do que antes, mas a fonte estruturada ainda não domina completamente o runtime principal.
 
 ## Linha De Trabalho Recomendada
 
@@ -67,9 +68,9 @@ O resultado é melhor do que antes, mas a fonte estruturada ainda não domina o 
 
 ### P1 — Compatibilidade e documentação
 
-- [ ] documentar claramente o caminho principal novo vs fallback legado
-- [ ] revisar `.env.example`, `README.md` e `AGENTS.md`
-- [ ] registrar critérios de desligamento futuro do legado
+- [x] documentar claramente o caminho principal novo vs fallback legado
+- [x] revisar `.env.example`, `README.md` e `AGENTS.md`
+- [x] registrar critérios de desligamento futuro do legado
 
 ### P1 — Testes
 
@@ -84,4 +85,4 @@ Esta fase só fecha quando:
 - [ ] o runtime principal depender claramente da fonte estruturada
 - [ ] o legado estiver reduzido a compatibilidade marginal
 - [x] senioridade desconhecida estiver modelada como policy do caminho novo
-- [ ] documentação e testes refletirem esse novo centro de gravidade
+- [x] documentação e parte relevante dos testes já refletem esse novo centro de gravidade
