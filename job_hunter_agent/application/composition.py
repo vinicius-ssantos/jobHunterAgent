@@ -9,36 +9,33 @@ from job_hunter_agent.application.application_preparation import ApplicationPrep
 from job_hunter_agent.application.application_submission import ApplicationSubmissionService
 from job_hunter_agent.application.application_support import OllamaApplicationSupportAssessor
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
-from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
 from job_hunter_agent.collectors.collector import HybridJobScorer, JobCollectionService
-from job_hunter_agent.core.candidate_profile import load_candidate_profile
-from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
-from job_hunter_agent.core.matching import build_matching_criteria_from_structured_config
-from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
+from job_hunter_agent.collectors.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
 from job_hunter_agent.collectors.linkedin_application import LinkedInApplicationFlowInspector
 from job_hunter_agent.collectors.linkedin_application_adapters import (
     LinkedInPreflightInspectorAdapter,
     LinkedInSubmissionApplicantAdapter,
 )
-from job_hunter_agent.collectors.linkedin_application_components import (
-    create_linkedin_application_flow_components,
-)
+from job_hunter_agent.collectors.linkedin_application_artifacts import create_linkedin_failure_artifact_capture
+from job_hunter_agent.collectors.linkedin_application_components import create_linkedin_application_flow_components
 from job_hunter_agent.collectors.linkedin_modal_llm import (
     OllamaLinkedInModalInterpreter,
     deterministic_interpret_linkedin_modal,
     format_linkedin_modal_interpretation,
     validate_linkedin_modal_interpretation,
 )
-from job_hunter_agent.collectors.linkedin import LinkedInDeterministicCollector, OllamaLinkedInFieldRepairer
-from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.collectors.portal_collectors import BrowserUseSiteCollector
-from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobRepository
-from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
+from job_hunter_agent.core.candidate_profile import load_candidate_profile
+from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.core.runtime import RuntimeGuard
+from job_hunter_agent.core.runtime_matching import build_runtime_matching_profile_from_structured_source
 from job_hunter_agent.core.settings import Settings
 from job_hunter_agent.core.structured_matching_config import resolve_structured_matching_source
-from job_hunter_agent.collectors.linkedin_application_artifacts import create_linkedin_failure_artifact_capture
-
+from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
+from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobRepository
+from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
+from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
+from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -65,34 +62,22 @@ def build_known_job_lookup(repository: JobRepository) -> Callable[[str], bool]:
 def create_application_support_assessor(settings: Settings) -> OllamaApplicationSupportAssessor | None:
     if not settings.application_support_llm_enabled:
         return None
-    return OllamaApplicationSupportAssessor(
-        model_name=settings.ollama_model,
-        base_url=settings.ollama_url,
-    )
+    return OllamaApplicationSupportAssessor(model_name=settings.ollama_model, base_url=settings.ollama_url)
 
 
 def create_job_requirements_extractor(settings: Settings) -> OllamaJobRequirementsExtractor | None:
     if not settings.job_requirements_llm_enabled:
         return None
-    return OllamaJobRequirementsExtractor(
-        model_name=settings.ollama_model,
-        base_url=settings.ollama_url,
-    )
+    return OllamaJobRequirementsExtractor(model_name=settings.ollama_model, base_url=settings.ollama_url)
 
 
 def create_application_priority_assessor(settings: Settings) -> OllamaApplicationPriorityAssessor | None:
     if not settings.application_priority_llm_enabled:
         return None
-    return OllamaApplicationPriorityAssessor(
-        model_name=settings.ollama_model,
-        base_url=settings.ollama_url,
-    )
+    return OllamaApplicationPriorityAssessor(model_name=settings.ollama_model, base_url=settings.ollama_url)
 
 
-def create_application_preparation_service(
-    repository: JobRepository,
-    settings: Settings,
-) -> ApplicationPreparationService:
+def create_application_preparation_service(repository: JobRepository, settings: Settings) -> ApplicationPreparationService:
     return ApplicationPreparationService(
         repository,
         support_assessor=create_application_support_assessor(settings),
@@ -144,10 +129,7 @@ def create_linkedin_modal_interpretation_formatter(settings: Settings):
 def create_linkedin_modal_interpreter(settings: Settings):
     if not settings.linkedin_modal_llm_enabled:
         return None
-    llm_interpreter = OllamaLinkedInModalInterpreter(
-        model_name=settings.ollama_model,
-        base_url=settings.ollama_url,
-    )
+    llm_interpreter = OllamaLinkedInModalInterpreter(model_name=settings.ollama_model, base_url=settings.ollama_url)
 
     def _interpret(state):
         interpreted = llm_interpreter.interpret(state)
@@ -171,8 +153,8 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
         logger.info(resolved_matching.describe_source())
     return JobCollectionService(
         settings=settings,
-        matching_criteria=build_matching_criteria_from_structured_config(
-            structured_matching=resolved_matching.config,
+        runtime_matching_profile=build_runtime_matching_profile_from_structured_source(
+            structured_matching_source=resolved_matching.config,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
@@ -197,28 +179,17 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
                 field_repairer=create_linkedin_field_repairer(settings),
             ),
         ),
-        scorer=HybridJobScorer(
-            model_name=settings.ollama_model,
-            base_url=settings.ollama_url,
-        ),
+        scorer=HybridJobScorer(model_name=settings.ollama_model, base_url=settings.ollama_url),
     )
 
 
 def create_linkedin_field_repairer(settings: Settings) -> OllamaLinkedInFieldRepairer | None:
     if not settings.linkedin_field_repair_enabled:
         return None
-    return OllamaLinkedInFieldRepairer(
-        model_name=settings.ollama_model,
-        base_url=settings.ollama_url,
-    )
+    return OllamaLinkedInFieldRepairer(model_name=settings.ollama_model, base_url=settings.ollama_url)
 
 
-def build_linkedin_application_flow_inspector_kwargs(
-    settings: Settings,
-    *,
-    candidate_profile,
-    modal_interpreter=None,
-) -> dict:
+def build_linkedin_application_flow_inspector_kwargs(settings: Settings, *, candidate_profile, modal_interpreter=None) -> dict:
     return {
         "storage_state_path": settings.linkedin_storage_state_path,
         "headless": settings.browser_headless,
@@ -244,23 +215,13 @@ def build_linkedin_application_flow_inspector_kwargs(
 
 
 def create_linkedin_artifact_capture(settings: Settings) -> ArtifactCapturePort:
-    return create_linkedin_failure_artifact_capture(
-        enabled=settings.save_failure_artifacts,
-        artifacts_dir=settings.failure_artifacts_dir,
-    )
+    return create_linkedin_failure_artifact_capture(enabled=settings.save_failure_artifacts, artifacts_dir=settings.failure_artifacts_dir)
 
 
-def create_linkedin_application_flow_inspector(
-    settings: Settings,
-    *,
-    mode: str,
-) -> LinkedInApplicationFlowInspector:
+def create_linkedin_application_flow_inspector(settings: Settings, *, mode: str) -> LinkedInApplicationFlowInspector:
     candidate_profile = load_candidate_profile(settings.candidate_profile_path)
     if mode == "preflight":
-        shared_kwargs = build_linkedin_application_flow_inspector_kwargs(
-            settings,
-            candidate_profile=candidate_profile,
-        )
+        shared_kwargs = build_linkedin_application_flow_inspector_kwargs(settings, candidate_profile=candidate_profile)
         return LinkedInApplicationFlowInspector(
             **shared_kwargs,
             modal_interpretation_formatter=create_linkedin_modal_interpretation_formatter(settings),
@@ -272,10 +233,7 @@ def create_linkedin_application_flow_inspector(
             candidate_profile=candidate_profile,
             modal_interpreter=modal_interpreter,
         )
-        return LinkedInApplicationFlowInspector(
-            **shared_kwargs,
-            modal_interpreter=modal_interpreter,
-        )
+        return LinkedInApplicationFlowInspector(**shared_kwargs, modal_interpreter=modal_interpreter)
     raise ValueError(f"modo de inspector do LinkedIn nao suportado: {mode}")
 
 
@@ -293,15 +251,7 @@ def create_linkedin_submission_applicant(settings: Settings) -> LinkedInSubmissi
     )
 
 
-def create_notifier(
-    *,
-    settings: Settings,
-    repository: JobRepository,
-    enable_telegram: bool,
-    on_approved,
-    on_application_preflight,
-    on_application_submit,
-):
+def create_notifier(*, settings: Settings, repository: JobRepository, enable_telegram: bool, on_approved, on_application_preflight, on_application_submit):
     if not enable_telegram:
         return NullNotifier()
     return TelegramNotifier(
@@ -317,7 +267,4 @@ def create_notifier(
 def create_review_rationale_formatter(settings: Settings) -> OllamaReviewRationaleFormatter | None:
     if not settings.review_rationale_llm_enabled:
         return None
-    return OllamaReviewRationaleFormatter(
-        model_name=settings.ollama_model,
-        base_url=settings.ollama_url,
-    )
+    return OllamaReviewRationaleFormatter(model_name=settings.ollama_model, base_url=settings.ollama_url)
