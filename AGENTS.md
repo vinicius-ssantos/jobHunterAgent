@@ -27,22 +27,6 @@ Regras:
 - commits devem ser em português
 - prefira commits pequenos e coerentes
 
-## Higiene De Branch
-
-Para evitar branches defasadas e regressões por rebase:
-
-- se uma branch for continuar viva por mais de uma linha de trabalho, rebaseie em `master` antes de seguir implementando
-- antes de mergear ou retomar uma branch antiga, compare `ahead/behind` contra `master`
-- apague branch local sem trabalho exclusivo assim que ela for absorvida por `master`
-- não preserve branch só por inércia; ou ela segue viva com escopo claro, ou deve ser encerrada
-
-Quando houver rebase, cherry-pick ou porte manual de commit:
-
-- nunca reintroduza arquivos em caminhos antigos só porque existiam no commit original
-- sempre porte a mudança para a arquitetura atual do projeto
-- se um commit antigo tocar módulos que já mudaram de camada, adapte a mudança em vez de restaurar a estrutura anterior
-- após resolver conflito, rode os testes focados da área portada antes de continuar
-
 ## Produto
 
 Objetivo do repositório:
@@ -54,30 +38,14 @@ Objetivo do repositório:
 - registrar aprovação ou rejeição
 - executar etapas assistidas de candidatura somente após autorização humana explícita
 
-## Restrições do Produto
-
-- uso pessoal
-- dados do candidato permanecem locais por padrão
-- confiabilidade vale mais que abrangência
-- o fluxo estreito e estável vale mais que automação ampla e instável
-- toda ação de alto impacto exige aprovação humana
-
-## Fluxo Principal
-
-O sistema só está correto quando este loop continua íntegro:
-
-`coletar -> normalizar -> ranquear -> persistir -> notificar -> revisar`
-
-Para candidaturas, o gate obrigatório é:
-
-`draft -> ready_for_review -> confirmed -> authorized_submit -> submitted`
-
 ## Fonte de Verdade
 
 - a aplicação ativa vive em `job_hunter_agent/`
 - `main.py` é apenas um entrypoint fino
 - protótipos legados não entram no runtime
 - não recriar arquiteturas paralelas como `files/`
+- o runtime principal deve preferir a fonte estruturada de matching
+- fallback legado existe apenas como compatibilidade temporária e explícita
 
 ## Fronteiras Arquiteturais
 
@@ -101,31 +69,15 @@ Regra de dependência:
 - wiring acontece na borda de composição, não espalhado pelos módulos
 - compatibilidade legada deve passar por contrato explícito; não dependa do shape inteiro de `Settings` em módulos de negócio
 
-## SOLID
+## Matching
 
-Antes de implementar, confirme:
+Quando tocar no matching:
 
-- SRP: este módulo tem um único motivo para mudar?
-- OCP: estou estendendo comportamento sem espalhar `if`?
-- LSP: implementações e dublês preservam o contrato?
-- ISP: a interface está pequena e focada?
-- DIP: o fluxo de negócio depende de abstrações e não de detalhes concretos?
-
-## Controle De Escopo E Refatoracao
-
-- use este arquivo como mapa de decisao, nao como licenca para reescrever areas vizinhas
-- execute apenas o menor recorte necessario para concluir a tarefa atual com seguranca
-- nao amplie escopo por aproveitar contexto sem necessidade direta
-
-## Coleta e Scoring
-
-Quando trabalhar no matching/scoring:
-
-- aplique rejeição por regra primeiro
-- use a LLM como scorer assistivo
-- mantenha fallback determinístico
-- nunca deixe o modelo inventar dados do candidato
-- ao tocar caminho legado de matching, encapsule compatibilidade em helper/contrato explícito antes de expandir o uso
+- a fonte estruturada é o caminho principal
+- o legado não deve voltar a ganhar protagonismo
+- policy de senioridade deve ficar centralizada e reaproveitável
+- prefiltro e scorer devem convergir nas mesmas regras principais
+- não espalhe novas regras em strings soltas ou `if` locais quando houver policy/helper possível
 
 ## Configuração
 
@@ -136,6 +88,7 @@ Quando mexer em configuração:
 - concentre acesso em um objeto de settings validado
 - não espalhe lookup de variável de ambiente pelo código
 - não reintroduza `JOB_HUNTER_PROFILE_TEXT` como centro de evolução do matching
+- não trate fallback legado como equivalente ao caminho principal em código novo
 
 ## Testes
 
@@ -144,14 +97,4 @@ Toda mudança não trivial deve preservar ou melhorar a verificação.
 - prefira teste unitário para regra de negócio
 - use integração só em seams críticos
 - teste comportamento, não detalhe interno
-
-## Workflow Depois de Implementar
-
-Antes de encerrar a tarefa:
-
-1. rode os testes relevantes
-2. confirme que estados e transições continuam válidos
-3. confirme que falhas continuam explícitas
-4. atualize README se setup ou operação mudaram
-5. atualize AGENTS se arquitetura, processo ou regras mudaram
-6. prepare commits pequenos e em português
+- quando migrar centro de gravidade arquitetural, adicione regressão cobrindo o caminho principal novo

@@ -46,9 +46,9 @@ class CompositionStructuredMatchingTests(TestCase):
             repository.seen_job_url_exists.return_value = False
 
             with patch(
-                "job_hunter_agent.application.composition.build_matching_criteria_from_structured_config",
-                return_value="criteria",
-            ) as mocked_build_matching, patch(
+                "job_hunter_agent.application.composition.build_runtime_matching_profile_from_structured_source",
+                return_value="runtime_profile",
+            ) as mocked_build_runtime, patch(
                 "job_hunter_agent.application.composition.LinkedInDeterministicCollector",
                 return_value="linkedin_collector",
             ), patch(
@@ -61,8 +61,8 @@ class CompositionStructuredMatchingTests(TestCase):
                 service = create_collection_service(settings, repository)
 
         self.assertIsNotNone(service)
-        mocked_build_matching.assert_called_once()
-        structured_matching = mocked_build_matching.call_args.kwargs["structured_matching"]
+        mocked_build_runtime.assert_called_once()
+        structured_matching = mocked_build_runtime.call_args.kwargs["structured_matching_source"]
         self.assertEqual(structured_matching.profile.summary, "Structured profile")
         self.assertEqual(structured_matching.matching.minimum_salary_brl, 15000)
         self.assertEqual(structured_matching.matching.minimum_relevance, 8)

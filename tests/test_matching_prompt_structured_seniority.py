@@ -1,8 +1,8 @@
 from unittest import TestCase
 
 from job_hunter_agent.core.domain import RawJob
-from job_hunter_agent.core.matching import MatchingCriteria
 from job_hunter_agent.core.matching_prompt import build_legacy_scoring_prompt
+from job_hunter_agent.core.runtime_matching import RuntimeMatchingProfile
 
 
 class MatchingPromptStructuredSeniorityTests(TestCase):
@@ -19,8 +19,8 @@ class MatchingPromptStructuredSeniorityTests(TestCase):
                 summary="Java e Kotlin",
                 description="Atuacao com Spring Boot e AWS.",
             ),
-            MatchingCriteria(
-                profile_text="Engenheiro backend com foco em Java.",
+            RuntimeMatchingProfile(
+                candidate_summary="Engenheiro backend com foco em Java.",
                 include_keywords=("java", "kotlin"),
                 exclude_keywords=("junior", ".net"),
                 accepted_work_modes=("remote", "hybrid"),

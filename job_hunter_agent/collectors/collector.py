@@ -12,15 +12,8 @@ from job_hunter_agent.core.browser_support import (
     load_playwright_storage_state,
     resolve_local_chromium,
 )
-from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
-from job_hunter_agent.core.matching_reasons import (
-    REASON_EXCLUDED_KEYWORDS,
-    REASON_SALARY_BELOW_MINIMUM,
-    REASON_SENIORITY_OUTSIDE_TARGET,
-    REASON_UNKNOWN_SENIORITY,
-    REASON_WORK_MODE_MISMATCH,
-)
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
+from job_hunter_agent.core.runtime_matching import RuntimeMatchingPolicy, RuntimeMatchingProfile
 from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
     OllamaLinkedInFieldRepairer,
@@ -44,15 +37,9 @@ from job_hunter_agent.collectors.linkedin import (
     strip_title_prefix_from_location,
     summarize_linkedin_raw_card,
 )
-from job_hunter_agent.infrastructure.repository import JobRepository
-from job_hunter_agent.llm.scoring import (
-    HybridJobScorer,
-    parse_salary_floor,
-    parse_scoring_response,
-    standardize_error_message,
-)
 from job_hunter_agent.core.settings import Settings
-
+from job_hunter_agent.infrastructure.repository import JobRepository
+from job_hunter_agent.llm.scoring import HybridJobScorer, parse_salary_floor, parse_scoring_response, standardize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +50,7 @@ class SiteCollector(Protocol):
 
 
 class JobScorer(Protocol):
-    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
+    def score(self, raw_job: RawJob, runtime_matching_profile: RuntimeMatchingProfile) -> ScoredJob:
         raise NotImplementedError
 
 
@@ -71,13 +58,13 @@ class JobCollectionService:
     def __init__(
         self,
         settings: Settings,
-        matching_criteria: MatchingCriteria,
+        runtime_matching_profile: RuntimeMatchingProfile,
         repository: JobRepository,
         site_collector: SiteCollector,
         scorer: JobScorer,
     ) -> None:
         self.settings = settings
-        self.matching_criteria = matching_criteria
+        self.runtime_matching_profile = runtime_matching_profile
         self.repository = repository
         self.site_collector = site_collector
         self.scorer = scorer
@@ -182,11 +169,9 @@ class JobCollectionService:
                 continue
 
             try:
-                score = self.scorer.score(raw_job, self.matching_criteria)
+                score = self.scorer.score(raw_job, self.runtime_matching_profile)
             except Exception as exc:
-                logger.exception(
-                    standardize_error_message("erro de scoring", raw_job.source_site, str(exc)),
-                )
+                logger.exception(standardize_error_message("erro de scoring", raw_job.source_site, str(exc)))
                 continue
             if not score.accepted:
                 self.repository.remember_seen_job(
@@ -220,40 +205,17 @@ class JobCollectionService:
         return accepted_jobs
 
     def _is_minimally_valid(self, raw_job: RawJob) -> bool:
-        return bool(
-            raw_job.title.strip()
-            and raw_job.company.strip()
-            and raw_job.url.strip()
-            and raw_job.source_site.strip()
-        )
+        return bool(raw_job.title.strip() and raw_job.company.strip() and raw_job.url.strip() and raw_job.source_site.strip())
 
     def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
-        policy = MatchingPolicy(self.matching_criteria)
+        policy = RuntimeMatchingPolicy(self.runtime_matching_profile)
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
-        if policy.contains_excluded_keywords(combined_text):
-            return REASON_EXCLUDED_KEYWORDS
-
-        seniority_reason = policy.evaluate_seniority_reason(combined_text)
-        if seniority_reason is not None:
-            return seniority_reason
-
-        if not policy.accepts_work_mode(raw_job.work_mode):
-            return REASON_WORK_MODE_MISMATCH
-
-        work_mode = raw_job.work_mode.strip().lower()
-        if work_mode and work_mode not in {"nao informado", "nÃ£o informado"}:
-            if self.matching_criteria.accepted_work_modes and not any(
-                mode in work_mode for mode in self.matching_criteria.accepted_work_modes
-            ):
-                return REASON_WORK_MODE_MISMATCH
-
         salary_floor = parse_salary_floor(raw_job.salary_text)
-        if not policy.accepts_salary_floor(salary_floor):
-            return REASON_SALARY_BELOW_MINIMUM
-        if salary_floor is not None and salary_floor < self.matching_criteria.minimum_salary_brl:
-            return REASON_SALARY_BELOW_MINIMUM
-
-        return None
+        return policy.evaluate_prefilter_reason(
+            text=combined_text,
+            work_mode=raw_job.work_mode,
+            salary_floor=salary_floor,
+        )
 
 
 def build_external_key(raw_job: RawJob) -> str:
