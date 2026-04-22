@@ -1070,6 +1070,45 @@ class BrowserUseSiteCollectorAdapterTests(TestCase):
         self.assertEqual(len(cards), 2)
         self.assertEqual(visited_pages, [2])
 
+    def test_linkedin_collect_cards_across_pages_stops_after_consecutive_duplicate_pages(self) -> None:
+        class FakePage:
+            async def wait_for_selector(self, selector: str, timeout: int = 0) -> None:
+                return None
+
+            async def wait_for_timeout(self, timeout: int) -> None:
+                return None
+
+        collector = LinkedInDeterministicCollector(
+            storage_state_path=Path("dummy.json"),
+            headless=True,
+            max_pages_per_cycle=4,
+            duplicate_pages_stop_threshold=2,
+        )
+        page = FakePage()
+        visited_pages: list[int] = []
+        page_cards = [
+            [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Primeira"}],
+            [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Primeira"}],
+            [{"url": "https://www.linkedin.com/jobs/view/1", "title": "Primeira"}],
+        ]
+
+        async def fake_extract_visible_cards(current_page, max_jobs: int) -> list[dict[str, str]]:
+            return page_cards.pop(0)
+
+        async def fake_go_to_next_results_page(current_page, next_page_number: int) -> bool:
+            visited_pages.append(next_page_number)
+            return True
+
+        collector._dismiss_sign_in_modal = lambda current_page: asyncio.sleep(0)
+        collector._stabilize_results_page = lambda current_page: asyncio.sleep(0)
+        collector._extract_visible_cards = fake_extract_visible_cards
+        collector._go_to_next_results_page = fake_go_to_next_results_page
+
+        cards = asyncio.run(collector._collect_cards_across_pages(page, 10))
+
+        self.assertEqual([card["url"] for card in cards], ["https://www.linkedin.com/jobs/view/1"])
+        self.assertEqual(visited_pages, [2, 3])
+
     def test_linkedin_deterministic_collector_filters_known_cards_before_detail(self) -> None:
         collector = LinkedInDeterministicCollector(
             storage_state_path=Path("dummy.json"),

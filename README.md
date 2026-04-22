@@ -121,7 +121,13 @@ Tratamento esperado:
 - `JOB_HUNTER_BROWSER_HEADLESS`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGES_PER_CYCLE`
 - `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH`
+- `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES`
+- `JOB_HUNTER_LINKEDIN_DUPLICATE_PAGES_STOP_THRESHOLD`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
+- `JOB_HUNTER_ADAPTIVE_POLLING_BACKOFF_ENABLED`
+- `JOB_HUNTER_ADAPTIVE_POLLING_EMPTY_CYCLES_BEFORE_BACKOFF`
+- `JOB_HUNTER_ADAPTIVE_POLLING_BACKOFF_MULTIPLIER`
+- `JOB_HUNTER_ADAPTIVE_POLLING_MAX_INTERVAL_SECONDS`
 - `JOB_HUNTER_LINKEDIN_FIELD_REPAIR_ENABLED`
 - `JOB_HUNTER_APPLICATION_SUPPORT_LLM_ENABLED`
 - `JOB_HUNTER_JOB_REQUIREMENTS_LLM_ENABLED`
@@ -166,6 +172,11 @@ Rodar ciclos finitos:
 python main.py --ciclos 3
 python main.py --ciclos 3 --intervalo-ciclos-segundos 60
 ```
+
+Comportamento operacional em ciclos finitos:
+
+- o runtime aplica backoff adaptativo quando ciclos consecutivos nao persistem vagas novas
+- o coletor do LinkedIn encerra a paginacao antes quando encontra apenas duplicadas em sequencia
 
 Bootstrap da sessao autenticada do LinkedIn:
 

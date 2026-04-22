@@ -596,6 +596,7 @@ class LinkedInDeterministicCollector:
         max_pages_per_cycle: int = 2,
         max_page_depth: int = 6,
         scroll_stabilization_passes: int = 3,
+        duplicate_pages_stop_threshold: int = 2,
         field_repairer: object | None = None,
         known_job_url_exists: Callable[[str], bool] | None = None,
     ) -> None:
@@ -604,6 +605,7 @@ class LinkedInDeterministicCollector:
         self.max_pages_per_cycle = max_pages_per_cycle
         self.max_page_depth = max_page_depth
         self.scroll_stabilization_passes = scroll_stabilization_passes
+        self.duplicate_pages_stop_threshold = max(1, duplicate_pages_stop_threshold)
         self.field_repairer = field_repairer
         self.known_job_url_exists = known_job_url_exists
 
@@ -723,6 +725,7 @@ class LinkedInDeterministicCollector:
         collected_cards: list[dict[str, str]] = []
         seen_urls: set[str] = set()
         current_page_number = 1
+        consecutive_pages_without_new_cards = 0
 
         pages_scanned = 0
         while pages_scanned < min(self.max_pages_per_cycle, self.max_page_depth):
@@ -748,6 +751,10 @@ class LinkedInDeterministicCollector:
                 new_page_cards.append(card)
 
             collected_cards.extend(new_page_cards)
+            if new_page_cards:
+                consecutive_pages_without_new_cards = 0
+            else:
+                consecutive_pages_without_new_cards += 1
             logger.info(
                 "LinkedIn pagina %s analisada cards=%s novos=%s acumulado=%s",
                 current_page_number,
@@ -757,6 +764,12 @@ class LinkedInDeterministicCollector:
             )
             pages_scanned += 1
             if len(collected_cards) >= max_jobs:
+                return collected_cards[:max_jobs]
+            if consecutive_pages_without_new_cards >= self.duplicate_pages_stop_threshold:
+                logger.info(
+                    "LinkedIn encerrou ciclo por repeticao de duplicadas apos %s pagina(s) sem novidades.",
+                    consecutive_pages_without_new_cards,
+                )
                 return collected_cards[:max_jobs]
             if pages_scanned >= self.max_pages_per_cycle:
                 return collected_cards[:max_jobs]

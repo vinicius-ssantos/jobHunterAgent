@@ -44,11 +44,16 @@ class Settings(BaseSettings):
     linkedin_max_pages_per_cycle: int = 2
     linkedin_max_page_depth: int = 6
     linkedin_scroll_stabilization_passes: int = 3
+    linkedin_duplicate_pages_stop_threshold: int = 2
     save_failure_artifacts: bool = False
     failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
     max_jobs_per_site: int = 20
     portal_collection_timeout_seconds: int = 180
     review_polling_grace_seconds: int = 120
+    adaptive_polling_backoff_enabled: bool = True
+    adaptive_polling_empty_cycles_before_backoff: int = 2
+    adaptive_polling_backoff_multiplier: float = 2.0
+    adaptive_polling_max_interval_seconds: int = 900
     collection_time: str = "08:00"
 
     telegram_token: str = "SEU_TOKEN_AQUI"
@@ -186,6 +191,34 @@ class Settings(BaseSettings):
     def validate_linkedin_scroll_stabilization_passes(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_duplicate_pages_stop_threshold")
+    @classmethod
+    def validate_linkedin_duplicate_pages_stop_threshold(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_DUPLICATE_PAGES_STOP_THRESHOLD deve ser maior que zero.")
+        return value
+
+    @field_validator("adaptive_polling_empty_cycles_before_backoff")
+    @classmethod
+    def validate_adaptive_polling_empty_cycles_before_backoff(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_ADAPTIVE_POLLING_EMPTY_CYCLES_BEFORE_BACKOFF deve ser maior que zero.")
+        return value
+
+    @field_validator("adaptive_polling_backoff_multiplier")
+    @classmethod
+    def validate_adaptive_polling_backoff_multiplier(cls, value: float) -> float:
+        if value <= 1:
+            raise ValueError("JOB_HUNTER_ADAPTIVE_POLLING_BACKOFF_MULTIPLIER deve ser maior que 1.")
+        return value
+
+    @field_validator("adaptive_polling_max_interval_seconds")
+    @classmethod
+    def validate_adaptive_polling_max_interval_seconds(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_ADAPTIVE_POLLING_MAX_INTERVAL_SECONDS deve ser maior que zero.")
         return value
 
     @field_validator("priority_high_min_relevance")

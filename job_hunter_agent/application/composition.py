@@ -186,6 +186,7 @@ def create_collection_service(settings: Settings, repository: JobRepository) -> 
                 max_pages_per_cycle=settings.linkedin_max_pages_per_cycle,
                 max_page_depth=settings.linkedin_max_page_depth,
                 scroll_stabilization_passes=settings.linkedin_scroll_stabilization_passes,
+                duplicate_pages_stop_threshold=getattr(settings, "linkedin_duplicate_pages_stop_threshold", 2),
                 known_job_url_exists=known_job_lookup,
                 field_repairer=create_linkedin_field_repairer(settings),
             ),
