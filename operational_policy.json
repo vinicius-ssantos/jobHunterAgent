@@ -1,0 +1,39 @@
+{
+  "operational_summary_order": [
+    "pronto_para_envio",
+    "perguntas_adicionais",
+    "similar_jobs",
+    "candidatura_externa",
+    "vaga_expirada",
+    "no_apply_cta",
+    "fluxo_inconclusivo",
+    "bloqueio_funcional",
+    "submitted"
+  ],
+  "queue_reason_rank": {
+    "pronto_para_envio": 0,
+    "cta_detectado": 2,
+    "sem_detalhe_operacional": 2,
+    "nao_classificado": 2,
+    "perguntas_adicionais": 4,
+    "fluxo_inconclusivo": 5,
+    "similar_jobs": 6,
+    "candidatura_externa": 7,
+    "no_apply_cta": 7,
+    "vaga_expirada": 8,
+    "bloqueio_funcional": 9
+  },
+  "queue_unknown_reason_rank": 3,
+  "queue_auto_supported_unknown_rank": 1,
+  "queue_cta_unknown_rank": 2,
+  "support_order": {
+    "auto_supported": 0,
+    "manual_review": 1,
+    "unsupported": 2
+  },
+  "priority_order": {
+    "alta": 0,
+    "media": 1,
+    "baixa": 2
+  }
+}
