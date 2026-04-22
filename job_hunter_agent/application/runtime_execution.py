@@ -85,16 +85,61 @@ async def run_fixed_cycles(
     interval_seconds: int,
     run_collection_cycle: Callable[[], Awaitable[bool]],
     wait_for_review_window: Callable[[], Awaitable[None]],
+    adaptive_backoff_enabled: bool = True,
+    empty_cycles_before_backoff: int = 2,
+    backoff_multiplier: float = 2.0,
+    backoff_max_interval_seconds: int = 900,
     logger: logging.Logger,
 ) -> None:
+    consecutive_empty_cycles = 0
+
     for cycle_number in range(1, cycles + 1):
         logger.info("Executando ciclo controlado %s/%s.", cycle_number, cycles)
         jobs_sent_for_review = await run_collection_cycle()
         if jobs_sent_for_review:
+            consecutive_empty_cycles = 0
             await wait_for_review_window()
+        else:
+            consecutive_empty_cycles += 1
         if cycle_number < cycles and interval_seconds > 0:
-            logger.info("Aguardando %ss antes do proximo ciclo controlado.", interval_seconds)
-            await asyncio.sleep(interval_seconds)
+            next_interval_seconds = interval_seconds
+            if adaptive_backoff_enabled:
+                next_interval_seconds = _adaptive_cycle_interval_seconds(
+                    base_interval_seconds=interval_seconds,
+                    consecutive_empty_cycles=consecutive_empty_cycles,
+                    empty_cycles_before_backoff=empty_cycles_before_backoff,
+                    backoff_multiplier=backoff_multiplier,
+                    max_interval_seconds=backoff_max_interval_seconds,
+                )
+            logger.info("Aguardando %ss antes do proximo ciclo controlado.", next_interval_seconds)
+            await asyncio.sleep(next_interval_seconds)
+
+
+def _adaptive_cycle_interval_seconds(
+    *,
+    base_interval_seconds: int,
+    consecutive_empty_cycles: int,
+    empty_cycles_before_backoff: int,
+    backoff_multiplier: float,
+    max_interval_seconds: int,
+) -> int:
+    if base_interval_seconds <= 0:
+        return 0
+    if consecutive_empty_cycles <= 0:
+        return base_interval_seconds
+    if empty_cycles_before_backoff <= 0:
+        empty_cycles_before_backoff = 1
+    if backoff_multiplier <= 1:
+        backoff_multiplier = 1.0
+    if max_interval_seconds < base_interval_seconds:
+        max_interval_seconds = base_interval_seconds
+    if consecutive_empty_cycles < empty_cycles_before_backoff:
+        return base_interval_seconds
+
+    backoff_steps = consecutive_empty_cycles - empty_cycles_before_backoff + 1
+    expanded_interval = int(base_interval_seconds * (backoff_multiplier ** backoff_steps))
+    expanded_interval = max(base_interval_seconds, expanded_interval)
+    return min(expanded_interval, max_interval_seconds)
 
 
 async def run_application(

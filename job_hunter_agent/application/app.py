@@ -225,6 +225,10 @@ class JobHunterApplication:
             interval_seconds=interval_seconds,
             run_collection_cycle=self.run_collection_cycle,
             wait_for_review_window=self.wait_for_review_window,
+            adaptive_backoff_enabled=getattr(self.settings, "adaptive_polling_backoff_enabled", True),
+            empty_cycles_before_backoff=getattr(self.settings, "adaptive_polling_empty_cycles_before_backoff", 2),
+            backoff_multiplier=getattr(self.settings, "adaptive_polling_backoff_multiplier", 2.0),
+            backoff_max_interval_seconds=getattr(self.settings, "adaptive_polling_max_interval_seconds", 900),
             logger=logger,
         )
 
