@@ -1,0 +1,36 @@
+{
+  "skill_aliases": {
+    "java": ["java"],
+    "angular": ["angular", "angular framework"],
+    "ejb": ["ejb", "enterprise java beans"],
+    "kotlin": ["kotlin"],
+    "spring": ["spring", "spring boot"],
+    "postgresql": ["postgresql", "postgres", "postgre sql"],
+    "docker": ["docker"]
+  },
+  "primary_stack_keywords": [
+    "java",
+    "kotlin",
+    "spring",
+    "spring boot",
+    "angular",
+    "react"
+  ],
+  "secondary_stack_keywords": [
+    "aws",
+    "azure",
+    "docker",
+    "kubernetes",
+    "postgresql",
+    "sql",
+    "microservices"
+  ],
+  "leadership_keywords": [
+    "lideranca",
+    "liderar",
+    "tech lead",
+    "mentoria",
+    "coordenar",
+    "ownership"
+  ]
+}

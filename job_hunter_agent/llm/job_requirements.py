@@ -6,6 +6,7 @@ from typing import Protocol
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.seniority import infer_seniority_from_text, normalize_seniority_label
+from job_hunter_agent.core.skill_taxonomy import SkillTaxonomy, get_runtime_skill_taxonomy
 
 
 @dataclass(frozen=True)
@@ -24,19 +25,16 @@ class JobRequirementsExtractor(Protocol):
 
 
 class DeterministicJobRequirementsExtractor:
+    def __init__(self, *, taxonomy: SkillTaxonomy | None = None) -> None:
+        self._taxonomy = taxonomy or get_runtime_skill_taxonomy()
+
     def extract(self, job: JobPosting) -> JobRequirementSignals:
         combined = f"{job.title} {job.summary}".lower()
         seniority = infer_seniority_from_text(combined)
-        primary_stack = _find_keywords(combined, ("java", "kotlin", "spring", "spring boot", "angular", "react"))
-        secondary_stack = _find_keywords(
-            combined,
-            ("aws", "azure", "docker", "kubernetes", "postgresql", "sql", "microservices"),
-        )
+        primary_stack = _find_keywords(combined, self._taxonomy.primary_stack_keywords)
+        secondary_stack = _find_keywords(combined, self._taxonomy.secondary_stack_keywords)
         english_level = _infer_english_level(combined)
-        leadership_signals = seniority == "lideranca" or any(
-            token in combined
-            for token in ("lideranca", "liderar", "tech lead", "mentoria", "coordenar", "ownership")
-        )
+        leadership_signals = seniority == "lideranca" or any(token in combined for token in self._taxonomy.leadership_keywords)
         return JobRequirementSignals(
             seniority=seniority,
             primary_stack=primary_stack,

@@ -7,7 +7,12 @@ from job_hunter_agent.core.settings import Settings, load_settings
 
 class SettingsTests(TestCase):
     def test_settings_accepts_placeholder_telegram_credentials_for_non_telegram_execution(self) -> None:
-        settings = Settings()
+        previous_env_file = Settings.model_config.get("env_file")
+        Settings.model_config["env_file"] = None
+        try:
+            settings = Settings()
+        finally:
+            Settings.model_config["env_file"] = previous_env_file
 
         self.assertEqual(settings.telegram_token, "SEU_TOKEN_AQUI")
         self.assertEqual(settings.telegram_chat_id, "SEU_CHAT_ID_AQUI")
@@ -40,9 +45,11 @@ class SettingsTests(TestCase):
         self.assertEqual(settings.application_phone_country_code, "")
         self.assertEqual(str(settings.candidate_profile_path), "candidate_profile.json")
         self.assertFalse(settings.relaxed_matching_for_testing)
+        self.assertFalse(settings.structured_matching_fallback_enabled)
         self.assertTrue(settings.linkedin_field_repair_enabled)
         self.assertTrue(settings.application_priority_llm_enabled)
         self.assertEqual(settings.failure_artifacts_dir, Path("./.artifacts/linkedin_failures"))
+        self.assertEqual(settings.sites[0].search_url, "https://www.linkedin.com/jobs/search/")
 
     def test_load_settings_from_env_prefix(self) -> None:
         previous_prefix = Settings.model_config.get("env_prefix")

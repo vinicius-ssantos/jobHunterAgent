@@ -120,7 +120,7 @@ def build_structured_matching_source_from_legacy(
 def resolve_structured_matching_source(
     *,
     structured_matching_config_path: str | Path,
-    legacy_matching: LegacyMatchingConfig,
+    legacy_matching: LegacyMatchingConfig | None,
     legacy_fallback_enabled: bool,
 ) -> ResolvedStructuredMatchingSource:
     config_path = Path(structured_matching_config_path)
@@ -133,6 +133,10 @@ def resolve_structured_matching_source(
     if not legacy_fallback_enabled:
         raise ValueError(
             f"Arquivo de matching estruturado nao encontrado em {config_path} e o fallback legado esta desabilitado."
+        )
+    if legacy_matching is None:
+        raise ValueError(
+            "Fallback legado habilitado sem configuracao valida de perfil legado."
         )
     return ResolvedStructuredMatchingSource(
         config=build_structured_matching_source_from_legacy(legacy_matching),
