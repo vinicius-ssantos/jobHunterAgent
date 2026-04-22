@@ -1,0 +1,47 @@
+{
+  "trailing_location_fragments": [
+    "osasco",
+    "são paulo",
+    "sao paulo",
+    "rio de janeiro",
+    "curitiba",
+    "campinas",
+    "porto alegre",
+    "belo horizonte",
+    "taboão da serra",
+    "taboao da serra",
+    "brasil",
+    "brazil"
+  ],
+  "standalone_location_tokens": [
+    "osasco",
+    "osasco,",
+    "são paulo",
+    "sao paulo",
+    "rio de janeiro",
+    "curitiba",
+    "campinas",
+    "porto alegre",
+    "belo horizonte",
+    "taboão da serra",
+    "taboao da serra",
+    "brasil",
+    "brazil"
+  ],
+  "noise_phrases": [
+    "promovida",
+    "candidatura simplificada",
+    "avaliando candidaturas",
+    "visualizado",
+    "1 conexão trabalha aqui",
+    "há "
+  ],
+  "work_mode_tokens": [
+    "hibrido",
+    "híbrido",
+    "remoto",
+    "presencial",
+    "hybrid",
+    "onsite"
+  ]
+}

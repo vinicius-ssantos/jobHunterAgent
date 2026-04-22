@@ -7,6 +7,7 @@ from typing import Callable
 
 from job_hunter_agent.core.browser_support import extract_json_object, load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.core.domain import RawJob, SiteConfig
+from job_hunter_agent.core.linkedin_company_policy import get_runtime_linkedin_company_policy
 
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,7 @@ def infer_linkedin_company_from_summary(summary: str, title: str, location: str)
 
 
 def is_suspicious_linkedin_company(company: str, location: str, title: str = "") -> bool:
+    policy = get_runtime_linkedin_company_policy()
     normalized_company = _normalize_whitespace(company)
     normalized_title = _normalize_whitespace(title)
     if not normalized_company:
@@ -208,15 +210,7 @@ def is_suspicious_linkedin_company(company: str, location: str, title: str = "")
     lower_company = normalized_company.lower()
     if normalized_company.endswith(",") and len(normalized_company.split()) <= 2:
         return True
-    if lower_company in {
-        "empresa nao informada",
-        "local nao informado",
-        "osasco",
-        "osasco,",
-        "sÃƒÂ£o paulo",
-        "sao paulo",
-        "brasil",
-    }:
+    if lower_company in {"empresa nao informada", "local nao informado"} or lower_company in policy.standalone_location_set:
         return True
     normalized_location = _normalize_whitespace(location)
     if normalized_location:
@@ -301,7 +295,12 @@ def clean_linkedin_title(value: str) -> str:
 
 
 def clean_linkedin_company(value: str) -> str:
+    policy = get_runtime_linkedin_company_policy()
     cleaned = strip_linkedin_chrome_prefix(_normalize_whitespace(value))
+    if cleaned.endswith(","):
+        trailing_fragment = cleaned.rstrip(",").strip().lower()
+        if trailing_fragment in policy.trailing_location_set:
+            return ""
     repeated_prefix = re.match(r"^(.{10,80}?)\s+\1\s+(.+)$", cleaned, flags=re.IGNORECASE)
     if repeated_prefix:
         cleaned = repeated_prefix.group(2).strip()
@@ -324,20 +323,19 @@ def clean_linkedin_company(value: str) -> str:
     cleaned = re.sub(r"\s+Full Stack Engineer\s+Brasil$", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+(?:Engineer|Developer)\s+Brasil$", "", cleaned, flags=re.IGNORECASE)
     cleaned = _normalize_whitespace(cleaned)
-    noise_phrases = (
-        "Promovida",
-        "Candidatura simplificada",
-        "Avaliando candidaturas",
-        "Visualizado",
-        "1 conexão trabalha aqui",
-        "há ",
-    )
+    if re.fullmatch(
+        r"(?:analista|desenvolvedor(?:\(a\)|a)?|engenheir[oa](?:\(a\))?|software engineer|it developer|developer|backend|fullstack|full stack)(?:\s+(?:e|and|de|da|do|jr|junior|pleno|senior|sr|i|ii|iii|java|kotlin|angular|react|frontend|back-?end))*",
+        cleaned,
+        flags=re.IGNORECASE,
+    ):
+        return ""
+    noise_phrases = policy.noise_phrases
     segments = _split_linkedin_segments(cleaned)
     kept: list[str] = []
     for segment in segments:
         normalized_segment = _normalize_whitespace(segment)
         lower_segment = normalized_segment.lower()
-        if any(phrase.lower() in segment.lower() for phrase in noise_phrases):
+        if any(phrase in segment.lower() for phrase in noise_phrases):
             continue
         if _is_linkedin_social_proof_segment(normalized_segment):
             continue
@@ -345,22 +343,11 @@ def clean_linkedin_company(value: str) -> str:
             continue
         if looks_like_linkedin_location(normalized_segment):
             continue
-        if lower_segment in {"hibrido", "híbrido", "remoto", "presencial", "hybrid", "onsite"}:
+        if lower_segment in policy.work_mode_set:
             continue
         if normalized_segment.endswith(",") and len(normalized_segment.split()) <= 1:
             continue
-        if lower_segment in {
-            "osasco",
-            "são paulo",
-            "sao paulo",
-            "rio de janeiro",
-            "curitiba",
-            "campinas",
-            "porto alegre",
-            "belo horizonte",
-            "brasil",
-            "brazil",
-        }:
+        if lower_segment in policy.standalone_location_set:
             continue
         if len(normalized_segment.split()) <= 1:
             continue
@@ -371,20 +358,7 @@ def clean_linkedin_company(value: str) -> str:
     if (
         looks_like_linkedin_location(cleaned)
         or (cleaned.endswith(",") and len(cleaned.split()) <= 1)
-        or cleaned.lower()
-        in {
-            "osasco",
-            "osasco,",
-            "são paulo",
-            "sao paulo",
-            "rio de janeiro",
-            "curitiba",
-            "campinas",
-            "porto alegre",
-            "belo horizonte",
-            "brasil",
-            "brazil",
-        }
+        or cleaned.lower() in policy.standalone_location_set
     ):
         return ""
     return cleaned
