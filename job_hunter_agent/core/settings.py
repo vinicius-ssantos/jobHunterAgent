@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     job_requirements_llm_enabled: bool = True
     review_rationale_llm_enabled: bool = True
     application_priority_llm_enabled: bool = True
+    priority_high_min_relevance: int = 8
+    priority_medium_min_relevance: int = 6
+    priority_preferred_work_modes: tuple[str, ...] = ("remoto", "hibrido", "hybrid", "remote")
 
     sites: tuple[SiteConfig, ...] = Field(
         default_factory=lambda: (
@@ -177,6 +180,25 @@ class Settings(BaseSettings):
     def validate_linkedin_scroll_stabilization_passes(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES deve ser maior que zero.")
+        return value
+
+    @field_validator("priority_high_min_relevance")
+    @classmethod
+    def validate_priority_high_min_relevance(cls, value: int) -> int:
+        if not (1 <= value <= 10):
+            raise ValueError("JOB_HUNTER_PRIORITY_HIGH_MIN_RELEVANCE deve estar entre 1 e 10.")
+        return value
+
+    @field_validator("priority_medium_min_relevance")
+    @classmethod
+    def validate_priority_medium_min_relevance(cls, value: int, info) -> int:
+        high = info.data.get("priority_high_min_relevance")
+        if not (1 <= value <= 10):
+            raise ValueError("JOB_HUNTER_PRIORITY_MEDIUM_MIN_RELEVANCE deve estar entre 1 e 10.")
+        if high is not None and value > high:
+            raise ValueError(
+                "JOB_HUNTER_PRIORITY_MEDIUM_MIN_RELEVANCE nao pode ser maior que JOB_HUNTER_PRIORITY_HIGH_MIN_RELEVANCE."
+            )
         return value
 
     @field_validator("sites")

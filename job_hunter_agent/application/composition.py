@@ -35,6 +35,7 @@ from job_hunter_agent.core.structured_matching_config import resolve_structured_
 from job_hunter_agent.infrastructure.notifier import NullNotifier, TelegramNotifier
 from job_hunter_agent.infrastructure.repository import JobRepository, SqliteJobRepository
 from job_hunter_agent.llm.application_priority import OllamaApplicationPriorityAssessor
+from job_hunter_agent.llm.application_priority import DeterministicApplicationPriorityAssessor
 from job_hunter_agent.llm.job_requirements import OllamaJobRequirementsExtractor
 from job_hunter_agent.llm.review_rationale import OllamaReviewRationaleFormatter
 
@@ -84,6 +85,11 @@ def create_application_preparation_service(repository: JobRepository, settings: 
         support_assessor=create_application_support_assessor(settings),
         requirements_extractor=create_job_requirements_extractor(settings),
         priority_assessor=create_application_priority_assessor(settings),
+        deterministic_priority_assessor=DeterministicApplicationPriorityAssessor(
+            high_min_relevance=settings.priority_high_min_relevance,
+            medium_min_relevance=settings.priority_medium_min_relevance,
+            preferred_work_modes=settings.priority_preferred_work_modes,
+        ),
     )
 
 

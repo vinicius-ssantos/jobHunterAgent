@@ -19,14 +19,26 @@ class ApplicationPriorityAssessor(Protocol):
 
 
 class DeterministicApplicationPriorityAssessor:
+    def __init__(
+        self,
+        *,
+        high_min_relevance: int = 8,
+        medium_min_relevance: int = 6,
+        preferred_work_modes: tuple[str, ...] = ("remoto", "hibrido", "hybrid", "remote"),
+    ) -> None:
+        self._high_min_relevance = high_min_relevance
+        self._medium_min_relevance = medium_min_relevance
+        self._preferred_work_modes = tuple(mode.strip().lower() for mode in preferred_work_modes if mode.strip())
+
     def assess(self, job: JobPosting) -> ApplicationPriorityAssessment:
-        normalized_summary = job.summary.lower()
-        if job.relevance >= 8 and ("remoto" in job.work_mode.lower() or "hibrido" in job.work_mode.lower()):
+        normalized_work_mode = job.work_mode.lower()
+        has_preferred_work_mode = any(mode in normalized_work_mode for mode in self._preferred_work_modes)
+        if job.relevance >= self._high_min_relevance and has_preferred_work_mode:
             return ApplicationPriorityAssessment(
                 level="alta",
                 rationale="relevancia alta com modalidade favoravel",
             )
-        if job.relevance >= 6:
+        if job.relevance >= self._medium_min_relevance:
             return ApplicationPriorityAssessment(
                 level="media",
                 rationale="vaga promissora, mas requer revisao mais cuidadosa",

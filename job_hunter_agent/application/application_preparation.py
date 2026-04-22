@@ -28,11 +28,13 @@ class ApplicationPreparationService:
         support_assessor: ApplicationSupportAssessor | None = None,
         requirements_extractor: JobRequirementsExtractor | None = None,
         priority_assessor: ApplicationPriorityAssessor | None = None,
+        deterministic_priority_assessor: ApplicationPriorityAssessor | None = None,
     ) -> None:
         self.repository = repository
         self.support_assessor = support_assessor
         self.requirements_extractor = requirements_extractor
         self.priority_assessor = priority_assessor
+        self.deterministic_priority_assessor = deterministic_priority_assessor or DeterministicApplicationPriorityAssessor()
 
     def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = "") -> list[JobApplication]:
         drafts: list[JobApplication] = []
@@ -105,7 +107,7 @@ class ApplicationPreparationService:
         )
 
     def _build_priority_note(self, job: JobPosting) -> str:
-        fallback = DeterministicApplicationPriorityAssessor().assess(job)
+        fallback = self.deterministic_priority_assessor.assess(job)
         if self.priority_assessor is None:
             return format_application_priority_note(fallback)
         try:

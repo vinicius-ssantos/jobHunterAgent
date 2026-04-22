@@ -277,3 +277,20 @@ class SettingsTests(TestCase):
                 telegram_chat_id="chat",
                 linkedin_scroll_stabilization_passes=0,
             )
+
+    def test_rejects_invalid_priority_high_min_relevance(self) -> None:
+        with self.assertRaisesRegex(ValueError, "JOB_HUNTER_PRIORITY_HIGH_MIN_RELEVANCE"):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                priority_high_min_relevance=11,
+            )
+
+    def test_rejects_priority_medium_above_high(self) -> None:
+        with self.assertRaisesRegex(ValueError, "JOB_HUNTER_PRIORITY_MEDIUM_MIN_RELEVANCE"):
+            Settings(
+                telegram_token="token",
+                telegram_chat_id="chat",
+                priority_high_min_relevance=7,
+                priority_medium_min_relevance=8,
+            )
