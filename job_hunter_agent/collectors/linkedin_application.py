@@ -215,7 +215,6 @@ class LinkedInApplicationFlowInspector:
         self,
         page,
         initial_state: LinkedInApplicationPageState,
-        *,
         close_modal: bool = True,
     ) -> LinkedInApplicationPageState:
         return await self._entrypoint_sequence.open(
