@@ -5,16 +5,7 @@ import json
 import re
 from pathlib import Path
 
-
-_SKILL_ALIASES: dict[str, tuple[str, ...]] = {
-    "java": ("java",),
-    "angular": ("angular", "angular framework"),
-    "ejb": ("ejb", "enterprise java beans"),
-    "kotlin": ("kotlin",),
-    "spring": ("spring", "spring boot"),
-    "postgresql": ("postgresql", "postgres", "postgre sql"),
-    "docker": ("docker",),
-}
+from job_hunter_agent.core.skill_taxonomy import get_runtime_skill_taxonomy
 
 
 def _normalize_text(value: str) -> str:
@@ -101,7 +92,7 @@ def record_pending_questions(path: str | Path, questions: tuple[str, ...]) -> Pa
 
 def normalize_skill_key(value: str) -> str:
     normalized = _normalize_text(value)
-    for skill_key, aliases in _SKILL_ALIASES.items():
+    for skill_key, aliases in get_runtime_skill_taxonomy().skill_aliases.items():
         if normalized == skill_key:
             return skill_key
         if any(alias in normalized for alias in aliases):
@@ -143,7 +134,7 @@ def extract_supported_experience_answers(
                 skill_key=skill_key,
                 years=years,
                 question=question,
-                aliases=_SKILL_ALIASES.get(skill_key, (skill_key,)),
+                aliases=get_runtime_skill_taxonomy().skill_aliases.get(skill_key, (skill_key,)),
             )
         )
     return tuple(answers), tuple(unresolved)
@@ -164,7 +155,7 @@ def extract_skill_key_from_experience_question(question: str) -> str | None:
     )
     if not any(hint in normalized for hint in experience_hints):
         return None
-    for skill_key, aliases in _SKILL_ALIASES.items():
+    for skill_key, aliases in get_runtime_skill_taxonomy().skill_aliases.items():
         if any(alias in normalized for alias in aliases):
             return skill_key
     return None

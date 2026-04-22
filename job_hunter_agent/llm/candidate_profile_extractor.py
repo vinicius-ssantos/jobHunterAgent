@@ -7,6 +7,7 @@ from pathlib import Path
 
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.core.candidate_profile import normalize_skill_key
+from job_hunter_agent.core.skill_taxonomy import get_runtime_skill_taxonomy
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class OllamaCandidateProfileSuggester:
         self._llm = ChatOllama(model=model_name, base_url=base_url, temperature=0.1)
 
     def suggest_from_resume_text(self, resume_text: str) -> CandidateProfileSuggestion:
+        focus_stacks = ", ".join(get_runtime_skill_taxonomy().prompt_focus_stacks)
         response = self._llm.invoke(
             f"""
             Extraia sugestoes conservadoras de anos de experiencia por tecnologia a partir do curriculo.
@@ -52,7 +54,7 @@ class OllamaCandidateProfileSuggester:
             - Use apenas tecnologias claramente presentes no curriculo.
             - Nunca preencha `confirmed`.
             - Retorne apenas `suggested` com numeros inteiros.
-            - Foque em stacks usadas pelo fluxo atual de candidatura: java, angular, ejb, kotlin, spring, postgresql, docker.
+            - Foque nas stacks priorizadas do runtime atual: {focus_stacks}.
 
             Curriculo:
             {resume_text[:12000]}
