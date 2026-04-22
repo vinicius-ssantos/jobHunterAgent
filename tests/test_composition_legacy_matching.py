@@ -21,6 +21,7 @@ class CompositionLegacyMatchingTests(TestCase):
                 linkedin_persistent_profile_dir=root / ".browseruse/profiles/linkedin-bootstrap",
                 linkedin_storage_state_path=root / ".browseruse/linkedin-storage-state.json",
                 candidate_profile_path=root / "candidate_profile.json",
+                structured_matching_fallback_enabled=True,
                 sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
             )
             repository = Mock()
@@ -36,10 +37,19 @@ class CompositionLegacyMatchingTests(TestCase):
                 minimum_relevance=7,
             )
 
+            resolved = Mock(
+                config="resolved_matching",
+                used_legacy_fallback=True,
+                describe_source=Mock(return_value="fallback legado"),
+            )
+
             with patch.object(Settings, "build_legacy_matching_config", return_value=legacy) as mocked_build_legacy, patch(
-                "job_hunter_agent.application.composition.build_matching_criteria_from_legacy_config",
-                return_value="criteria",
-            ) as mocked_build_matching_criteria, patch(
+                "job_hunter_agent.application.composition.resolve_structured_matching_source",
+                return_value=resolved,
+            ), patch(
+                "job_hunter_agent.application.composition.build_runtime_matching_profile_from_structured_source",
+                return_value="runtime_profile",
+            ) as mocked_build_runtime, patch(
                 "job_hunter_agent.application.composition.LinkedInDeterministicCollector",
                 return_value="linkedin_collector",
             ), patch(
@@ -53,8 +63,8 @@ class CompositionLegacyMatchingTests(TestCase):
 
         self.assertIsNotNone(service)
         mocked_build_legacy.assert_called_once_with()
-        mocked_build_matching_criteria.assert_called_once_with(
-            legacy_matching=legacy,
+        mocked_build_runtime.assert_called_once_with(
+            structured_matching_source="resolved_matching",
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
