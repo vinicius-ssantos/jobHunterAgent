@@ -4,6 +4,7 @@ from job_hunter_agent.llm.application_priority import extract_application_priori
 from job_hunter_agent.core.application_insights import classify_application_operational_insight
 from job_hunter_agent.core.application_insights import describe_manual_review_need
 from job_hunter_agent.core.domain import JobApplication, JobPosting
+from job_hunter_agent.core.operational_policy import get_runtime_operational_policy
 from job_hunter_agent.llm.job_requirements import (
     extract_job_requirement_signals,
     format_job_requirement_summary,
@@ -263,17 +264,7 @@ def summarize_operational_classifications(applications: list[JobApplication]) ->
         counts[insight.reason_code] = counts.get(insight.reason_code, 0) + 1
     if not counts:
         return []
-    ordered_labels = (
-        ("pronto_para_envio", "pronto_para_envio"),
-        ("perguntas_adicionais", "perguntas_adicionais"),
-        ("similar_jobs", "similar_jobs"),
-        ("candidatura_externa", "candidatura_externa"),
-        ("vaga_expirada", "vaga_expirada"),
-        ("no_apply_cta", "no_apply_cta"),
-        ("fluxo_inconclusivo", "fluxo_inconclusivo"),
-        ("bloqueio_funcional", "bloqueio_funcional"),
-        ("submitted", "submitted"),
-    )
+    ordered_labels = tuple((label, label) for label in get_runtime_operational_policy().operational_summary_order)
     lines: list[str] = []
     emitted: set[str] = set()
     for key, label in ordered_labels:
@@ -297,32 +288,19 @@ def _application_queue_sort_key(application: JobApplication) -> tuple[int, int, 
 
 
 def _queue_operational_rank(application: JobApplication, reason_code: str) -> int:
-    if reason_code == "pronto_para_envio":
-        return 0
+    policy = get_runtime_operational_policy()
     if application.support_level == "auto_supported" and reason_code in {"sem_detalhe_operacional", "nao_classificado"}:
-        return 1
+        return policy.queue_auto_supported_unknown_rank
     if reason_code in {"cta_detectado", "sem_detalhe_operacional", "nao_classificado"}:
-        return 2
-    if reason_code == "perguntas_adicionais":
-        return 4
-    if reason_code == "fluxo_inconclusivo":
-        return 5
-    if reason_code == "similar_jobs":
-        return 6
-    if reason_code in {"candidatura_externa", "no_apply_cta"}:
-        return 7
-    if reason_code == "vaga_expirada":
-        return 8
-    if reason_code == "bloqueio_funcional":
-        return 9
-    return 3
+        return policy.queue_cta_unknown_rank
+    return policy.queue_reason_rank.get(reason_code, policy.queue_unknown_reason_rank)
 
 
 def _queue_support_penalty(support_level: str) -> int:
-    support_order = {"auto_supported": 0, "manual_review": 1, "unsupported": 2}
-    return support_order.get(support_level, 3)
+    support_order = get_runtime_operational_policy().support_order
+    return support_order.get(support_level, len(support_order))
 
 
 def _queue_priority_rank(priority: str) -> int:
-    priority_order = {"alta": 0, "media": 1, "baixa": 2}
-    return priority_order.get(priority, 3)
+    priority_order = get_runtime_operational_policy().priority_order
+    return priority_order.get(priority, len(priority_order))

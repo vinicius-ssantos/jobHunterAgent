@@ -8,6 +8,7 @@ from job_hunter_agent.core.application_insights import (
     classify_operational_detail,
     describe_manual_review_need,
 )
+from job_hunter_agent.core.operational_policy import get_runtime_operational_policy
 
 
 def render_application_list(*, applications_with_jobs: list[tuple[object, object | None]], status: str | None) -> str:
@@ -95,16 +96,7 @@ def render_status_overview(
     ]
     if operational_counts:
         lines.append("operacao:")
-        for key in (
-            "pronto_para_envio",
-            "perguntas_adicionais",
-            "similar_jobs",
-            "candidatura_externa",
-            "vaga_expirada",
-            "no_apply_cta",
-            "fluxo_inconclusivo",
-            "bloqueio_funcional",
-        ):
+        for key in get_runtime_operational_policy().operational_summary_order:
             if key in operational_counts:
                 lines.append(f"- {key}={operational_counts[key]}")
     return "\n".join(lines)

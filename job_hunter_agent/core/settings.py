@@ -11,6 +11,7 @@ from job_hunter_agent.core.legacy_matching_config import (
     LegacyMatchingConfig,
     build_legacy_matching_config_from_settings,
 )
+from job_hunter_agent.core.operational_policy import set_runtime_operational_policy_path
 from job_hunter_agent.core.skill_taxonomy import set_runtime_skill_taxonomy_path
 
 
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
     candidate_profile_path: Path = Path("./candidate_profile.json")
     structured_matching_config_path: Path = Path("./job_target.json")
     skill_taxonomy_path: Path = Path("./skill_taxonomy.json")
+    operational_policy_path: Path = Path("./operational_policy.json")
     structured_matching_fallback_enabled: bool = False
     database_path: Path = Path("./jobs.db")
     browser_use_config_dir: Path = Path("./.browseruse")
@@ -140,6 +142,7 @@ class Settings(BaseSettings):
         "linkedin_storage_state_path",
         "structured_matching_config_path",
         "skill_taxonomy_path",
+        "operational_policy_path",
     )
     @classmethod
     def validate_runtime_paths(cls, value: Path, info) -> Path:
@@ -212,4 +215,5 @@ class Settings(BaseSettings):
 def load_settings() -> Settings:
     settings = Settings()
     set_runtime_skill_taxonomy_path(settings.skill_taxonomy_path)
+    set_runtime_operational_policy_path(settings.operational_policy_path)
     return settings
