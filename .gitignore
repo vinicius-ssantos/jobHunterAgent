@@ -17,3 +17,4 @@ logs/
 /*.log
 /*.zip
 /*.pdf
+/job_target.from_resume.json
