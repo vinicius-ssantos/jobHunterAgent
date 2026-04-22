@@ -11,6 +11,7 @@ from job_hunter_agent.core.legacy_matching_config import (
     LegacyMatchingConfig,
     build_legacy_matching_config_from_settings,
 )
+from job_hunter_agent.core.skill_taxonomy import set_runtime_skill_taxonomy_path
 
 
 class Settings(BaseSettings):
@@ -29,7 +30,8 @@ class Settings(BaseSettings):
     resume_path: Path = Path("./curriculo.pdf")
     candidate_profile_path: Path = Path("./candidate_profile.json")
     structured_matching_config_path: Path = Path("./job_target.json")
-    structured_matching_fallback_enabled: bool = True
+    skill_taxonomy_path: Path = Path("./skill_taxonomy.json")
+    structured_matching_fallback_enabled: bool = False
     database_path: Path = Path("./jobs.db")
     browser_use_config_dir: Path = Path("./.browseruse")
     linkedin_persistent_profile_dir: Path = Path("./.browseruse/profiles/linkedin-bootstrap")
@@ -52,30 +54,11 @@ class Settings(BaseSettings):
     ollama_url: str = "http://localhost:11434"
 
     # Matching legado de compatibilidade
-    profile_text: str = (
-        "Engenheiro de Software Senior com experiencia em Java, Kotlin, Spring Boot, "
-        "PostgreSQL, Docker e cloud."
-    )
-    include_keywords: tuple[str, ...] = (
-        "java",
-        "kotlin",
-        "spring",
-        "backend",
-        "engenheiro de software",
-        "software engineer",
-        "desenvolvedor backend",
-    )
-    exclude_keywords: tuple[str, ...] = (
-        "estagio",
-        "junior",
-        "trainee",
-        ".net",
-        "c#",
-        "php",
-        "ruby",
-    )
-    accepted_work_modes: tuple[str, ...] = ("remoto", "hibrido", "hybrid")
-    minimum_salary_brl: int = 10000
+    profile_text: str = ""
+    include_keywords: tuple[str, ...] = ()
+    exclude_keywords: tuple[str, ...] = ()
+    accepted_work_modes: tuple[str, ...] = ()
+    minimum_salary_brl: int = 0
     minimum_relevance: int = 6
 
     # Toggles operacionais de teste
@@ -98,7 +81,7 @@ class Settings(BaseSettings):
         default_factory=lambda: (
             SiteConfig(
                 name="LinkedIn",
-                search_url="https://www.linkedin.com/jobs/search/?keywords=engenheiro+software+kotlin&location=Brasil",
+                search_url="https://www.linkedin.com/jobs/search/",
             ),
         )
     )
@@ -109,9 +92,7 @@ class Settings(BaseSettings):
     @field_validator("profile_text")
     @classmethod
     def validate_profile_text(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Preencha JOB_HUNTER_PROFILE_TEXT.")
-        return value
+        return value.strip()
 
     @field_validator("application_contact_email")
     @classmethod
@@ -151,7 +132,12 @@ class Settings(BaseSettings):
             )
         return normalized
 
-    @field_validator("resume_path", "linkedin_storage_state_path", "structured_matching_config_path")
+    @field_validator(
+        "resume_path",
+        "linkedin_storage_state_path",
+        "structured_matching_config_path",
+        "skill_taxonomy_path",
+    )
     @classmethod
     def validate_runtime_paths(cls, value: Path, info) -> Path:
         path = Path(value)
@@ -202,4 +188,6 @@ class Settings(BaseSettings):
 
 
 def load_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    set_runtime_skill_taxonomy_path(settings.skill_taxonomy_path)
+    return settings

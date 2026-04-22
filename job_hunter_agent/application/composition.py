@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Callable
 
 from job_hunter_agent.application.contracts import ArtifactCapturePort
@@ -142,9 +143,13 @@ def create_linkedin_modal_interpreter(settings: Settings):
 
 def create_collection_service(settings: Settings, repository: JobRepository) -> JobCollectionService:
     known_job_lookup = build_known_job_lookup(repository)
+    structured_config_path = Path(settings.structured_matching_config_path)
+    legacy_matching = None
+    if settings.structured_matching_fallback_enabled and not structured_config_path.exists():
+        legacy_matching = settings.build_legacy_matching_config()
     resolved_matching = resolve_structured_matching_source(
-        structured_matching_config_path=settings.structured_matching_config_path,
-        legacy_matching=settings.build_legacy_matching_config(),
+        structured_matching_config_path=structured_config_path,
+        legacy_matching=legacy_matching,
         legacy_fallback_enabled=settings.structured_matching_fallback_enabled,
     )
     if resolved_matching.used_legacy_fallback:

@@ -65,12 +65,14 @@ Variaveis principais desse caminho:
 
 - `JOB_HUNTER_STRUCTURED_MATCHING_CONFIG_PATH`
 - `JOB_HUNTER_STRUCTURED_MATCHING_FALLBACK_ENABLED`
+- `JOB_HUNTER_SKILL_TAXONOMY_PATH`
 
 Comportamento:
 
 - se o arquivo estruturado existir, ele vira a fonte principal do matching
 - se o arquivo nao existir e o fallback estiver habilitado, o runtime cai para o contrato legado
 - se o arquivo nao existir e o fallback estiver desligado, o runtime falha cedo
+- o fallback vem desligado por padrao (`JOB_HUNTER_STRUCTURED_MATCHING_FALLBACK_ENABLED=false`)
 
 Exemplo versionado:
 
@@ -84,13 +86,19 @@ Copia recomendada para uso local:
 
 O caminho legado continua existindo apenas como compatibilidade marginal.
 
-Campo legado principal:
+Campos legados de compatibilidade:
 
 - `JOB_HUNTER_PROFILE_TEXT`
+- `JOB_HUNTER_INCLUDE_KEYWORDS`
+- `JOB_HUNTER_EXCLUDE_KEYWORDS`
+- `JOB_HUNTER_ACCEPTED_WORK_MODES`
+- `JOB_HUNTER_MINIMUM_SALARY_BRL`
+- `JOB_HUNTER_MINIMUM_RELEVANCE`
 
 Tratamento esperado:
 
 - ele existe por compatibilidade
+- ele exige configuracao explicita quando fallback legado estiver habilitado
 - nao deve voltar a ser apresentado como centro da evolucao do matching
 - codigo novo deve depender da fonte estruturada ou de contratos explicitos, nunca do shape inteiro de `Settings`
 
@@ -102,6 +110,7 @@ Tratamento esperado:
 - `JOB_HUNTER_APPLICATION_PHONE`
 - `JOB_HUNTER_APPLICATION_PHONE_COUNTRY_CODE`
 - `JOB_HUNTER_CANDIDATE_PROFILE_PATH`
+- `JOB_HUNTER_SKILL_TAXONOMY_PATH`
 - `JOB_HUNTER_COLLECTION_TIME`
 - `JOB_HUNTER_DATABASE_PATH`
 - `JOB_HUNTER_BROWSER_USE_CONFIG_DIR`
