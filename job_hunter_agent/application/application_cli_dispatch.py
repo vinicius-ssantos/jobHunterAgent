@@ -8,6 +8,7 @@ from job_hunter_agent.application.application_cli import (
     APPLICATION_STATUS_ALIASES,
     JOB_STATUS_ALIASES,
 )
+from job_hunter_agent.application.collector_worker import run_collector_worker_once
 from job_hunter_agent.application.cli_bootstrap import (
     create_application_flow_app,
     create_query_app,
@@ -38,6 +39,9 @@ def execute_cli_command(args: Namespace) -> bool:
         return True
     if args.command == "candidate-profile":
         _run_candidate_profile_command(args)
+        return True
+    if args.command == "worker":
+        _run_worker_command(args)
         return True
     return False
 
@@ -125,3 +129,8 @@ def _run_candidate_profile_command(args: Namespace) -> None:
                 base_url=settings.ollama_url,
             )
         )
+
+
+def _run_worker_command(args: Namespace) -> None:
+    if args.worker_command == "collect":
+        print(asyncio.run(run_collector_worker_once(output_path=args.output)))

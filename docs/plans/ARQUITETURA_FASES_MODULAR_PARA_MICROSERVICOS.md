@@ -43,7 +43,7 @@ Aumentar organizacao, testabilidade e isolamento de falhas sem explodir complexi
 - [x] Introduzir contratos de evento versionados na camada `application`.
 - [x] Criar fila local em memoria para desacoplar coleta e despacho de revisao.
 - [x] Refatorar o ciclo para `CollectionCycleOrchestrator` + workers sem mudar o comportamento externo.
-- [ ] Extrair `collector_worker` para processo separado mantendo contratos estaveis.
+- [x] Extrair `collector_worker` para processo separado mantendo contratos estaveis.
 - [ ] Extrair `matching_worker` para processo separado mantendo idempotencia por evento.
 - [ ] Adicionar DLQ local e politica padrao de retry/backoff por etapa.
 

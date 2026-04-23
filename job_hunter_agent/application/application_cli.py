@@ -182,6 +182,22 @@ def parse_args() -> argparse.Namespace:
         help="Arquivo de saida do perfil do candidato. Usa JOB_HUNTER_CANDIDATE_PROFILE_PATH por padrao.",
     )
 
+    worker_parser = subparsers.add_parser(
+        "worker",
+        help="Executa workers isolados da fase 1 (processos separados).",
+    )
+    worker_subparsers = worker_parser.add_subparsers(dest="worker_command", required=True)
+    worker_collect_parser = worker_subparsers.add_parser(
+        "collect",
+        help="Executa apenas o collector_worker e emite JobCollectedV1 em NDJSON.",
+    )
+    worker_collect_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("logs/worker-events.ndjson"),
+        help="Arquivo NDJSON para eventos de coleta.",
+    )
+
     args = parser.parse_args()
     if args.ciclos is not None and args.ciclos <= 0:
         parser.error("--ciclos deve ser maior que zero")

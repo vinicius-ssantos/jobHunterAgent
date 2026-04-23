@@ -376,6 +376,14 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.command, "candidate-profile")
         self.assertEqual(args.candidate_profile_command, "suggest")
 
+    async def test_parse_args_accepts_worker_collect_command(self) -> None:
+        with patch("sys.argv", ["main.py", "worker", "collect", "--output", "logs/events.ndjson"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "worker")
+        self.assertEqual(args.worker_command, "collect")
+        self.assertEqual(str(args.output), "logs\\events.ndjson")
+
     async def test_parse_args_rejects_operational_command_with_agora(self) -> None:
         with patch("sys.argv", ["main.py", "--agora", "applications", "list"]):
             with self.assertRaises(SystemExit):
