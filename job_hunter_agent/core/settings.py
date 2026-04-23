@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     adaptive_polling_backoff_multiplier: float = 2.0
     adaptive_polling_max_interval_seconds: int = 900
     collection_time: str = "08:00"
+    auto_easy_apply_enabled: bool = False
+    auto_easy_apply_min_score: int = 8
+    auto_easy_apply_max_submits_per_cycle: int = 3
+    auto_easy_apply_max_submits_per_day: int = 10
+    auto_easy_apply_cooldown_seconds: int = 120
+    auto_easy_apply_max_consecutive_errors: int = 2
 
     telegram_token: str = "SEU_TOKEN_AQUI"
     telegram_chat_id: str = "SEU_CHAT_ID_AQUI"
@@ -273,6 +279,25 @@ class Settings(BaseSettings):
             raise ValueError(
                 "JOB_HUNTER_PRIORITY_MEDIUM_MIN_RELEVANCE nao pode ser maior que JOB_HUNTER_PRIORITY_HIGH_MIN_RELEVANCE."
             )
+        return value
+
+    @field_validator("auto_easy_apply_min_score")
+    @classmethod
+    def validate_auto_easy_apply_min_score(cls, value: int) -> int:
+        if not (1 <= value <= 10):
+            raise ValueError("JOB_HUNTER_AUTO_EASY_APPLY_MIN_SCORE deve estar entre 1 e 10.")
+        return value
+
+    @field_validator(
+        "auto_easy_apply_max_submits_per_cycle",
+        "auto_easy_apply_max_submits_per_day",
+        "auto_easy_apply_cooldown_seconds",
+        "auto_easy_apply_max_consecutive_errors",
+    )
+    @classmethod
+    def validate_auto_easy_apply_limits(cls, value: int, info) -> int:
+        if value <= 0:
+            raise ValueError(f"JOB_HUNTER_{info.field_name.upper()} deve ser maior que zero.")
         return value
 
     @field_validator("sites")

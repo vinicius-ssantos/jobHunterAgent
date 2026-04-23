@@ -12,6 +12,7 @@ from job_hunter_agent.application.collector_worker import run_collector_worker_o
 from job_hunter_agent.application.matching_worker import run_matching_worker_once
 from job_hunter_agent.application.cli_bootstrap import (
     create_application_flow_app,
+    create_auto_apply_app,
     create_query_app,
     create_review_app,
 )
@@ -102,6 +103,10 @@ def _run_applications_command(args: Namespace) -> None:
     if args.applications_command == "authorize":
         app = create_review_app()
         print(app.authorize_application(args.id))
+        return
+    if args.applications_command == "auto-apply":
+        app = create_auto_apply_app()
+        print(app.run_auto_easy_apply_once())
         return
     app = create_application_flow_app()
     if args.applications_command == "preflight":

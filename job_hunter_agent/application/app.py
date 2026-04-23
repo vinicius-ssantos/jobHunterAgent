@@ -8,6 +8,10 @@ from job_hunter_agent.application.application_commands import (
     ApplicationTransitionCommandService,
     JobReviewCommandService,
 )
+from job_hunter_agent.application.auto_easy_apply import (
+    AutoEasyApplyService,
+    render_auto_easy_apply_report,
+)
 from job_hunter_agent.application.application_health import (
     build_application_health_report,
     render_application_health_report,
@@ -115,6 +119,13 @@ class JobHunterApplication:
     def _initialize_flow_services(self) -> None:
         self.application_preflight = create_application_preflight_service(self.repository, self.settings)
         self.application_submission = create_application_submission_service(self.repository, self.settings)
+        self.auto_easy_apply = AutoEasyApplyService(
+            repository=self.repository,
+            preflight=self.application_preflight,
+            submission=self.application_submission,
+            transitions=self._application_transition_commands(),
+            settings=self.settings,
+        )
 
     async def handle_approved_jobs(self, job_ids: list[int]) -> None:
         await run_approved_jobs_handler(
@@ -150,6 +161,13 @@ class JobHunterApplication:
             detail=result.detail,
             application_status=result.application_status,
         )
+
+    def run_auto_easy_apply_once(self) -> str:
+        service = getattr(self, "auto_easy_apply", None)
+        if service is None:
+            self._initialize_flow_services()
+            service = self.auto_easy_apply
+        return render_auto_easy_apply_report(service.run_once())
 
     def list_applications(self, *, status: str | None = None) -> str:
         return self._query_service().list_applications(status=status)
