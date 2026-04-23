@@ -58,6 +58,13 @@ def format_submit_requires_authorized_status() -> str:
     return "submissao real disponivel apenas para candidaturas autorizadas"
 
 
+def format_submit_requires_ready_preflight() -> str:
+    return (
+        "submissao real bloqueada: rode preflight com resultado pronto_para_envio=sim "
+        "antes de autorizar envio"
+    )
+
+
 def format_submit_portal_not_supported(*, portal_name: str) -> str:
     return f"submissao real bloqueada: portal {portal_name} ainda nao possui submit suportado"
 

@@ -79,6 +79,21 @@ class LinkedInApplicationReaderTests(unittest.TestCase):
         self.assertTrue(state.has_resumable_fields())
         self.assertTrue(state.has_any_filled_fields())
 
+    def test_normalize_payload_filters_country_code_questions(self) -> None:
+        state = normalize_linkedin_application_page_state_payload(
+            {
+                "current_url": "https://www.linkedin.com/jobs/view/123/",
+                "easy_apply": True,
+                "modal_questions": [
+                    "Country code",
+                    "C\u00f3digo do pa\u00eds",
+                    "Years of experience with Java",
+                ],
+            }
+        )
+
+        self.assertEqual(state.modal_questions, ("Years of experience with Java",))
+
     def test_reader_evaluates_script_and_returns_state(self) -> None:
         class _Page:
             def __init__(self):

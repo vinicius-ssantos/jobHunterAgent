@@ -60,7 +60,12 @@ class ApplicationDryRunServiceTests(unittest.TestCase):
         self.assertIn("dry-run preflight", result.detail)
 
     def test_submit_dry_run_returns_ready_without_persisting_state(self) -> None:
-        application = JobApplication(id=8, job_id=11, status="authorized_submit")
+        application = JobApplication(
+            id=8,
+            job_id=11,
+            status="authorized_submit",
+            last_preflight_detail="preflight real | pronto_para_envio=sim",
+        )
         job = _sample_job(job_id=11)
 
         class _Repository:

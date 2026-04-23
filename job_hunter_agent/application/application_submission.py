@@ -12,6 +12,7 @@ from job_hunter_agent.application.application_messages import (
     format_submit_dry_run_ready,
     format_submit_portal_not_supported,
     format_submit_readiness_incomplete,
+    format_submit_requires_ready_preflight,
     format_submit_requires_authorized_status,
     format_submit_unavailable_in_execution,
 )
@@ -53,6 +54,12 @@ class ApplicationSubmissionService:
             return ApplicationSubmitResult(
                 outcome="ignored",
                 detail=format_submit_requires_authorized_status(),
+                application_status=application.status,
+            )
+        if not _preflight_is_ready_for_submit(application.last_preflight_detail):
+            return ApplicationSubmitResult(
+                outcome="ignored",
+                detail=format_submit_requires_ready_preflight(),
                 application_status=application.status,
             )
 
@@ -104,6 +111,19 @@ class ApplicationSubmissionService:
                 outcome="ignored",
                 detail=detail,
                 application_status=application.status,
+            )
+        if not _preflight_is_ready_for_submit(application.last_preflight_detail):
+            detail = format_submit_requires_ready_preflight()
+            self.repository.mark_application_status(
+                application.id,
+                status="authorized_submit",
+                notes=append_note(application.notes, detail),
+                last_error=detail,
+            )
+            return ApplicationSubmitResult(
+                outcome="ignored",
+                detail=detail,
+                application_status="authorized_submit",
             )
 
         capabilities = get_portal_capabilities(job)
@@ -198,3 +218,14 @@ class ApplicationSubmissionService:
             detail=detail,
             application_status=application_status,
         )
+
+
+def _preflight_is_ready_for_submit(last_preflight_detail: str) -> bool:
+    normalized = (last_preflight_detail or "").strip().lower()
+    if not normalized:
+        return False
+    if "pronto_para_envio=sim" in normalized:
+        return True
+    if "preflight real ok" in normalized and "bloqueado" not in normalized and "inconclusivo" not in normalized:
+        return True
+    return False

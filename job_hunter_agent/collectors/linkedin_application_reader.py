@@ -234,10 +234,28 @@ def normalize_linkedin_application_page_state_payload(raw_state: dict) -> Linked
     normalized["modal_headings"] = tuple(normalized.get("modal_headings", ()))
     normalized["modal_buttons"] = tuple(normalized.get("modal_buttons", ()))
     normalized["modal_fields"] = tuple(normalized.get("modal_fields", ()))
-    normalized["modal_questions"] = tuple(normalized.get("modal_questions", ()))
+    modal_questions = tuple(normalized.get("modal_questions", ()))
+    normalized["modal_questions"] = tuple(
+        question
+        for question in modal_questions
+        if not _is_country_code_question(question)
+    )
     normalized["answered_questions"] = tuple(normalized.get("answered_questions", ()))
     normalized["unanswered_questions"] = tuple(normalized.get("unanswered_questions", ()))
     return LinkedInApplicationPageState(**normalized)
+
+
+def _is_country_code_question(question: str) -> bool:
+    normalized = (question or "").strip().lower()
+    if not normalized:
+        return False
+    candidates = (
+        "country code",
+        "codigo do pais",
+        "código do país",
+        "country/region",
+    )
+    return any(token in normalized for token in candidates)
 
 
 class LinkedInApplicationPageReader:

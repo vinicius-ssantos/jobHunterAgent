@@ -727,7 +727,11 @@ class SqliteJobRepositoryTests(unittest.TestCase):
             support_level="manual_review",
             support_rationale="linkedin interno ainda requer confirmacao",
         )
-        self.repository.mark_application_status(application.id, status="authorized_submit")
+        self.repository.mark_application_status(
+            application.id,
+            status="authorized_submit",
+            last_preflight_detail="preflight real | pronto_para_envio=sim",
+        )
 
         result = ApplicationSubmissionService(self.repository, applicant=_Applicant()).run_for_application(
             application.id
@@ -761,7 +765,11 @@ class SqliteJobRepositoryTests(unittest.TestCase):
             support_level="manual_review",
             support_rationale="snapshot inicial de suporte",
         )
-        self.repository.mark_application_status(application.id, status="authorized_submit")
+        self.repository.mark_application_status(
+            application.id,
+            status="authorized_submit",
+            last_preflight_detail="preflight real | pronto_para_envio=sim",
+        )
 
         ApplicationSubmissionService(self.repository, applicant=_Applicant()).run_for_application(application.id)
         stored = self.repository.get_application(application.id)
@@ -800,8 +808,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(result.outcome, "ignored")
         self.assertEqual(result.application_status, "authorized_submit")
         self.assertEqual(stored.status, "authorized_submit")
-        self.assertIn("prontidao operacional incompleta", result.detail)
-        self.assertIn("faltando=", result.detail)
+        self.assertIn("pronto_para_envio=sim", result.detail)
 
     def test_application_preflight_blocks_when_real_flow_inspector_blocks(self) -> None:
         saved = self.repository.save_new_jobs([sample_job("https://www.linkedin.com/jobs/view/123", "key-1")])[0]

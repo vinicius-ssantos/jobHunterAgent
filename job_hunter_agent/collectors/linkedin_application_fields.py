@@ -90,6 +90,38 @@ class LinkedInEasyApplyFieldFiller:
                 filled.push(fieldName);
                 return true;
               };
+              const fillCountryCodeCombo = (field, targetValue, fieldName) => {
+                if (!field || field.disabled || !targetValue) return false;
+                const targetNormalized = normalize(targetValue);
+                const targetDialCode = ((targetValue || '').match(/\\+\\d+/) || [''])[0];
+                try {
+                  field.focus();
+                  field.click();
+                } catch {}
+                const options = Array.from(
+                  modal.querySelectorAll(
+                    '[role="option"], [role="listbox"] [aria-label], ul[role="listbox"] li, li[role="option"]'
+                  )
+                );
+                const target = options.find((option) => {
+                  const text = normalize(option.textContent || option.getAttribute('aria-label') || '');
+                  return (
+                    text === targetNormalized
+                    || text.includes(targetNormalized)
+                    || (!!targetDialCode && text.includes(targetDialCode))
+                  );
+                });
+                if (!target) return false;
+                try {
+                  target.scrollIntoView({ block: 'nearest' });
+                  target.click();
+                } catch {
+                  return false;
+                }
+                dispatch(field);
+                filled.push(fieldName);
+                return true;
+              };
 
               if (email) {
                 const field = findField(['email', 'e-mail'], null);
@@ -113,11 +145,24 @@ class LinkedInEasyApplyFieldFiller:
               }
 
               if (countryCode) {
-                const field = findField(['country code', 'codigo do pais', 'código do país', 'cÃƒÂ³digo do paÃƒÂ­s', 'country/region phone number'], 'select');
+                const field = findField(
+                  [
+                    'country code',
+                    'codigo do pais',
+                    'código do país',
+                    'cÃ³digo do paÃ­s',
+                    'cÃƒÆ’Ã‚Â³digo do paÃƒÆ’Ã‚Â­s',
+                    'country/region phone number',
+                  ],
+                  null,
+                );
                 fillSelect(field, countryCode, 'codigo_pais');
                 if (!filled.includes('codigo_pais')) {
-                  const accentedField = findField(['código do país'], 'select');
+                  const accentedField = findField(['código do país', 'cÃ³digo do paÃ­s'], null);
                   fillSelect(accentedField, countryCode, 'codigo_pais');
+                }
+                if (!filled.includes('codigo_pais')) {
+                  fillCountryCodeCombo(field, countryCode, 'codigo_pais');
                 }
               }
 
