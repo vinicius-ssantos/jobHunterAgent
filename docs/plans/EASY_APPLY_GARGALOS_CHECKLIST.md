@@ -15,6 +15,7 @@ Reduzir desperdício operacional no funil de candidatura Easy Apply com foco em:
 - [x] Aplicar matching semântico simples (normalização + similaridade por tokens) para mapear perguntas do modal
 - [x] Preencher respostas conhecidas no modal para campos obrigatórios (`input/textarea/select`)
 - [x] Expor métricas de conversão por etapa no resumo da execução
+- [x] Adicionar queries avançadas do LinkedIn com filtros (experiência/modalidade/easy apply/recência) e rotação por ciclo
 - [x] Cobrir as mudanças com testes automatizados e validar suíte completa
 
 ## Resultado

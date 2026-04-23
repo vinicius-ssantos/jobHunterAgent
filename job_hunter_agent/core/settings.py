@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     linkedin_max_page_depth: int = 6
     linkedin_scroll_stabilization_passes: int = 3
     linkedin_duplicate_pages_stop_threshold: int = 2
+    linkedin_search_queries: tuple[str, ...] = ()
+    linkedin_search_queries_per_cycle: int = 3
+    linkedin_search_experience_levels: tuple[str, ...] = ("2", "3")
+    linkedin_search_workplace_types: tuple[str, ...] = ("2", "3")
+    linkedin_search_easy_apply_only: bool = True
+    linkedin_search_recency_seconds: int = 604800
+    linkedin_search_sort_by: str = "DD"
     save_failure_artifacts: bool = False
     failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
     max_jobs_per_site: int = 20
@@ -199,6 +206,33 @@ class Settings(BaseSettings):
         if value <= 0:
             raise ValueError("JOB_HUNTER_LINKEDIN_DUPLICATE_PAGES_STOP_THRESHOLD deve ser maior que zero.")
         return value
+
+    @field_validator("linkedin_search_queries_per_cycle")
+    @classmethod
+    def validate_linkedin_search_queries_per_cycle(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_SEARCH_QUERIES_PER_CYCLE deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_search_recency_seconds")
+    @classmethod
+    def validate_linkedin_search_recency_seconds(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JOB_HUNTER_LINKEDIN_SEARCH_RECENCY_SECONDS deve ser maior que zero.")
+        return value
+
+    @field_validator("linkedin_search_sort_by")
+    @classmethod
+    def validate_linkedin_search_sort_by(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"DD", "R"}:
+            raise ValueError("JOB_HUNTER_LINKEDIN_SEARCH_SORT_BY deve ser DD ou R.")
+        return normalized
+
+    @field_validator("linkedin_search_queries")
+    @classmethod
+    def validate_linkedin_search_queries(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(item.strip() for item in value if item and item.strip())
 
     @field_validator("adaptive_polling_empty_cycles_before_backoff")
     @classmethod

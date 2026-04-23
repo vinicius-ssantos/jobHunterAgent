@@ -4,6 +4,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Callable
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from job_hunter_agent.core.browser_support import extract_json_object, load_playwright_storage_state, resolve_local_chromium
 from job_hunter_agent.core.domain import RawJob, SiteConfig
@@ -11,6 +12,45 @@ from job_hunter_agent.core.linkedin_company_policy import get_runtime_linkedin_c
 
 
 logger = logging.getLogger(__name__)
+
+
+def build_linkedin_advanced_search_url(
+    *,
+    base_url: str,
+    keywords: str,
+    experience_levels: tuple[str, ...],
+    workplace_types: tuple[str, ...],
+    easy_apply_only: bool,
+    recency_seconds: int,
+    sort_by: str,
+) -> str:
+    parsed = urlparse(base_url)
+    query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query_params["keywords"] = keywords.strip()
+    if experience_levels:
+        query_params["f_E"] = ",".join(level.strip() for level in experience_levels if level.strip())
+    if workplace_types:
+        query_params["f_WT"] = ",".join(level.strip() for level in workplace_types if level.strip())
+    if easy_apply_only:
+        query_params["f_AL"] = "true"
+    else:
+        query_params.pop("f_AL", None)
+    if recency_seconds > 0:
+        query_params["f_TPR"] = f"r{recency_seconds}"
+    if sort_by:
+        query_params["sortBy"] = sort_by.strip().upper()
+    query_params.pop("start", None)
+    query_text = urlencode(query_params)
+    return urlunparse(parsed._replace(query=query_text))
+
+
+def extract_linkedin_search_keywords(search_url: str) -> str:
+    try:
+        parsed = urlparse(search_url)
+        params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        return str(params.get("keywords", "")).strip()
+    except Exception:
+        return ""
 
 
 def normalize_linkedin_card(card: dict[str, str]) -> dict[str, str]:
@@ -597,6 +637,13 @@ class LinkedInDeterministicCollector:
         max_page_depth: int = 6,
         scroll_stabilization_passes: int = 3,
         duplicate_pages_stop_threshold: int = 2,
+        search_queries: tuple[str, ...] = (),
+        search_queries_per_cycle: int = 3,
+        search_experience_levels: tuple[str, ...] = ("2", "3"),
+        search_workplace_types: tuple[str, ...] = ("2", "3"),
+        search_easy_apply_only: bool = True,
+        search_recency_seconds: int = 604800,
+        search_sort_by: str = "DD",
         field_repairer: object | None = None,
         known_job_url_exists: Callable[[str], bool] | None = None,
     ) -> None:
@@ -606,6 +653,14 @@ class LinkedInDeterministicCollector:
         self.max_page_depth = max_page_depth
         self.scroll_stabilization_passes = scroll_stabilization_passes
         self.duplicate_pages_stop_threshold = max(1, duplicate_pages_stop_threshold)
+        self.search_queries = tuple(query.strip() for query in search_queries if query and query.strip())
+        self.search_queries_per_cycle = max(1, search_queries_per_cycle)
+        self.search_experience_levels = tuple(level.strip() for level in search_experience_levels if level.strip())
+        self.search_workplace_types = tuple(level.strip() for level in search_workplace_types if level.strip())
+        self.search_easy_apply_only = search_easy_apply_only
+        self.search_recency_seconds = max(1, search_recency_seconds)
+        self.search_sort_by = (search_sort_by or "DD").strip().upper() or "DD"
+        self._query_cursor = 0
         self.field_repairer = field_repairer
         self.known_job_url_exists = known_job_url_exists
 
@@ -616,7 +671,6 @@ class LinkedInDeterministicCollector:
             )
 
         try:
-            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
             from playwright.async_api import async_playwright
         except ImportError as exc:
             raise RuntimeError(
@@ -633,18 +687,10 @@ class LinkedInDeterministicCollector:
             context = await browser.new_context(storage_state=load_playwright_storage_state(self.storage_state_path))
             page = await context.new_page()
             try:
-                await page.goto(site.search_url, wait_until="domcontentloaded")
-                await page.wait_for_timeout(3000)
-                await self._dismiss_sign_in_modal(page)
-                try:
-                    await page.wait_for_selector("a[href*='/jobs/view/']", timeout=10000)
-                except PlaywrightTimeoutError as exc:
-                    raise RuntimeError(
-                        "nenhum card de vaga do LinkedIn ficou visivel apos carregar a busca"
-                    ) from exc
-                raw_cards = await self._collect_cards_across_pages(
-                    page,
-                    max_jobs,
+                raw_cards = await self._collect_cards_for_selected_queries(
+                    page=page,
+                    base_search_url=site.search_url,
+                    max_jobs=max_jobs,
                 )
                 enriched_cards = await self._enrich_residual_cards(context, raw_cards)
             finally:
@@ -694,6 +740,90 @@ class LinkedInDeterministicCollector:
                 )
             )
         return jobs
+
+    def _resolve_search_urls(self, base_search_url: str) -> list[str]:
+        if not self.search_queries:
+            return [base_search_url]
+        return [
+            build_linkedin_advanced_search_url(
+                base_url=base_search_url,
+                keywords=query,
+                experience_levels=self.search_experience_levels,
+                workplace_types=self.search_workplace_types,
+                easy_apply_only=self.search_easy_apply_only,
+                recency_seconds=self.search_recency_seconds,
+                sort_by=self.search_sort_by,
+            )
+            for query in self.search_queries
+        ]
+
+    def _select_search_urls_for_cycle(self, available_search_urls: list[str]) -> list[str]:
+        if not available_search_urls:
+            return []
+        count = min(max(1, self.search_queries_per_cycle), len(available_search_urls))
+        start = self._query_cursor % len(available_search_urls)
+        selected = [available_search_urls[(start + offset) % len(available_search_urls)] for offset in range(count)]
+        self._query_cursor = (start + count) % len(available_search_urls)
+        return selected
+
+    async def _collect_cards_for_selected_queries(
+        self,
+        *,
+        page,
+        base_search_url: str,
+        max_jobs: int,
+    ) -> list[dict[str, str]]:
+        try:
+            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+        except ImportError as exc:
+            raise RuntimeError(
+                "Dependencias de coleta nao estao instaladas. Rode pip install -r requirements.txt."
+            ) from exc
+        available_search_urls = self._resolve_search_urls(base_search_url)
+        selected_search_urls = self._select_search_urls_for_cycle(available_search_urls)
+        logger.info(
+            "LinkedIn executando querys configuradas=%s selecionadas_no_ciclo=%s",
+            len(available_search_urls),
+            len(selected_search_urls),
+        )
+        collected_cards: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+        for index, search_url in enumerate(selected_search_urls, start=1):
+            remaining_jobs = max_jobs - len(collected_cards)
+            if remaining_jobs <= 0:
+                break
+            keywords = extract_linkedin_search_keywords(search_url) or "<sem_keywords>"
+            logger.info(
+                "LinkedIn iniciando query %s/%s keywords=%r",
+                index,
+                len(selected_search_urls),
+                keywords,
+            )
+            await page.goto(search_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
+            await self._dismiss_sign_in_modal(page)
+            try:
+                await page.wait_for_selector("a[href*='/jobs/view/']", timeout=10000)
+            except PlaywrightTimeoutError:
+                logger.info("LinkedIn query sem cards visiveis keywords=%r", keywords)
+                continue
+            query_cards = await self._collect_cards_across_pages(page, remaining_jobs)
+            new_cards: list[dict[str, str]] = []
+            for card in query_cards:
+                url = str(card.get("url", "")).strip()
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                new_cards.append(card)
+            collected_cards.extend(new_cards)
+            logger.info(
+                "LinkedIn query concluida keywords=%r cards=%s novos=%s acumulado=%s",
+                keywords,
+                len(query_cards),
+                len(new_cards),
+                len(collected_cards),
+            )
+        return collected_cards[:max_jobs]
 
     def _filter_known_cards(self, cards: list[dict[str, str]]) -> list[dict[str, str]]:
         if not self.known_job_url_exists:
