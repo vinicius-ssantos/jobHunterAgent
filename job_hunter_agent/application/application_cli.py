@@ -197,6 +197,28 @@ def parse_args() -> argparse.Namespace:
         default=Path("logs/worker-events.ndjson"),
         help="Arquivo NDJSON para eventos de coleta.",
     )
+    worker_match_parser = worker_subparsers.add_parser(
+        "match",
+        help="Executa o matching_worker consumindo JobCollectedV1 e emitindo JobScoredV1.",
+    )
+    worker_match_parser.add_argument(
+        "--input",
+        type=Path,
+        default=Path("logs/worker-events.ndjson"),
+        help="Arquivo NDJSON com eventos JobCollectedV1.",
+    )
+    worker_match_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("logs/worker-scored-events.ndjson"),
+        help="Arquivo NDJSON de saida para eventos JobScoredV1.",
+    )
+    worker_match_parser.add_argument(
+        "--state",
+        type=Path,
+        default=Path("logs/worker-match-state.json"),
+        help="Arquivo JSON de estado para idempotencia dos eventos processados.",
+    )
 
     args = parser.parse_args()
     if args.ciclos is not None and args.ciclos <= 0:

@@ -384,6 +384,29 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.worker_command, "collect")
         self.assertEqual(str(args.output), "logs\\events.ndjson")
 
+    async def test_parse_args_accepts_worker_match_command(self) -> None:
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "worker",
+                "match",
+                "--input",
+                "logs/in.ndjson",
+                "--output",
+                "logs/out.ndjson",
+                "--state",
+                "logs/state.json",
+            ],
+        ):
+            args = parse_args()
+
+        self.assertEqual(args.command, "worker")
+        self.assertEqual(args.worker_command, "match")
+        self.assertEqual(str(args.input), "logs\\in.ndjson")
+        self.assertEqual(str(args.output), "logs\\out.ndjson")
+        self.assertEqual(str(args.state), "logs\\state.json")
+
     async def test_parse_args_rejects_operational_command_with_agora(self) -> None:
         with patch("sys.argv", ["main.py", "--agora", "applications", "list"]):
             with self.assertRaises(SystemExit):

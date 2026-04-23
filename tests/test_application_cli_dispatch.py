@@ -121,3 +121,32 @@ class ApplicationCliDispatchTests(TestCase):
         worker_run.assert_called_once_with(output_path="logs/worker-events.ndjson")
         asyncio_run.assert_called_once()
         print_mock.assert_called_once_with("worker ok")
+
+    def test_execute_cli_command_dispatches_worker_match(self) -> None:
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="worker",
+            worker_command="match",
+            input="logs/worker-events.ndjson",
+            output="logs/worker-scored-events.ndjson",
+            state="logs/worker-match-state.json",
+        )
+
+        worker_run = Mock(return_value="matching ok")
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.run_matching_worker_once",
+            new=worker_run,
+        ), patch(
+            "job_hunter_agent.application.application_cli_dispatch.asyncio.run",
+            return_value="matching ok",
+        ) as asyncio_run, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        worker_run.assert_called_once_with(
+            input_path="logs/worker-events.ndjson",
+            output_path="logs/worker-scored-events.ndjson",
+            state_path="logs/worker-match-state.json",
+        )
+        asyncio_run.assert_called_once()
+        print_mock.assert_called_once_with("matching ok")

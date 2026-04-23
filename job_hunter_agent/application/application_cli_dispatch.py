@@ -9,6 +9,7 @@ from job_hunter_agent.application.application_cli import (
     JOB_STATUS_ALIASES,
 )
 from job_hunter_agent.application.collector_worker import run_collector_worker_once
+from job_hunter_agent.application.matching_worker import run_matching_worker_once
 from job_hunter_agent.application.cli_bootstrap import (
     create_application_flow_app,
     create_query_app,
@@ -134,3 +135,14 @@ def _run_candidate_profile_command(args: Namespace) -> None:
 def _run_worker_command(args: Namespace) -> None:
     if args.worker_command == "collect":
         print(asyncio.run(run_collector_worker_once(output_path=args.output)))
+        return
+    if args.worker_command == "match":
+        print(
+            asyncio.run(
+                run_matching_worker_once(
+                    input_path=args.input,
+                    output_path=args.output,
+                    state_path=args.state,
+                )
+            )
+        )
