@@ -3,7 +3,7 @@ import unittest
 
 from job_hunter_agent.collectors.linkedin_application_fields import LinkedInEasyApplyFieldFiller
 from job_hunter_agent.collectors.linkedin_application_state import LinkedInApplicationPageState
-from job_hunter_agent.core.candidate_profile import CandidateProfile
+from job_hunter_agent.core.candidate_profile import CandidateProfile, KnownQuestionAnswer
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
@@ -77,3 +77,47 @@ class LinkedInApplicationFieldsTests(unittest.TestCase):
 
         content = profile_path.read_text(encoding="utf-8")
         self.assertIn("pergunta x", content)
+
+    def test_try_fill_supported_profile_answers_uses_known_question_answers(self) -> None:
+        class _Page:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def evaluate(self, script, answers):
+                self.calls += 1
+                if self.calls == 1:
+                    return []
+                return ["do you need work authorization to work in brazil?"]
+
+        filler = LinkedInEasyApplyFieldFiller(
+            contact_email="",
+            phone="",
+            phone_country_code="",
+            candidate_profile=CandidateProfile(
+                confirmed_experience_years={},
+                known_question_answers=(
+                    KnownQuestionAnswer(
+                        question="Voce precisa de visto para trabalhar no Brasil?",
+                        answer_text="Nao",
+                        fragments=("work authorization", "precisa de visto"),
+                    ),
+                ),
+            ),
+        )
+
+        import asyncio
+
+        answered, unresolved = asyncio.run(
+            filler.try_fill_supported_profile_answers(
+                _Page(),
+                LinkedInApplicationPageState(
+                    modal_questions=(
+                        "Do you need work authorization to work in Brazil?",
+                        "How many years of experience with Java?",
+                    )
+                ),
+            )
+        )
+
+        self.assertIn("do you need work authorization to work in brazil?", tuple(item.lower() for item in answered))
+        self.assertIn("How many years of experience with Java?", unresolved)

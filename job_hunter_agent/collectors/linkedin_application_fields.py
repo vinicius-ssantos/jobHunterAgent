@@ -4,6 +4,7 @@ from pathlib import Path
 
 from job_hunter_agent.core.candidate_profile import (
     CandidateProfile,
+    extract_supported_known_answers,
     extract_supported_experience_answers,
     record_pending_questions,
 )
@@ -186,8 +187,8 @@ class LinkedInEasyApplyFieldFiller:
             state.modal_questions,
             self.candidate_profile,
         )
-        if not answers:
-            return (), unresolved_questions
+        if not answers and not unresolved_questions:
+            return (), ()
         answered_questions = await page.evaluate(
             """
             (answers) => {
@@ -284,14 +285,117 @@ class LinkedInEasyApplyFieldFiller:
             ],
         )
         answered_questions = tuple(answered_questions)
-        unanswered_remaining = tuple(
-            question for question in unresolved_questions if question not in answered_questions
-        )
+        unanswered_remaining = tuple(question for question in unresolved_questions if question not in answered_questions)
+        known_answers, unresolved_known = extract_supported_known_answers(unanswered_remaining, self.candidate_profile)
+        known_answered: tuple[str, ...] = ()
+        if known_answers:
+            known_answered = tuple(
+                await page.evaluate(
+                    """
+                    (answers) => {
+                      const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+                      const modal = document.querySelector('[role="dialog"]');
+                      if (!modal) return [];
+                      const fields = Array.from(modal.querySelectorAll('input[required], textarea[required], select[required]'));
+                      const descriptorFor = (field) => {
+                        const parts = [];
+                        const fieldId = field.getAttribute('id');
+                        if (fieldId) {
+                          const explicitLabel = modal.querySelector(`label[for="${fieldId}"]`);
+                          if (explicitLabel) parts.push(explicitLabel.textContent || '');
+                        }
+                        const labelledBy = field.getAttribute('aria-labelledby');
+                        if (labelledBy) {
+                          labelledBy.split(/\\s+/).forEach((id) => {
+                            const node = document.getElementById(id);
+                            if (node) parts.push(node.textContent || '');
+                          });
+                        }
+                        const describedBy = field.getAttribute('aria-describedby');
+                        if (describedBy) {
+                          describedBy.split(/\\s+/).forEach((id) => {
+                            const node = document.getElementById(id);
+                            if (node) parts.push(node.textContent || '');
+                          });
+                        }
+                        const closestLabel = field.closest('label');
+                        if (closestLabel) parts.push(closestLabel.textContent || '');
+                        const formElement = field.closest('[data-test-form-element]') || field.closest('.fb-dash-form-element');
+                        if (formElement) {
+                          const legend = formElement.querySelector('legend');
+                          const title = formElement.querySelector('[data-test-text-entity-list-form-title]');
+                          if (legend) parts.push(legend.textContent || '');
+                          if (title) parts.push(title.textContent || '');
+                        }
+                        parts.push(field.getAttribute('name') || '');
+                        parts.push(field.getAttribute('aria-label') || '');
+                        return normalize(parts.join(' '));
+                      };
+                      const dispatch = (node) => {
+                        node.dispatchEvent(new Event('input', { bubbles: true }));
+                        node.dispatchEvent(new Event('change', { bubbles: true }));
+                        node.dispatchEvent(new Event('blur', { bubbles: true }));
+                      };
+                      const filled = [];
+                      for (const answer of answers) {
+                        const normalizedQuestion = normalize(answer.question || '');
+                        const fragments = (answer.fragments || []).map((item) => normalize(item));
+                        const answerText = String(answer.answer_text || '').trim();
+                        if (!answerText) continue;
+                        const field = fields.find((candidate) => {
+                          const descriptor = descriptorFor(candidate);
+                          return (
+                            (!!normalizedQuestion && descriptor.includes(normalizedQuestion))
+                            || fragments.some((fragment) => !!fragment && descriptor.includes(fragment))
+                          );
+                        });
+                        if (!field || field.disabled || field.readOnly) {
+                          continue;
+                        }
+                        const tagName = field.tagName.toLowerCase();
+                        if (tagName === 'select') {
+                          const targetNormalized = normalize(answerText);
+                          const target = Array.from(field.options || []).find((option) => {
+                            const label = normalize(option.label || option.textContent || '');
+                            const value = normalize(option.value || '');
+                            return (
+                              label === targetNormalized
+                              || value === targetNormalized
+                              || label.includes(targetNormalized)
+                              || value.includes(targetNormalized)
+                            );
+                          });
+                          if (!target) continue;
+                          field.value = target.value;
+                          dispatch(field);
+                          filled.push(answer.question);
+                          continue;
+                        }
+                        field.focus();
+                        field.value = answerText;
+                        dispatch(field);
+                        filled.push(answer.question);
+                      }
+                      return filled;
+                    }
+                    """,
+                    [
+                        {
+                            "question": answer.question,
+                            "answer_text": answer.answer_text,
+                            "fragments": list(answer.fragments),
+                        }
+                        for answer in known_answers
+                    ],
+                )
+            )
         unanswered_from_answers = tuple(
             answer.question for answer in answers if answer.question not in answered_questions
         )
-        unresolved = tuple(dict.fromkeys((*unanswered_remaining, *unanswered_from_answers)))
-        return answered_questions, unresolved
+        unanswered_from_known = tuple(answer.question for answer in known_answers if answer.question not in known_answered)
+        unresolved = tuple(dict.fromkeys((*unresolved_known, *unanswered_from_answers, *unanswered_from_known)))
+        resolved_questions = tuple(dict.fromkeys((*answered_questions, *known_answered)))
+        return resolved_questions, unresolved
 
     def record_pending_questions(self, questions: tuple[str, ...]) -> None:
         if self.candidate_profile_path is None or not questions:

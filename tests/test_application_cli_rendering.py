@@ -167,6 +167,42 @@ class ApplicationCliRenderingTests(unittest.TestCase):
                 detail="readiness=listing_redirect | motivo=a navegacao caiu em listagem ou colecao do LinkedIn | pagina=https://www.linkedin.com/jobs/collections/similar-jobs/",
                 created_at="2026-04-08T10:02:00",
             ),
+            JobApplicationEvent(
+                id=3,
+                application_id=2,
+                event_type="status_changed",
+                from_status="draft",
+                to_status="ready_for_review",
+                detail="Candidatura pronta para revisao",
+                created_at="2026-04-08T10:03:00",
+            ),
+            JobApplicationEvent(
+                id=4,
+                application_id=2,
+                event_type="status_changed",
+                from_status="ready_for_review",
+                to_status="confirmed",
+                detail="Candidatura confirmada",
+                created_at="2026-04-08T10:04:00",
+            ),
+            JobApplicationEvent(
+                id=5,
+                application_id=2,
+                event_type="status_changed",
+                from_status="confirmed",
+                to_status="authorized_submit",
+                detail="Candidatura autorizada",
+                created_at="2026-04-08T10:05:00",
+            ),
+            JobApplicationEvent(
+                id=6,
+                application_id=2,
+                event_type="status_changed",
+                from_status="authorized_submit",
+                to_status="submitted",
+                detail="Candidatura enviada",
+                created_at="2026-04-08T10:06:00",
+            ),
         ]
 
         rendered = render_execution_summary(events=events)
@@ -175,3 +211,8 @@ class ApplicationCliRenderingTests(unittest.TestCase):
         self.assertIn("- submits_concluidos=1", rendered)
         self.assertIn("candidatura_externa=1", rendered)
         self.assertIn("similar_jobs=1", rendered)
+        self.assertIn("draft_para_ready_for_review=1", rendered)
+        self.assertIn("ready_for_review_para_confirmed=1", rendered)
+        self.assertIn("confirmed_para_authorized_submit=1", rendered)
+        self.assertIn("authorized_submit_para_submitted=1", rendered)
+        self.assertIn("taxa_authorized_submit_para_submitted=100.0%", rendered)

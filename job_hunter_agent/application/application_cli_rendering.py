@@ -154,6 +154,7 @@ def render_execution_summary(*, events: list[object]) -> str:
     preflight_count = 0
     submit_count = 0
     block_counts: dict[str, int] = {}
+    transitions: dict[tuple[str, str], int] = {}
     for event in events:
         if event.event_type in {"preflight_ready", "preflight_manual_review", "preflight_blocked", "preflight_error"}:
             preflight_count += 1
@@ -163,6 +164,11 @@ def render_execution_summary(*, events: list[object]) -> str:
             reason_code = classify_operational_detail(event.detail).reason_code
             if reason_code not in {"sem_detalhe_operacional", "nao_classificado"}:
                 block_counts[reason_code] = block_counts.get(reason_code, 0) + 1
+        from_status = (event.from_status or "").strip()
+        to_status = (event.to_status or "").strip()
+        if from_status and to_status and from_status != to_status:
+            key = (from_status, to_status)
+            transitions[key] = transitions.get(key, 0) + 1
     lines = [
         "Execucao operacional:",
         f"- preflights_concluidos={preflight_count}",
@@ -174,7 +180,31 @@ def render_execution_summary(*, events: list[object]) -> str:
             lines.append(f"  - {key}={block_counts[key]}")
     else:
         lines.append("- bloqueios_por_tipo=nenhum")
+    draft_to_ready = transitions.get(("draft", "ready_for_review"), 0)
+    ready_to_confirmed = transitions.get(("ready_for_review", "confirmed"), 0)
+    confirmed_to_authorized = transitions.get(("confirmed", "authorized_submit"), 0)
+    authorized_to_submitted = transitions.get(("authorized_submit", "submitted"), 0)
+    lines.extend(
+        [
+            "- conversoes_por_etapa:",
+            f"- draft_para_ready_for_review={draft_to_ready}",
+            f"- ready_for_review_para_confirmed={ready_to_confirmed}",
+            f"- confirmed_para_authorized_submit={confirmed_to_authorized}",
+            f"- authorized_submit_para_submitted={authorized_to_submitted}",
+            (
+                f"- taxa_authorized_submit_para_submitted="
+                f"{_render_conversion_ratio(authorized_to_submitted, confirmed_to_authorized)}"
+            ),
+        ]
+    )
     return "\n".join(lines)
+
+
+def _render_conversion_ratio(numerator: int, denominator: int) -> str:
+    if denominator <= 0:
+        return "n/a"
+    ratio = (numerator / denominator) * 100
+    return f"{ratio:.1f}%"
 
 
 def _render_event_lines(events: list[object]) -> list[str]:

@@ -44,6 +44,15 @@ from job_hunter_agent.llm.scoring import HybridJobScorer, parse_salary_floor, pa
 
 logger = logging.getLogger(__name__)
 
+LINKEDIN_EXTERNAL_APPLY_HINTS: tuple[str, ...] = (
+    "respostas gerenciadas fora do linkedin",
+    "applications are managed off linkedin",
+    "candidate-se no site da empresa",
+    "candidatar-se no site da empresa",
+    "apply on company website",
+    "apply externally",
+)
+
 
 class SiteCollector(Protocol):
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
@@ -224,6 +233,8 @@ class JobCollectionService:
         return bool(raw_job.title.strip() and raw_job.company.strip() and raw_job.url.strip() and raw_job.source_site.strip())
 
     def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
+        if self._is_probable_external_apply(raw_job):
+            return "candidatura_externa_provavel"
         policy = RuntimeMatchingPolicy(self.runtime_matching_profile)
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".lower()
         salary_floor = parse_salary_floor(raw_job.salary_text)
@@ -232,6 +243,16 @@ class JobCollectionService:
             work_mode=raw_job.work_mode,
             salary_floor=salary_floor,
         )
+
+    @staticmethod
+    def _is_probable_external_apply(raw_job: RawJob) -> bool:
+        source_site = (raw_job.source_site or "").strip().lower()
+        if source_site != "linkedin":
+            return False
+        combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".strip().lower()
+        if not combined_text:
+            return False
+        return any(hint in combined_text for hint in LINKEDIN_EXTERNAL_APPLY_HINTS)
 
 
 def build_external_key(raw_job: RawJob) -> str:

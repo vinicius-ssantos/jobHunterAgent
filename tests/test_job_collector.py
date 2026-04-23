@@ -412,6 +412,53 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
             )
         )))
 
+    async def test_collect_new_jobs_discards_probable_external_apply_before_scoring(self) -> None:
+        class _Collector:
+            async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+                return [
+                    RawJob(
+                        title="Desenvolvedor Java Pleno",
+                        company="ACME",
+                        location="Brasil",
+                        work_mode="remoto",
+                        salary_text="Nao informado",
+                        url="https://www.linkedin.com/jobs/view/123/",
+                        source_site="LinkedIn",
+                        summary="Respostas gerenciadas fora do LinkedIn",
+                        description="Candidate-se no site da empresa",
+                    )
+                ]
+
+        service = JobCollectionService(
+            settings=self.settings,
+            matching_criteria=self.matching_criteria,
+            repository=self.repository,
+            site_collector=_Collector(),
+            scorer=FailingIfCalledScorer(),
+        )
+
+        jobs = await service.collect_new_jobs()
+
+        self.assertEqual(jobs, [])
+        self.assertTrue(
+            self.repository.seen_job_exists(
+                "https://www.linkedin.com/jobs/view/123/",
+                build_external_key(
+                    RawJob(
+                        title="Desenvolvedor Java Pleno",
+                        company="ACME",
+                        location="Brasil",
+                        work_mode="remoto",
+                        salary_text="Nao informado",
+                        url="https://www.linkedin.com/jobs/view/123/",
+                        source_site="LinkedIn",
+                        summary="Respostas gerenciadas fora do LinkedIn",
+                        description="Candidate-se no site da empresa",
+                    )
+                ),
+            )
+        )
+
 
 class ExternalKeyTests(TestCase):
     def test_build_available_file_paths_includes_relative_and_absolute_screenshots(self) -> None:
