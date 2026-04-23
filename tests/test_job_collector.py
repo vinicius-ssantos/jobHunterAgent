@@ -162,6 +162,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         self.settings = Settings(
             telegram_token="token",
             telegram_chat_id="chat",
+            linkedin_precision_gate_enabled=False,
             sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
         )
         self.matching_criteria = build_matching_criteria(
@@ -200,6 +201,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
             telegram_token="token",
             telegram_chat_id="chat",
             accepted_work_modes=("remoto",),
+            linkedin_precision_gate_enabled=False,
             sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
         )
         service = JobCollectionService(
@@ -275,6 +277,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
             telegram_token="token",
             telegram_chat_id="chat",
             portal_collection_timeout_seconds=0,
+            linkedin_precision_gate_enabled=False,
             sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
         )
         service = JobCollectionService(
@@ -454,6 +457,70 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
                         source_site="LinkedIn",
                         summary="Respostas gerenciadas fora do LinkedIn",
                         description="Candidate-se no site da empresa",
+                    )
+                ),
+            )
+        )
+
+    async def test_collect_new_jobs_precision_gate_blocks_non_java_business_roles(self) -> None:
+        class _Collector:
+            async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+                return [
+                    RawJob(
+                        title="Program Manager",
+                        company="ACME",
+                        location="Brasil",
+                        work_mode="remoto",
+                        salary_text="Nao informado",
+                        url="https://www.linkedin.com/jobs/view/999/",
+                        source_site="LinkedIn",
+                        summary="Program manager for growth and operations",
+                        description="business development and account executive operations",
+                    )
+                ]
+
+        gate_settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            linkedin_precision_gate_enabled=True,
+            sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+        )
+        service = JobCollectionService(
+            settings=gate_settings,
+            matching_criteria=build_matching_criteria(
+                profile_text=gate_settings.profile_text,
+                include_keywords=gate_settings.include_keywords,
+                exclude_keywords=gate_settings.exclude_keywords,
+                accepted_work_modes=gate_settings.accepted_work_modes,
+                minimum_salary_brl=gate_settings.minimum_salary_brl,
+                minimum_relevance=gate_settings.minimum_relevance,
+                relaxed_matching_for_testing=gate_settings.relaxed_matching_for_testing,
+                relaxed_testing_profile_hint=gate_settings.relaxed_testing_profile_hint,
+                relaxed_testing_remove_exclude_keywords=gate_settings.relaxed_testing_remove_exclude_keywords,
+                relaxed_testing_minimum_relevance=gate_settings.relaxed_testing_minimum_relevance,
+            ),
+            repository=self.repository,
+            site_collector=_Collector(),
+            scorer=FailingIfCalledScorer(),
+        )
+
+        jobs = await service.collect_new_jobs()
+
+        self.assertEqual(jobs, [])
+        self.assertTrue(
+            self.repository.seen_job_exists(
+                "https://www.linkedin.com/jobs/view/999/",
+                build_external_key(
+                    RawJob(
+                        title="Program Manager",
+                        company="ACME",
+                        location="Brasil",
+                        work_mode="remoto",
+                        salary_text="Nao informado",
+                        url="https://www.linkedin.com/jobs/view/999/",
+                        source_site="LinkedIn",
+                        summary="Program manager for growth and operations",
+                        description="business development and account executive operations",
                     )
                 ),
             )

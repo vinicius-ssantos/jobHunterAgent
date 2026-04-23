@@ -187,6 +187,9 @@ class SqliteJobRepositoryTests(unittest.TestCase):
         self.assertEqual(row[2], 2)
         self.assertEqual(row[3], 0)
         self.assertIsNotNone(row[4])
+        self.assertIn("T", run.started_at)
+        self.assertIn("+00:00", run.started_at)
+        self.assertIn("+00:00", row[4])
 
     def test_interrupt_running_collection_runs_marks_stale_runs(self) -> None:
         first = self.repository.start_collection_run()

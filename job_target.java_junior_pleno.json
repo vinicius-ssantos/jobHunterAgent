@@ -1,0 +1,43 @@
+{
+  "profile": {
+    "summary": "Profissional focado em vagas Java de nivel junior e pleno."
+  },
+  "matching": {
+    "include_keywords": [
+      "java",
+      "spring",
+      "backend",
+      "back-end",
+      "api",
+      "microservices",
+      "desenvolvedor java",
+      "desenvolvedor backend",
+      "engenheiro de software"
+    ],
+    "exclude_keywords": [
+      "estagio",
+      "trainee",
+      "fullstack",
+      "full stack",
+      "frontend",
+      "front-end",
+      "react",
+      "angular",
+      "vue",
+      "javascript"
+    ],
+    "accepted_work_modes": [
+      "remoto",
+      "hibrido",
+      "hybrid",
+      "remote"
+    ],
+    "minimum_salary_brl": 0,
+    "minimum_relevance": 6,
+    "target_seniorities": [
+      "junior",
+      "pleno"
+    ],
+    "allow_unknown_seniority": true
+  }
+}

@@ -52,6 +52,33 @@ LINKEDIN_EXTERNAL_APPLY_HINTS: tuple[str, ...] = (
     "apply on company website",
     "apply externally",
 )
+LINKEDIN_PRECISION_REQUIRED_TERMS: tuple[str, ...] = (
+    "java",
+)
+LINKEDIN_PRECISION_BACKEND_TERMS: tuple[str, ...] = (
+    "backend",
+    "back-end",
+    "engineer",
+    "engenharia de software",
+    "software engineer",
+    "developer",
+    "desenvolvedor",
+    "spring",
+)
+LINKEDIN_PRECISION_BUSINESS_TERMS: tuple[str, ...] = (
+    "account executive",
+    "program manager",
+    "operations analyst",
+    "operations",
+    "sales",
+    "bdr",
+    "sdr",
+    "customer success",
+    "marketing",
+    "business development",
+    "gtm",
+    "consultor comercial",
+)
 
 
 class SiteCollector(Protocol):
@@ -93,6 +120,7 @@ class JobCollectionService:
         self.repository = repository
         self.site_collector = site_collector
         self.scorer = scorer
+        self.linkedin_precision_gate_enabled = getattr(settings, "linkedin_precision_gate_enabled", True)
 
     async def collect_new_jobs(self) -> list[JobPosting]:
         return list((await self.collect_new_jobs_report()).jobs)
@@ -233,6 +261,9 @@ class JobCollectionService:
         return bool(raw_job.title.strip() and raw_job.company.strip() and raw_job.url.strip() and raw_job.source_site.strip())
 
     def _apply_rule_filters(self, raw_job: RawJob) -> str | None:
+        precision_reason = self._apply_linkedin_precision_gate(raw_job)
+        if precision_reason is not None:
+            return precision_reason
         if self._is_probable_external_apply(raw_job):
             return "candidatura_externa_provavel"
         policy = RuntimeMatchingPolicy(self.runtime_matching_profile)
@@ -253,6 +284,23 @@ class JobCollectionService:
         if not combined_text:
             return False
         return any(hint in combined_text for hint in LINKEDIN_EXTERNAL_APPLY_HINTS)
+
+    def _apply_linkedin_precision_gate(self, raw_job: RawJob) -> str | None:
+        if not self.linkedin_precision_gate_enabled:
+            return None
+        source_site = (raw_job.source_site or "").strip().lower()
+        if source_site != "linkedin":
+            return None
+        combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".strip().lower()
+        if not combined_text:
+            return "precision_gate_texto_indisponivel"
+        if any(term in combined_text for term in LINKEDIN_PRECISION_BUSINESS_TERMS):
+            return "precision_gate_termo_negocio"
+        if not all(term in combined_text for term in LINKEDIN_PRECISION_REQUIRED_TERMS):
+            return "precision_gate_stack_fora_do_alvo"
+        if not any(term in combined_text for term in LINKEDIN_PRECISION_BACKEND_TERMS):
+            return "precision_gate_perfil_nao_backend"
+        return None
 
 
 def build_external_key(raw_job: RawJob) -> str:
