@@ -31,6 +31,7 @@ def _application(*, app_id: int, job_id: int, status: str = "authorized_submit")
         job_id=job_id,
         status=status,
         support_level="manual_review",
+        last_preflight_detail="preflight real ok | pronto_para_envio=sim",
     )
 
 
@@ -84,6 +85,11 @@ class AutoEasyApplyServiceTests(TestCase):
             "auto_easy_apply_max_submits_per_day": 10,
             "auto_easy_apply_cooldown_seconds": 1,
             "auto_easy_apply_max_consecutive_errors": 2,
+            "auto_easy_apply_max_blocks_same_reason": 5,
+            "auto_easy_apply_allowed_start_hour": 0,
+            "auto_easy_apply_allowed_end_hour": 0,
+            "auto_easy_apply_denylist_company_terms": (),
+            "auto_easy_apply_denylist_url_terms": (),
         }
         base.update(overrides)
         return type("Settings", (), base)()
@@ -173,3 +179,88 @@ class AutoEasyApplyServiceTests(TestCase):
 
         self.assertEqual(report.submitted, 2)
         sleep_mock.assert_called_once_with(3)
+
+    def test_run_once_skips_company_in_denylist(self) -> None:
+        repository = _FakeRepository(
+            applications=[_application(app_id=1, job_id=10)],
+            jobs={10: _job(job_id=10)},
+        )
+        service = AutoEasyApplyService(
+            repository=repository,
+            preflight=_FakePreflight(),
+            submission=_FakeSubmission(),
+            transitions=_FakeTransitions(),
+            settings=self._settings(auto_easy_apply_denylist_company_terms=("acme",)),
+        )
+
+        report = service.run_once()
+
+        self.assertEqual(report.submitted, 0)
+        self.assertEqual(report.skipped, 1)
+        self.assertIn("empresa_na_denylist", " | ".join(report.details))
+
+    def test_run_once_blocks_outside_allowed_window(self) -> None:
+        repository = _FakeRepository(
+            applications=[_application(app_id=1, job_id=10)],
+            jobs={10: _job(job_id=10)},
+        )
+        service = AutoEasyApplyService(
+            repository=repository,
+            preflight=_FakePreflight(),
+            submission=_FakeSubmission(),
+            transitions=_FakeTransitions(),
+            settings=self._settings(
+                auto_easy_apply_allowed_start_hour=10,
+                auto_easy_apply_allowed_end_hour=11,
+            ),
+        )
+
+        fake_now = type("FakeNow", (), {"hour": 12})()
+        with patch("job_hunter_agent.application.auto_easy_apply.datetime") as dt_mock:
+            dt_mock.now.return_value = fake_now
+            report = service.run_once()
+
+        self.assertEqual(report.submitted, 0)
+        self.assertEqual(report.blocked, 1)
+        self.assertIn("fora da janela horaria", " | ".join(report.details))
+
+    def test_run_once_stops_when_same_block_reason_reaches_limit(self) -> None:
+        class _ErrorSubmission:
+            def __init__(self) -> None:
+                self.called: list[int] = []
+
+            def run_for_application(self, application_id: int):
+                self.called.append(application_id)
+                return type("Result", (), {"outcome": "error", "detail": "falha"})()
+
+        repository = _FakeRepository(
+            applications=[
+                _application(app_id=1, job_id=10),
+                _application(app_id=2, job_id=11),
+                _application(app_id=3, job_id=12),
+            ],
+            jobs={
+                10: _job(job_id=10),
+                11: _job(job_id=11),
+                12: _job(job_id=12),
+            },
+        )
+        submission = _ErrorSubmission()
+        service = AutoEasyApplyService(
+            repository=repository,
+            preflight=_FakePreflight(),
+            submission=submission,
+            transitions=_FakeTransitions(),
+            settings=self._settings(
+                auto_easy_apply_cooldown_seconds=0,
+                auto_easy_apply_max_consecutive_errors=5,
+                auto_easy_apply_max_blocks_same_reason=2,
+            ),
+        )
+
+        report = service.run_once()
+
+        self.assertEqual(report.submitted, 0)
+        self.assertEqual(report.blocked, 2)
+        self.assertEqual(submission.called, [1, 2])
+        self.assertIn("parada por bloqueio repetido", " | ".join(report.details))

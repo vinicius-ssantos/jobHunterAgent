@@ -15,4 +15,4 @@ Permitir envio assistido em lote com segurancas explicitas para evitar submissao
 - [x] Expor comando CLI `applications auto-apply`.
 - [x] Cobrir fluxo com testes unitarios.
 - [x] Executar suite de testes impactada.
-- [ ] Endurecer gates avancados (detecao explicita de easy apply no detalhe, denylist configuravel, janela horaria e stop por bloqueios repetidos).
+- [x] Endurecer gates avancados (detecao explicita de easy apply no detalhe, denylist configuravel, janela horaria e stop por bloqueios repetidos).

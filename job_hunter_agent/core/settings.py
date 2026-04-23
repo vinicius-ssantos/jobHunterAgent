@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     auto_easy_apply_max_submits_per_day: int = 10
     auto_easy_apply_cooldown_seconds: int = 120
     auto_easy_apply_max_consecutive_errors: int = 2
+    auto_easy_apply_max_blocks_same_reason: int = 5
+    auto_easy_apply_allowed_start_hour: int = 8
+    auto_easy_apply_allowed_end_hour: int = 22
+    auto_easy_apply_denylist_company_terms: tuple[str, ...] = ()
+    auto_easy_apply_denylist_url_terms: tuple[str, ...] = ()
 
     telegram_token: str = "SEU_TOKEN_AQUI"
     telegram_chat_id: str = "SEU_CHAT_ID_AQUI"
@@ -293,12 +298,25 @@ class Settings(BaseSettings):
         "auto_easy_apply_max_submits_per_day",
         "auto_easy_apply_cooldown_seconds",
         "auto_easy_apply_max_consecutive_errors",
+        "auto_easy_apply_max_blocks_same_reason",
     )
     @classmethod
     def validate_auto_easy_apply_limits(cls, value: int, info) -> int:
         if value <= 0:
             raise ValueError(f"JOB_HUNTER_{info.field_name.upper()} deve ser maior que zero.")
         return value
+
+    @field_validator("auto_easy_apply_allowed_start_hour", "auto_easy_apply_allowed_end_hour")
+    @classmethod
+    def validate_auto_easy_apply_hours(cls, value: int, info) -> int:
+        if not (0 <= value <= 23):
+            raise ValueError(f"JOB_HUNTER_{info.field_name.upper()} deve estar entre 0 e 23.")
+        return value
+
+    @field_validator("auto_easy_apply_denylist_company_terms", "auto_easy_apply_denylist_url_terms")
+    @classmethod
+    def validate_auto_easy_apply_denylist_terms(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(item.strip().lower() for item in value if item and item.strip())
 
     @field_validator("sites")
     @classmethod

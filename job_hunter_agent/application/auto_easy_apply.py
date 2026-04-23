@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -60,6 +61,7 @@ class AutoEasyApplyService:
         blocked = 0
         skipped = 0
         consecutive_errors = 0
+        blocked_by_reason: dict[str, int] = defaultdict(int)
 
         if not self.settings.auto_easy_apply_enabled:
             return AutoEasyApplyReport(
@@ -69,6 +71,17 @@ class AutoEasyApplyService:
                 skipped=0,
                 consecutive_errors=0,
                 details=("auto_easy_apply desabilitado em JOB_HUNTER_AUTO_EASY_APPLY_ENABLED",),
+            )
+        if not self._is_within_allowed_window(datetime.now()):
+            return AutoEasyApplyReport(
+                analyzed=0,
+                submitted=0,
+                blocked=1,
+                skipped=0,
+                consecutive_errors=0,
+                details=(
+                    "fora da janela horaria permitida para auto apply",
+                ),
             )
 
         start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
@@ -115,10 +128,30 @@ class AutoEasyApplyService:
                 preflight_result = self.preflight.run_for_application(application.id)
                 if preflight_result.outcome != "ready":
                     blocked += 1
+                    reason_code = f"preflight:{preflight_result.outcome}"
+                    blocked_by_reason[reason_code] += 1
                     details.append(
                         f"app_id={application.id} preflight_bloqueou={preflight_result.detail}"
                     )
                     consecutive_errors = 0
+                    if self._should_stop_for_repeated_block(blocked_by_reason):
+                        details.append(
+                            f"parada por bloqueio repetido: {reason_code}={blocked_by_reason[reason_code]}"
+                        )
+                        break
+                    continue
+                if not _preflight_indicates_easy_apply(preflight_result.detail):
+                    blocked += 1
+                    reason_code = "preflight:sem_easy_apply_explicito"
+                    blocked_by_reason[reason_code] += 1
+                    details.append(
+                        f"app_id={application.id} preflight_sem_easy_apply={preflight_result.detail}"
+                    )
+                    if self._should_stop_for_repeated_block(blocked_by_reason):
+                        details.append(
+                            f"parada por bloqueio repetido: {reason_code}={blocked_by_reason[reason_code]}"
+                        )
+                        break
                     continue
                 self.transitions.authorize_application(application.id)
                 refreshed = self.repository.get_application(application.id)
@@ -142,9 +175,16 @@ class AutoEasyApplyService:
 
             blocked += 1
             consecutive_errors += 1
+            reason_code = f"submit:{submit_result.outcome}"
+            blocked_by_reason[reason_code] += 1
             details.append(
                 f"app_id={final_application.id} submit_{submit_result.outcome}={submit_result.detail}"
             )
+            if self._should_stop_for_repeated_block(blocked_by_reason):
+                details.append(
+                    f"parada por bloqueio repetido: {reason_code}={blocked_by_reason[reason_code]}"
+                )
+                break
 
         return AutoEasyApplyReport(
             analyzed=analyzed,
@@ -180,4 +220,41 @@ class AutoEasyApplyService:
             return "url_fora_do_fluxo_linkedin_jobs"
         if application.support_level == "unsupported":
             return "suporte_automatico_indisponivel"
+        company_text = (job.company or "").strip().lower()
+        for denied in self.settings.auto_easy_apply_denylist_company_terms:
+            if denied and denied in company_text:
+                return "empresa_na_denylist"
+        url_text = (job.url or "").strip().lower()
+        for denied in self.settings.auto_easy_apply_denylist_url_terms:
+            if denied and denied in url_text:
+                return "url_na_denylist"
+        if application.status == "authorized_submit" and not _preflight_indicates_easy_apply(
+            application.last_preflight_detail
+        ):
+            return "preflight_sem_easy_apply_explicito"
         return None
+
+    def _is_within_allowed_window(self, now: datetime) -> bool:
+        start_hour = int(self.settings.auto_easy_apply_allowed_start_hour)
+        end_hour = int(self.settings.auto_easy_apply_allowed_end_hour)
+        current_hour = int(now.hour)
+        if start_hour == end_hour:
+            return True
+        if start_hour < end_hour:
+            return start_hour <= current_hour < end_hour
+        return current_hour >= start_hour or current_hour < end_hour
+
+    def _should_stop_for_repeated_block(self, blocked_by_reason: dict[str, int]) -> bool:
+        limit = int(self.settings.auto_easy_apply_max_blocks_same_reason)
+        if limit <= 0:
+            return False
+        return any(count >= limit for count in blocked_by_reason.values())
+
+
+def _preflight_indicates_easy_apply(detail: str) -> bool:
+    normalized = (detail or "").strip().lower()
+    if not normalized:
+        return False
+    if "pronto_para_envio=sim" in normalized:
+        return True
+    return "easy apply" in normalized
