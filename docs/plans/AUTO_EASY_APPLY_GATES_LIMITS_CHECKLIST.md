@@ -13,6 +13,7 @@ Permitir envio assistido em lote com segurancas explicitas para evitar submissao
 - [x] Implementar limites operacionais por ciclo e por dia.
 - [x] Implementar cooldown entre submits e circuit breaker por erros consecutivos.
 - [x] Expor comando CLI `applications auto-apply`.
+- [x] Integrar `auto-apply` no ciclo principal quando `auto_easy_apply_enabled=true`.
 - [x] Cobrir fluxo com testes unitarios.
 - [x] Executar suite de testes impactada.
 - [x] Endurecer gates avancados (detecao explicita de easy apply no detalhe, denylist configuravel, janela horaria e stop por bloqueios repetidos).

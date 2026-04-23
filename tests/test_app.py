@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from unittest import IsolatedAsyncioTestCase
 
 from job_hunter_agent.application.app import JobHunterApplication, parse_args, suggest_candidate_profile
@@ -279,6 +279,48 @@ class JobHunterApplicationRunTests(IsolatedAsyncioTestCase):
         self.assertEqual(called, [(2, 15)])
         self.assertTrue(app.notifier.started)
         self.assertTrue(app.notifier.stopped)
+
+    async def test_run_collection_cycle_triggers_auto_apply_when_enabled(self) -> None:
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = object()
+        app.collector = object()
+        app.notifier = object()
+        app.settings = type("Settings", (), {"auto_easy_apply_enabled": True})()
+        app.run_auto_easy_apply_once = lambda: "auto-report"
+
+        with patch(
+            "job_hunter_agent.application.app.run_collection_cycle_runtime",
+            new=AsyncMock(return_value=True),
+        ) as runtime_mock, patch(
+            "job_hunter_agent.application.app.asyncio.to_thread",
+            new=AsyncMock(return_value="auto-report"),
+        ) as to_thread_mock:
+            jobs_sent = await app.run_collection_cycle()
+
+        self.assertTrue(jobs_sent)
+        runtime_mock.assert_awaited_once()
+        to_thread_mock.assert_awaited_once_with(app.run_auto_easy_apply_once)
+
+    async def test_run_collection_cycle_skips_auto_apply_when_disabled(self) -> None:
+        app = JobHunterApplication.__new__(JobHunterApplication)
+        app.repository = object()
+        app.collector = object()
+        app.notifier = object()
+        app.settings = type("Settings", (), {"auto_easy_apply_enabled": False})()
+        app.run_auto_easy_apply_once = lambda: "auto-report"
+
+        with patch(
+            "job_hunter_agent.application.app.run_collection_cycle_runtime",
+            new=AsyncMock(return_value=False),
+        ) as runtime_mock, patch(
+            "job_hunter_agent.application.app.asyncio.to_thread",
+            new=AsyncMock(return_value="auto-report"),
+        ) as to_thread_mock:
+            jobs_sent = await app.run_collection_cycle()
+
+        self.assertFalse(jobs_sent)
+        runtime_mock.assert_awaited_once()
+        to_thread_mock.assert_not_awaited()
 
 
 class ParseArgsTests(IsolatedAsyncioTestCase):
