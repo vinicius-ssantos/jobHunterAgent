@@ -45,7 +45,7 @@ Aumentar organizacao, testabilidade e isolamento de falhas sem explodir complexi
 - [x] Refatorar o ciclo para `CollectionCycleOrchestrator` + workers sem mudar o comportamento externo.
 - [x] Extrair `collector_worker` para processo separado mantendo contratos estaveis.
 - [x] Extrair `matching_worker` para processo separado mantendo idempotencia por evento.
-- [ ] Adicionar DLQ local e politica padrao de retry/backoff por etapa.
+- [x] Adicionar DLQ local e politica padrao de retry/backoff por etapa.
 
 ## Fase 2 (depois, opcional): microservicos reais
 

@@ -5,6 +5,12 @@ from dataclasses import asdict
 from pathlib import Path
 
 from job_hunter_agent.application.cycle_workers import JobScoredV1
+from job_hunter_agent.application.worker_runtime import (
+    DEFAULT_WORKER_DLQ_PATH,
+    append_worker_dlq_event,
+    build_worker_dlq_event,
+    run_with_retry,
+)
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
@@ -79,38 +85,64 @@ async def run_matching_worker_once(
     settings: Settings | None = None,
 ) -> str:
     runtime_settings = settings or load_settings()
-    processed_ids = load_processed_event_ids(state_path=state_path)
-    events = _iter_collected_events(input_path=input_path)
-    emitted_count = 0
-    skipped_duplicates = 0
+    dlq_path = DEFAULT_WORKER_DLQ_PATH
 
-    for event in events:
-        run_id = _safe_int(event.get("run_id"))
-        jobs = event.get("jobs")
-        if run_id <= 0 or not isinstance(jobs, list):
-            continue
-        for job in jobs:
-            if not isinstance(job, dict):
-                continue
-            external_key = str(job.get("external_key") or "").strip()
-            if not external_key:
-                continue
-            event_key = f"{run_id}:{external_key}"
-            if event_key in processed_ids:
-                skipped_duplicates += 1
-                continue
-            relevance = _safe_int(job.get("relevance"))
-            scored_event = JobScoredV1(
-                run_id=run_id,
-                external_key=external_key,
-                accepted=relevance >= runtime_settings.minimum_relevance,
-                relevance=relevance,
-            )
-            append_scored_event_ndjson(output_path=output_path, event=scored_event)
-            processed_ids.add(event_key)
-            emitted_count += 1
+    async def _process() -> tuple[int, int]:
+        processed_ids = load_processed_event_ids(state_path=state_path)
+        events = _iter_collected_events(input_path=input_path)
+        emitted_count = 0
+        skipped_duplicates = 0
 
-    save_processed_event_ids(state_path=state_path, processed_event_ids=processed_ids)
+        for event in events:
+            run_id = _safe_int(event.get("run_id"))
+            jobs = event.get("jobs")
+            if run_id <= 0 or not isinstance(jobs, list):
+                continue
+            for job in jobs:
+                if not isinstance(job, dict):
+                    continue
+                external_key = str(job.get("external_key") or "").strip()
+                if not external_key:
+                    continue
+                event_key = f"{run_id}:{external_key}"
+                if event_key in processed_ids:
+                    skipped_duplicates += 1
+                    continue
+                relevance = _safe_int(job.get("relevance"))
+                scored_event = JobScoredV1(
+                    run_id=run_id,
+                    external_key=external_key,
+                    accepted=relevance >= runtime_settings.minimum_relevance,
+                    relevance=relevance,
+                )
+                append_scored_event_ndjson(output_path=output_path, event=scored_event)
+                processed_ids.add(event_key)
+                emitted_count += 1
+
+        save_processed_event_ids(state_path=state_path, processed_event_ids=processed_ids)
+        return emitted_count, skipped_duplicates
+
+    try:
+        emitted_count, skipped_duplicates = await run_with_retry(
+            operation="matching.process_events",
+            action=_process,
+        )
+    except Exception as exc:
+        append_worker_dlq_event(
+            output_path=dlq_path,
+            event=build_worker_dlq_event(
+                worker="matching_worker",
+                operation="process_events",
+                payload={
+                    "input_path": str(input_path),
+                    "output_path": str(output_path),
+                    "state_path": str(state_path),
+                },
+                error=str(exc),
+            ),
+        )
+        raise
+
     return (
         f"matching_worker: eventos JobScoredV1 emitidos={emitted_count} "
         f"duplicados_ignorados={skipped_duplicates} input={input_path} output={output_path}"
