@@ -5,6 +5,12 @@ import logging
 from datetime import datetime, timedelta
 from typing import Awaitable, Callable
 
+from job_hunter_agent.application.cycle_workers import (
+    CollectionCycleOrchestrator,
+    DefaultCollectionWorker,
+    DefaultReviewWorker,
+)
+
 
 async def run_collection_cycle(
     repository,
@@ -13,35 +19,12 @@ async def run_collection_cycle(
     *,
     logger: logging.Logger,
 ) -> bool:
-    run = repository.start_collection_run()
-    logger.info("Ciclo de coleta iniciado. run_id=%s", run.id)
-    try:
-        report = await collector.collect_new_jobs_report()
-        repository.finish_collection_run(
-            run.id,
-            status="success",
-            jobs_seen=report.jobs_seen,
-            jobs_saved=report.jobs_saved,
-            errors=report.errors,
-        )
-    except Exception as exc:
-        repository.finish_collection_run(
-            run.id,
-            status="error",
-            jobs_seen=0,
-            jobs_saved=0,
-            errors=1,
-        )
-        logger.exception("Falha no ciclo de coleta.")
-        await notifier.send_text(f"Falha no ciclo de coleta: {exc}")
-        return False
-
-    jobs = list(report.jobs)
-    if not jobs:
-        await notifier.send_text("Nenhuma vaga nova passou na triagem de hoje.")
-        return False
-    await notifier.notify_jobs_for_review(jobs)
-    return True
+    orchestrator = CollectionCycleOrchestrator(
+        repository=repository,
+        collection_worker=DefaultCollectionWorker(collector),
+        review_worker=DefaultReviewWorker(notifier),
+    )
+    return await orchestrator.run_cycle(logger=logger)
 
 
 async def wait_for_review_window(
