@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Protocol
 
@@ -161,6 +161,10 @@ class SqliteJobRepository:
     def _connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         return sqlite3.connect(self.db_path)
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     def _url_lookup_patterns(self, url: str) -> list[str]:
         return self.identity_strategy.url_lookup_patterns(url)
@@ -537,7 +541,11 @@ class SqliteJobRepository:
 
     def start_collection_run(self) -> CollectionRun:
         with self._connect() as connection:
-            cursor = connection.execute("INSERT INTO collection_runs DEFAULT VALUES")
+            started_at = self._utc_now_iso()
+            cursor = connection.execute(
+                "INSERT INTO collection_runs (started_at, status, jobs_seen, jobs_saved, errors) VALUES (?, 'running', 0, 0, 0)",
+                (started_at,),
+            )
             row = connection.execute(
                 """
                 SELECT id, started_at, finished_at, status, jobs_seen, jobs_saved, errors
@@ -564,7 +572,7 @@ class SqliteJobRepository:
                 SET finished_at = ?, status = ?, jobs_seen = ?, jobs_saved = ?, errors = ?
                 WHERE id = ?
                 """,
-                (datetime.now().isoformat(timespec="seconds"), status, jobs_seen, jobs_saved, errors, run_id),
+                (self._utc_now_iso(), status, jobs_seen, jobs_saved, errors, run_id),
             )
 
     def interrupt_running_collection_runs(self) -> int:
@@ -575,7 +583,7 @@ class SqliteJobRepository:
                 SET finished_at = ?, status = 'interrupted'
                 WHERE status = 'running'
                 """,
-                (datetime.now().isoformat(timespec="seconds"),),
+                (self._utc_now_iso(),),
             )
         return cursor.rowcount
 

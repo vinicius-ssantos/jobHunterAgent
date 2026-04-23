@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     linkedin_search_easy_apply_only: bool = True
     linkedin_search_recency_seconds: int = 604800
     linkedin_search_sort_by: str = "DD"
+    linkedin_precision_gate_enabled: bool = True
     save_failure_artifacts: bool = False
     failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
     max_jobs_per_site: int = 20
