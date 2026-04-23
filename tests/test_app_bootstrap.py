@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from job_hunter_agent.application.app import JobHunterApplication
 from job_hunter_agent.application.cli_bootstrap import (
+    create_auto_apply_app,
     create_application_flow_app,
     create_query_app,
     create_review_app,
@@ -83,6 +84,31 @@ class JobHunterApplicationBootstrapTests(TestCase):
 
         initialize_query_mock.assert_called_once_with()
         initialize_review_mock.assert_not_called()
+        initialize_flow_mock.assert_called_once_with()
+        self.assertIs(app.repository, repository)
+        self.assertFalse(app.enable_telegram)
+
+    def test_create_auto_apply_app_initializes_review_and_flow_services(self) -> None:
+        settings = object()
+        repository = object()
+
+        with patch("job_hunter_agent.application.cli_bootstrap.load_settings", return_value=settings), patch(
+            "job_hunter_agent.application.cli_bootstrap.create_repository",
+            return_value=repository,
+        ), patch.object(
+            JobHunterApplication,
+            "_initialize_query_services",
+        ) as initialize_query_mock, patch.object(
+            JobHunterApplication,
+            "_initialize_review_services",
+        ) as initialize_review_mock, patch.object(
+            JobHunterApplication,
+            "_initialize_flow_services",
+        ) as initialize_flow_mock:
+            app = create_auto_apply_app()
+
+        initialize_query_mock.assert_called_once_with()
+        initialize_review_mock.assert_called_once_with()
         initialize_flow_mock.assert_called_once_with()
         self.assertIs(app.repository, repository)
         self.assertFalse(app.enable_telegram)

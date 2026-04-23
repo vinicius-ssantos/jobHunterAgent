@@ -25,6 +25,14 @@ def create_application_flow_app() -> JobHunterApplication:
     return app
 
 
+def create_auto_apply_app() -> JobHunterApplication:
+    app = _create_cli_app_base()
+    app._initialize_query_services()
+    app._initialize_review_services()
+    app._initialize_flow_services()
+    return app
+
+
 def _create_cli_app_base() -> JobHunterApplication:
     app = JobHunterApplication.__new__(JobHunterApplication)
     app.enable_telegram = False

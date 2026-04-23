@@ -369,6 +369,13 @@ class ParseArgsTests(IsolatedAsyncioTestCase):
         self.assertEqual(args.applications_command, "submit")
         self.assertEqual(args.id, 7)
 
+    async def test_parse_args_accepts_applications_auto_apply_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "auto-apply"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "auto-apply")
+
     async def test_parse_args_accepts_candidate_profile_suggest_command(self) -> None:
         with patch("sys.argv", ["main.py", "candidate-profile", "suggest"]):
             args = parse_args()

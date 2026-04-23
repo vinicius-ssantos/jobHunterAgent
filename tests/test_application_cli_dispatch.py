@@ -89,6 +89,32 @@ class ApplicationCliDispatchTests(TestCase):
         asyncio_run.assert_called_once_with("preflight=7")
         print_mock.assert_called_once_with("preflight=7")
 
+    def test_execute_cli_command_dispatches_application_auto_apply(self) -> None:
+        fake_app = type(
+            "FakeApp",
+            (),
+            {
+                "run_auto_easy_apply_once": lambda self: "auto-apply ok",
+            },
+        )()
+
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="applications",
+            applications_command="auto-apply",
+            sem_telegram=True,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.create_auto_apply_app",
+            return_value=fake_app,
+        ) as app_factory, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        app_factory.assert_called_once_with()
+        print_mock.assert_called_once_with("auto-apply ok")
+
     def test_execute_cli_command_returns_false_for_scheduler_mode(self) -> None:
         args = Namespace(
             bootstrap_linkedin_session=False,

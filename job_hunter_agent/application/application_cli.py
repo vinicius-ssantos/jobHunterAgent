@@ -156,6 +156,11 @@ def parse_args() -> argparse.Namespace:
         help="Valida se o submit poderia rodar agora, sem alterar estado nem tocar o portal.",
     )
 
+    applications_subparsers.add_parser(
+        "auto-apply",
+        help="Executa envio em lote com gates e limites de seguranca do auto easy apply.",
+    )
+
     candidate_profile_parser = subparsers.add_parser(
         "candidate-profile",
         help="Operacoes do perfil estruturado do candidato.",
