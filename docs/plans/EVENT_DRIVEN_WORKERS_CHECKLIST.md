@@ -27,6 +27,7 @@ A meta desta frente e criar seams reais para execucao distribuida futura, manten
 
 O CLI ja possui comandos de worker isolado:
 
+- `python main.py worker list`
 - `python main.py worker collect`
 - `python main.py worker match`
 
@@ -97,13 +98,13 @@ Workers alvo:
 
 Checklist:
 
-- [ ] Documentar responsabilidade de cada worker.
-- [ ] Criar entrypoints ou comandos CLI claros para cada worker.
-- [ ] Garantir que cada worker inicialize apenas as dependencias necessarias.
-- [ ] Evitar que worker de coleta inicialize Telegram quando nao precisa.
-- [ ] Evitar que worker de matching inicialize browser quando nao precisa.
+- [x] Documentar responsabilidade de cada worker.
+- [x] Criar entrypoints ou comandos CLI claros para cada worker.
+- [x] Garantir que cada worker inicialize apenas as dependencias necessarias.
+- [x] Evitar que worker de coleta inicialize Telegram quando nao precisa.
+- [x] Evitar que worker de matching inicialize browser quando nao precisa.
 - [ ] Adicionar logs com `correlation_id`.
-- [ ] Adicionar testes de inicializacao leve dos workers.
+- [x] Adicionar testes de inicializacao leve dos workers.
 
 ## Fase 4 — Storage E Idempotencia
 
@@ -194,4 +195,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Implementar a Fase 3 documentando responsabilidades dos workers, separando entrypoints/comandos mais claros e adicionando testes de inicializacao leve para evitar que cada worker carregue dependencias desnecessarias.
+Implementar a Fase 4 com foco pequeno: definir ownership de escrita por tabela/evento e preparar estrategia de idempotencia antes de qualquer broker externo.
