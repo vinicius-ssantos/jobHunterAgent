@@ -7,12 +7,15 @@ from job_hunter_agent.application.application_messages import (
 )
 from job_hunter_agent.application.contracts import PreparationPort
 from job_hunter_agent.application.review_workflow import resolve_application_action, resolve_review_action
+from job_hunter_agent.core.event_bus import EventBusPort
+from job_hunter_agent.core.events import ApplicationAuthorizedV1, JobReviewedV1
 from job_hunter_agent.infrastructure.repository import JobRepository
 
 
 class JobReviewCommandService:
-    def __init__(self, repository: JobRepository) -> None:
+    def __init__(self, repository: JobRepository, event_bus: EventBusPort | None = None) -> None:
         self.repository = repository
+        self.event_bus = event_bus
 
     def review_job(self, job_id: int, action: str) -> str:
         job = self.repository.get_job(job_id)
@@ -22,6 +25,18 @@ class JobReviewCommandService:
         if next_status is None:
             return detail
         self.repository.mark_status(job_id, next_status, detail=detail)
+        if self.event_bus is not None:
+            self.event_bus.publish(
+                JobReviewedV1(
+                    job_id=job_id,
+                    decision=action,
+                    status=next_status,
+                    reviewed_by="command",
+                    notes=detail,
+                    external_key=job.external_key,
+                    correlation_id=f"job:{job_id}",
+                )
+            )
         return detail
 
 
@@ -60,8 +75,9 @@ class ApplicationDraftCommandService:
 
 
 class ApplicationTransitionCommandService:
-    def __init__(self, repository: JobRepository) -> None:
+    def __init__(self, repository: JobRepository, event_bus: EventBusPort | None = None) -> None:
         self.repository = repository
+        self.event_bus = event_bus
 
     def transition_application(self, application_id: int, action: str) -> str:
         application = self.repository.get_application(application_id)
@@ -71,6 +87,17 @@ class ApplicationTransitionCommandService:
         if next_status is None:
             return detail
         self.repository.mark_application_status(application_id, status=next_status, event_detail=detail)
+        if self.event_bus is not None and next_status == "authorized_submit":
+            self.event_bus.publish(
+                ApplicationAuthorizedV1(
+                    application_id=application_id,
+                    job_id=application.job_id,
+                    authorized_by="command",
+                    authorization_source="manual",
+                    status=next_status,
+                    correlation_id=f"application:{application_id}",
+                )
+            )
         return detail
 
     def authorize_application(self, application_id: int) -> str:

@@ -22,6 +22,8 @@ from job_hunter_agent.application.application_ports import (
     normalize_application_submission_result,
 )
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
+from job_hunter_agent.core.event_bus import EventBusPort
+from job_hunter_agent.core.events import ApplicationBlockedV1, ApplicationSubmittedV1
 from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
 from job_hunter_agent.infrastructure.repository import JobRepository
 
@@ -39,11 +41,13 @@ class ApplicationSubmissionService:
         repository: JobRepository,
         applicant: SubmitPort | None = None,
         readiness_checker: ApplicationReadinessCheckService | None = None,
+        event_bus: EventBusPort | None = None,
     ) -> None:
         self.repository = repository
         self.applicant = applicant
         self.flow = ApplicationFlowCoordinator(repository)
         self.readiness_checker = readiness_checker
+        self.event_bus = event_bus
 
     def run_dry_run_for_application(self, application_id: int) -> ApplicationSubmitResult:
         context = load_application_context(self.repository, application_id)
@@ -120,6 +124,13 @@ class ApplicationSubmissionService:
                 notes=append_note(application.notes, detail),
                 last_error=detail,
             )
+            self._publish_blocked_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                reason="preflight_not_ready",
+                detail=detail,
+                retryable=True,
+            )
             return ApplicationSubmitResult(
                 outcome="ignored",
                 detail=detail,
@@ -134,6 +145,13 @@ class ApplicationSubmissionService:
                 status="error_submit",
                 notes=append_note(application.notes, detail),
                 last_error=detail,
+            )
+            self._publish_blocked_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                reason="portal_not_supported",
+                detail=detail,
+                retryable=False,
             )
             return ApplicationSubmitResult(
                 outcome="blocked",
@@ -151,6 +169,13 @@ class ApplicationSubmissionService:
                     notes=append_note(application.notes, detail),
                     last_error="",
                 )
+                self._publish_blocked_event(
+                    application_id=application.id,
+                    job_id=job.id or application.job_id,
+                    reason="readiness_incomplete",
+                    detail=detail,
+                    retryable=True,
+                )
                 return ApplicationSubmitResult(
                     outcome="ignored",
                     detail=detail,
@@ -165,6 +190,13 @@ class ApplicationSubmissionService:
                 event_type="submit_ignored",
                 status="authorized_submit",
                 clear_error=True,
+            )
+            self._publish_blocked_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                reason="submit_unavailable",
+                detail=detail,
+                retryable=True,
             )
             return ApplicationSubmitResult(
                 outcome="ignored",
@@ -183,6 +215,13 @@ class ApplicationSubmissionService:
                 status="error_submit",
                 clear_error=False,
             )
+            self._publish_blocked_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                reason="applicant_error",
+                detail=detail,
+                retryable=True,
+            )
             return ApplicationSubmitResult(
                 outcome="error",
                 detail=detail,
@@ -200,6 +239,17 @@ class ApplicationSubmissionService:
                 clear_error=True,
                 submitted_at=self.flow.resolve_submitted_at(result.submitted_at),
             )
+            if self.event_bus is not None:
+                self.event_bus.publish(
+                    ApplicationSubmittedV1(
+                        application_id=application.id,
+                        job_id=job.id or application.job_id,
+                        portal=capabilities.portal_name,
+                        confirmation_reference=result.external_reference,
+                        submitted_url=job.url,
+                        correlation_id=f"application:{application.id}",
+                    )
+                )
             return ApplicationSubmitResult(
                 outcome="submitted",
                 detail=detail,
@@ -213,10 +263,39 @@ class ApplicationSubmissionService:
             status="error_submit",
             clear_error=False,
         )
+        self._publish_blocked_event(
+            application_id=application.id,
+            job_id=job.id or application.job_id,
+            reason="submit_not_completed",
+            detail=detail,
+            retryable=True,
+        )
         return ApplicationSubmitResult(
             outcome="error",
             detail=detail,
             application_status=application_status,
+        )
+
+    def _publish_blocked_event(
+        self,
+        *,
+        application_id: int | None,
+        job_id: int,
+        reason: str,
+        detail: str,
+        retryable: bool,
+    ) -> None:
+        if self.event_bus is None or application_id is None:
+            return
+        self.event_bus.publish(
+            ApplicationBlockedV1(
+                application_id=application_id,
+                job_id=job_id,
+                reason=reason,
+                detail=detail,
+                retryable=retryable,
+                correlation_id=f"application:{application_id}",
+            )
         )
 
 
