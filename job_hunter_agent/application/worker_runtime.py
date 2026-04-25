@@ -22,6 +22,7 @@ class WorkerDlqEvent:
     operation: str
     payload: dict
     error: str
+    correlation_id: str = ""
 
 
 def append_worker_dlq_event(*, output_path: Path, event: WorkerDlqEvent) -> None:
@@ -59,11 +60,19 @@ async def run_with_retry(
     raise RuntimeError(f"{operation} falhou apos {max_attempts} tentativas: {last_exc}") from last_exc
 
 
-def build_worker_dlq_event(*, worker: str, operation: str, payload: dict, error: str) -> WorkerDlqEvent:
+def build_worker_dlq_event(
+    *,
+    worker: str,
+    operation: str,
+    payload: dict,
+    error: str,
+    correlation_id: str = "",
+) -> WorkerDlqEvent:
     return WorkerDlqEvent(
         timestamp_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         worker=worker,
         operation=operation,
         payload=payload,
         error=error,
+        correlation_id=correlation_id,
     )
