@@ -192,6 +192,7 @@ def parse_args() -> argparse.Namespace:
         help="Executa workers isolados da fase 1 (processos separados).",
     )
     worker_subparsers = worker_parser.add_subparsers(dest="worker_command", required=True)
+    worker_subparsers.add_parser("list", help="Lista workers conhecidos e suas responsabilidades.")
     worker_collect_parser = worker_subparsers.add_parser(
         "collect",
         help="Executa apenas o collector_worker e emite JobCollectedV1 em NDJSON.",
