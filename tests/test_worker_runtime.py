@@ -47,6 +47,7 @@ class WorkerRuntimeDlqTests(TestCase):
             operation="process_events",
             payload={"run_id": 1},
             error="erro",
+            correlation_id="collection-run:1",
         )
         try:
             append_worker_dlq_event(output_path=output_path, event=event)
@@ -57,9 +58,20 @@ class WorkerRuntimeDlqTests(TestCase):
             self.assertEqual(payload["operation"], "process_events")
             self.assertEqual(payload["payload"], {"run_id": 1})
             self.assertEqual(payload["error"], "erro")
+            self.assertEqual(payload["correlation_id"], "collection-run:1")
             self.assertIn("+00:00", payload["timestamp_utc"])
         finally:
             if output_path.exists():
                 output_path.unlink()
             if temp_dir.exists():
                 temp_dir.rmdir()
+
+    def test_build_worker_dlq_event_defaults_empty_correlation_id(self) -> None:
+        event = build_worker_dlq_event(
+            worker="collector_worker",
+            operation="collect_new_jobs_report",
+            payload={},
+            error="erro",
+        )
+
+        self.assertEqual(event.correlation_id, "")
