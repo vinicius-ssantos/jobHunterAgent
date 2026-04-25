@@ -103,7 +103,7 @@ Checklist:
 - [x] Garantir que cada worker inicialize apenas as dependencias necessarias.
 - [x] Evitar que worker de coleta inicialize Telegram quando nao precisa.
 - [x] Evitar que worker de matching inicialize browser quando nao precisa.
-- [ ] Adicionar logs com `correlation_id`.
+- [x] Adicionar logs com `correlation_id`.
 - [x] Adicionar testes de inicializacao leve dos workers.
 
 ## Fase 4 — Storage E Idempotencia
@@ -114,8 +114,8 @@ Checklist:
 
 - [x] Definir ownership de escrita em `jobs`, `seen_jobs`, `job_applications` e eventos.
 - [x] Criar estrategia de idempotencia por evento.
-- [ ] Avaliar schema versionado para SQLite.
-- [ ] Padronizar timestamps em UTC.
+- [x] Avaliar schema versionado para SQLite.
+- [x] Padronizar timestamps em UTC para novos eventos/artefatos de worker.
 - [ ] Registrar eventos de dominio para transicoes relevantes.
 - [x] Garantir que reprocessar o mesmo evento nao duplica vagas ou candidaturas.
 
@@ -195,4 +195,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Antes de iniciar Docker Compose, fechar pendencias estruturais menores: logs com `correlation_id`, avaliacao de schema versionado para SQLite e padronizacao de timestamps UTC.
+Iniciar a Fase 5 com Dockerfile e Docker Compose local, mantendo SQLite, browser state e artefatos em volumes e sem introduzir broker externo ainda.
