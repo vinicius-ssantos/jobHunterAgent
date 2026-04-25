@@ -135,12 +135,13 @@ Servicos candidatos:
 
 Checklist:
 
-- [ ] Criar `Dockerfile` da aplicacao.
-- [ ] Criar `docker-compose.yml` inicial.
-- [ ] Configurar volumes para SQLite, browser state e artefatos.
-- [ ] Documentar bootstrap de sessao LinkedIn em ambiente containerizado.
-- [ ] Documentar limites e riscos de automacao com browser.
-- [ ] Garantir modo sem Telegram para workers internos.
+- [x] Criar `Dockerfile` da aplicacao.
+- [x] Criar `docker-compose.yml` inicial.
+- [x] Configurar volumes para SQLite, browser state e artefatos.
+- [x] Documentar bootstrap de sessao LinkedIn em ambiente containerizado.
+- [x] Documentar limites e riscos de automacao com browser.
+- [x] Garantir modo sem Telegram para workers internos.
+- [ ] Validar build e comandos Docker localmente.
 
 ## Fase 6 — Broker Externo Opcional
 
@@ -195,4 +196,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Iniciar a Fase 5 com Dockerfile e Docker Compose local, mantendo SQLite, browser state e artefatos em volumes e sem introduzir broker externo ainda.
+Validar localmente Docker build e comandos Compose. Depois disso, iniciar Fase 6 apenas se houver necessidade real de broker externo; caso contrario, manter NDJSON local como transporte de desenvolvimento.
