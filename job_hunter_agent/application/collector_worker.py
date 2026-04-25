@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
-from dataclasses import asdict
 from pathlib import Path
 
 from job_hunter_agent.application.composition import create_collection_service, create_repository
-from job_hunter_agent.application.cycle_workers import JobCollectedV1
 from job_hunter_agent.application.worker_runtime import (
     DEFAULT_WORKER_DLQ_PATH,
     append_worker_dlq_event,
@@ -13,6 +10,7 @@ from job_hunter_agent.application.worker_runtime import (
     run_with_retry,
 )
 from job_hunter_agent.core.domain import CollectionReport
+from job_hunter_agent.core.events import JobCollectedV1, event_to_json
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
@@ -23,13 +21,13 @@ def build_job_collected_event(*, run_id: int, report: CollectionReport) -> JobCo
         jobs_seen=report.jobs_seen,
         jobs_saved=report.jobs_saved,
         errors=report.errors,
+        correlation_id=f"collection-run:{run_id}",
     )
 
 
 def append_event_ndjson(*, output_path: Path, event: JobCollectedV1) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = asdict(event)
-    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    serialized = event_to_json(event)
     with output_path.open("a", encoding="utf-8") as handle:
         handle.write(serialized)
         handle.write("\n")
