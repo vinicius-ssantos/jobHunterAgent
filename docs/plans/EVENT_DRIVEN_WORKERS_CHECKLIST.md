@@ -1,0 +1,197 @@
+# Event Driven Workers Checklist
+
+## Objetivo
+
+Evoluir o runtime atual para uma arquitetura orientada a eventos e workers separados, sem migrar imediatamente para microservicos em repositorios distintos.
+
+A meta desta frente e criar seams reais para execucao distribuida futura, mantendo o produto atual estavel e evitando uma reescrita big bang.
+
+## Decisao Arquitetural
+
+- [x] Manter o repositorio atual como fonte de verdade do produto.
+- [x] Evitar criar um novo repositorio para microservicos antes de estabilizar contratos e eventos.
+- [x] Evoluir primeiro para um modular monolith com workers executaveis separadamente.
+- [x] Preservar o loop principal atual de coleta, matching, revisao humana e candidatura assistida.
+- [x] Tratar microservicos reais como opcao futura, nao como destino imediato obrigatorio.
+
+## Principios
+
+- contratos antes de infraestrutura
+- workers antes de multiplos repositorios
+- eventos versionados antes de filas externas
+- idempotencia antes de paralelismo
+- observabilidade antes de automacao mais agressiva
+- compatibilidade com o runtime atual durante toda a transicao
+
+## Estado Atual Relevante
+
+O CLI ja possui comandos de worker isolado:
+
+- `python main.py worker collect`
+- `python main.py worker match`
+
+Esses comandos sao a base inicial para a extracao gradual.
+
+## Fase 0 — Plano E Fronteiras
+
+- [x] Criar checklist da frente event-driven workers.
+- [ ] Mapear fluxos atuais que viram eventos.
+- [ ] Definir glossario minimo de eventos e comandos.
+- [ ] Registrar decisoes de fronteira entre runtime atual, workers e storage.
+- [ ] Garantir que nenhuma mudanca desta fase altere comportamento operacional.
+
+## Fase 1 — Contratos De Eventos Versionados
+
+Criar contratos pequenos, explicitos e testaveis para eventos do pipeline.
+
+Eventos candidatos:
+
+- `JobCollectedV1`
+- `JobScoredV1`
+- `JobPersistedV1`
+- `JobReviewRequestedV1`
+- `JobReviewedV1`
+- `ApplicationDraftCreatedV1`
+- `ApplicationPreflightCompletedV1`
+- `ApplicationAuthorizedV1`
+- `ApplicationSubmittedV1`
+- `ApplicationBlockedV1`
+
+Checklist:
+
+- [ ] Criar modulo de contratos de eventos em `job_hunter_agent/core/events.py` ou pacote equivalente.
+- [ ] Definir campos minimos para `JobCollectedV1`.
+- [ ] Definir campos minimos para `JobScoredV1`.
+- [ ] Definir campos minimos para eventos de revisao.
+- [ ] Definir campos minimos para eventos de candidatura.
+- [ ] Incluir `event_id`, `event_type`, `event_version`, `occurred_at` e `correlation_id` onde fizer sentido.
+- [ ] Adicionar serializacao/deserializacao JSON.
+- [ ] Adicionar testes de round-trip dos eventos.
+- [ ] Garantir compatibilidade dos eventos com NDJSON atual dos workers.
+
+## Fase 2 — Porta De Event Bus Local
+
+Introduzir uma abstracao de transporte antes de escolher Redis, RabbitMQ, NATS ou outro broker.
+
+Checklist:
+
+- [ ] Criar `EventBusPort` com `publish` e `consume`/`read` conforme necessidade real.
+- [ ] Implementar `LocalNdjsonEventBus` usando arquivos locais.
+- [ ] Adaptar `worker collect` para publicar via porta em vez de escrever diretamente no detalhe do transporte.
+- [ ] Adaptar `worker match` para consumir via porta.
+- [ ] Adicionar idempotencia minima por `event_id` ou chave natural.
+- [ ] Adicionar testes unitarios do event bus local.
+- [ ] Manter CLI atual compativel com `--input`, `--output` e `--state`.
+
+## Fase 3 — Separacao Dos Workers Sem Separar Repos
+
+Transformar os comandos existentes em workers mais explicitos, mas ainda no mesmo repositorio.
+
+Workers alvo:
+
+- `collector-worker`
+- `matching-worker`
+- `review-notifier-worker`
+- `application-worker`
+- `scheduler-worker`
+
+Checklist:
+
+- [ ] Documentar responsabilidade de cada worker.
+- [ ] Criar entrypoints ou comandos CLI claros para cada worker.
+- [ ] Garantir que cada worker inicialize apenas as dependencias necessarias.
+- [ ] Evitar que worker de coleta inicialize Telegram quando nao precisa.
+- [ ] Evitar que worker de matching inicialize browser quando nao precisa.
+- [ ] Adicionar logs com `correlation_id`.
+- [ ] Adicionar testes de inicializacao leve dos workers.
+
+## Fase 4 — Storage E Idempotencia
+
+Antes de filas externas, o projeto precisa garantir consistencia quando workers rodam separados.
+
+Checklist:
+
+- [ ] Definir ownership de escrita em `jobs`, `seen_jobs`, `job_applications` e eventos.
+- [ ] Criar estrategia de idempotencia por evento.
+- [ ] Avaliar schema versionado para SQLite.
+- [ ] Padronizar timestamps em UTC.
+- [ ] Registrar eventos de dominio para transicoes relevantes.
+- [ ] Garantir que reprocessar o mesmo evento nao duplica vagas ou candidaturas.
+
+## Fase 5 — Docker Compose Local
+
+Criar ambiente local reprodutivel antes de microservicos reais.
+
+Servicos candidatos:
+
+- `scheduler`
+- `collector-worker`
+- `matching-worker`
+- `telegram-bot`
+- `application-worker`
+- `ollama` externo/local documentado
+- volume para banco e artefatos
+
+Checklist:
+
+- [ ] Criar `Dockerfile` da aplicacao.
+- [ ] Criar `docker-compose.yml` inicial.
+- [ ] Configurar volumes para SQLite, browser state e artefatos.
+- [ ] Documentar bootstrap de sessao LinkedIn em ambiente containerizado.
+- [ ] Documentar limites e riscos de automacao com browser.
+- [ ] Garantir modo sem Telegram para workers internos.
+
+## Fase 6 — Broker Externo Opcional
+
+Somente apos contratos, workers e idempotencia estarem estaveis.
+
+Opcoes:
+
+- Redis Streams
+- RabbitMQ
+- NATS
+
+Checklist:
+
+- [ ] Escolher broker com base em simplicidade operacional.
+- [ ] Implementar adapter mantendo `EventBusPort`.
+- [ ] Manter `LocalNdjsonEventBus` para testes e desenvolvimento.
+- [ ] Criar testes de contrato compartilhados entre adapters.
+- [ ] Documentar retries, dead-letter e poison messages.
+
+## Fase 7 — Avaliacao De Microservicos Reais
+
+So separar repositorios se houver beneficio concreto.
+
+Criterios para considerar multiplos repos:
+
+- [ ] deploy independente realmente necessario
+- [ ] ciclos de mudanca muito diferentes entre componentes
+- [ ] necessidade de escalar workers independentemente
+- [ ] contratos versionados ja estaveis
+- [ ] observabilidade e retry ja resolvidos
+- [ ] custo de operacao aceito conscientemente
+
+## Fora De Escopo Nesta Frente
+
+- reescrever todo o produto
+- remover o runtime atual
+- trocar SQLite por Postgres sem necessidade imediata
+- introduzir Kubernetes
+- separar repositorios antes dos contratos
+- automatizar submissao sem gates humanos e operacionais
+
+## Definicao De Pronto Da Frente
+
+Esta frente sera considerada concluida quando:
+
+- workers principais puderem rodar separadamente no mesmo repositorio
+- contratos de eventos tiverem testes de round-trip
+- o transporte local NDJSON estiver atras de uma porta
+- reprocessamento basico for idempotente
+- Docker Compose local estiver documentado
+- o runtime atual continuar funcionando sem regressao
+
+## Proximo Passo Imediato
+
+Implementar a Fase 1 com foco em `JobCollectedV1` e `JobScoredV1`, porque eles ja aparecem no desenho dos workers atuais e permitem evolucao incremental sem tocar no fluxo sensivel de candidatura.
