@@ -49,6 +49,10 @@ def _iter_collected_events(*, input_path: Path) -> list[JobCollectedV1]:
     return list(LocalNdjsonEventBus(input_path).read_job_collected())
 
 
+def _legacy_job_scoring_key(*, event: JobCollectedV1, external_key: str) -> str:
+    return f"{event.run_id}:{external_key}"
+
+
 async def run_matching_worker_once(
     *,
     input_path: Path,
@@ -96,8 +100,10 @@ async def run_matching_worker_once(
                 if not external_key:
                     continue
                 event_key = build_job_scoring_key(event=event, external_key=external_key)
-                if event_key in processed_ids:
+                legacy_event_key = _legacy_job_scoring_key(event=event, external_key=external_key)
+                if event_key in processed_ids or legacy_event_key in processed_ids:
                     skipped_duplicates += 1
+                    processed_ids.add(event_key)
                     logger.info(
                         "matching_worker ignorou duplicado event_key=%s correlation_id=%s",
                         event_key,
