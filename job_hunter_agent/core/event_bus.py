@@ -4,13 +4,17 @@ from pathlib import Path
 from typing import Protocol
 
 from job_hunter_agent.core.events import (
+    ApplicationAuthorizedV1,
+    ApplicationBlockedV1,
+    ApplicationSubmittedV1,
+    DomainEvent,
     JobCollectedV1,
+    JobReviewRequestedV1,
+    JobReviewedV1,
     JobScoredV1,
     event_from_json,
     event_to_json,
 )
-
-DomainEvent = JobCollectedV1 | JobScoredV1
 
 
 class EventBusPort(Protocol):
@@ -51,3 +55,18 @@ class LocalNdjsonEventBus:
 
     def read_job_scored(self) -> tuple[JobScoredV1, ...]:
         return tuple(event for event in self.read_all() if isinstance(event, JobScoredV1))
+
+    def read_job_review_requested(self) -> tuple[JobReviewRequestedV1, ...]:
+        return tuple(event for event in self.read_all() if isinstance(event, JobReviewRequestedV1))
+
+    def read_job_reviewed(self) -> tuple[JobReviewedV1, ...]:
+        return tuple(event for event in self.read_all() if isinstance(event, JobReviewedV1))
+
+    def read_application_authorized(self) -> tuple[ApplicationAuthorizedV1, ...]:
+        return tuple(event for event in self.read_all() if isinstance(event, ApplicationAuthorizedV1))
+
+    def read_application_submitted(self) -> tuple[ApplicationSubmittedV1, ...]:
+        return tuple(event for event in self.read_all() if isinstance(event, ApplicationSubmittedV1))
+
+    def read_application_blocked(self) -> tuple[ApplicationBlockedV1, ...]:
+        return tuple(event for event in self.read_all() if isinstance(event, ApplicationBlockedV1))
