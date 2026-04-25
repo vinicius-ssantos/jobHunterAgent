@@ -9,21 +9,13 @@ from job_hunter_agent.application.worker_runtime import (
     build_worker_dlq_event,
     run_with_retry,
 )
-from job_hunter_agent.core.events import (
-    JobCollectedV1,
-    JobScoredV1,
-    event_from_dict,
-    event_to_json,
-)
+from job_hunter_agent.core.event_bus import EventBusPort, LocalNdjsonEventBus
+from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
 def append_scored_event_ndjson(*, output_path: Path, event: JobScoredV1) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = event_to_json(event)
-    with output_path.open("a", encoding="utf-8") as handle:
-        handle.write(payload)
-        handle.write("\n")
+    LocalNdjsonEventBus(output_path).publish(event)
 
 
 def load_processed_event_ids(*, state_path: Path) -> set[str]:
@@ -50,26 +42,7 @@ def save_processed_event_ids(*, state_path: Path, processed_event_ids: set[str])
 
 
 def _iter_collected_events(*, input_path: Path) -> list[JobCollectedV1]:
-    if not input_path.exists():
-        return []
-    events: list[JobCollectedV1] = []
-    for line in input_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            parsed = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(parsed, dict):
-            continue
-        try:
-            event = event_from_dict(parsed)
-        except ValueError:
-            continue
-        if isinstance(event, JobCollectedV1):
-            events.append(event)
-    return events
+    return list(LocalNdjsonEventBus(input_path).read_job_collected())
 
 
 async def run_matching_worker_once(
@@ -78,13 +51,17 @@ async def run_matching_worker_once(
     output_path: Path,
     state_path: Path,
     settings: Settings | None = None,
+    input_bus: EventBusPort | None = None,
+    output_bus: EventBusPort | None = None,
 ) -> str:
     runtime_settings = settings or load_settings()
     dlq_path = DEFAULT_WORKER_DLQ_PATH
 
     async def _process() -> tuple[int, int]:
         processed_ids = load_processed_event_ids(state_path=state_path)
-        events = _iter_collected_events(input_path=input_path)
+        source_bus = input_bus or LocalNdjsonEventBus(input_path)
+        sink_bus = output_bus or LocalNdjsonEventBus(output_path)
+        events = tuple(event for event in source_bus.read_all() if isinstance(event, JobCollectedV1))
         emitted_count = 0
         skipped_duplicates = 0
 
@@ -106,7 +83,7 @@ async def run_matching_worker_once(
                     relevance=job.relevance,
                     correlation_id=event.correlation_id or event.event_id,
                 )
-                append_scored_event_ndjson(output_path=output_path, event=scored_event)
+                sink_bus.publish(scored_event)
                 processed_ids.add(event_key)
                 emitted_count += 1
 
