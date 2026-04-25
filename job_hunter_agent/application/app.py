@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -216,12 +217,16 @@ class JobHunterApplication:
         )
 
     async def run_collection_cycle(self) -> bool:
-        return await run_collection_cycle_runtime(
+        jobs_sent_for_review = await run_collection_cycle_runtime(
             self.repository,
             self.collector,
             self.notifier,
             logger=logger,
         )
+        if getattr(self.settings, "auto_easy_apply_enabled", False):
+            auto_apply_report = await asyncio.to_thread(self.run_auto_easy_apply_once)
+            logger.info("Execucao auto easy apply apos ciclo:\n%s", auto_apply_report)
+        return jobs_sent_for_review
 
     async def wait_for_review_window(self) -> None:
         await wait_for_review_window_runtime(
