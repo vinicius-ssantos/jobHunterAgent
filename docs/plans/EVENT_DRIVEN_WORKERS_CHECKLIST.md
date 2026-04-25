@@ -75,13 +75,13 @@ Introduzir uma abstracao de transporte antes de escolher Redis, RabbitMQ, NATS o
 
 Checklist:
 
-- [ ] Criar `EventBusPort` com `publish` e `consume`/`read` conforme necessidade real.
-- [ ] Implementar `LocalNdjsonEventBus` usando arquivos locais.
-- [ ] Adaptar `worker collect` para publicar via porta em vez de escrever diretamente no detalhe do transporte.
-- [ ] Adaptar `worker match` para consumir via porta.
-- [ ] Adicionar idempotencia minima por `event_id` ou chave natural.
-- [ ] Adicionar testes unitarios do event bus local.
-- [ ] Manter CLI atual compativel com `--input`, `--output` e `--state`.
+- [x] Criar `EventBusPort` com `publish` e `consume`/`read` conforme necessidade real.
+- [x] Implementar `LocalNdjsonEventBus` usando arquivos locais.
+- [x] Adaptar `worker collect` para publicar via porta em vez de escrever diretamente no detalhe do transporte.
+- [x] Adaptar `worker match` para consumir via porta.
+- [x] Adicionar idempotencia minima por `event_id` ou chave natural.
+- [x] Adicionar testes unitarios do event bus local.
+- [x] Manter CLI atual compativel com `--input`, `--output` e `--state`.
 
 ## Fase 3 — Separacao Dos Workers Sem Separar Repos
 
@@ -194,4 +194,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Implementar a Fase 2 com `EventBusPort` e `LocalNdjsonEventBus`, mantendo o transporte NDJSON atual atras de uma porta e sem trocar ainda para broker externo.
+Implementar a Fase 3 documentando responsabilidades dos workers, separando entrypoints/comandos mais claros e adicionando testes de inicializacao leve para evitar que cada worker carregue dependencias desnecessarias.
