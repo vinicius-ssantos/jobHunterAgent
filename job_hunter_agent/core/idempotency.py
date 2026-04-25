@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
+from job_hunter_agent.core.events import DomainEvent, JobCollectedV1
 
 
 def normalize_idempotency_part(value: object) -> str:
@@ -22,7 +22,7 @@ def build_job_scoring_key(*, event: JobCollectedV1, external_key: str) -> str:
     )
 
 
-def build_event_processing_key(*, event: JobCollectedV1 | JobScoredV1, subject: str = "") -> str:
+def build_event_processing_key(*, event: DomainEvent, subject: str = "") -> str:
     event_subject = normalize_idempotency_part(subject) or normalize_idempotency_part(event.event_id)
     return build_event_subject_key(
         event_type=event.event_type,
