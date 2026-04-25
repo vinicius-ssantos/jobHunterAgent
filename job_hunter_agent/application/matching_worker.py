@@ -11,6 +11,7 @@ from job_hunter_agent.application.worker_runtime import (
 )
 from job_hunter_agent.core.event_bus import EventBusPort, LocalNdjsonEventBus
 from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
+from job_hunter_agent.core.idempotency import build_job_scoring_key
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
@@ -72,7 +73,7 @@ async def run_matching_worker_once(
                 external_key = str(job.external_key or "").strip()
                 if not external_key:
                     continue
-                event_key = f"{event.run_id}:{external_key}"
+                event_key = build_job_scoring_key(event=event, external_key=external_key)
                 if event_key in processed_ids:
                     skipped_duplicates += 1
                     continue
