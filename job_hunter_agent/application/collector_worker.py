@@ -72,8 +72,10 @@ async def run_collector_worker_once(
         )
         raise
     event = build_job_collected_event(run_id=run.id, report=report)
-    bus = event_bus or LocalNdjsonEventBus(output_path)
-    bus.publish(event)
+    if event_bus is None:
+        append_event_ndjson(output_path=output_path, event=event)
+    else:
+        event_bus.publish(event)
     return (
         f"collector_worker: evento JobCollectedV1 emitido "
         f"run_id={run.id} vistas={report.jobs_seen} persistidas={report.jobs_saved} "
