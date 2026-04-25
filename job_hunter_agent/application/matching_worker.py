@@ -1,22 +1,26 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 from pathlib import Path
 
-from job_hunter_agent.application.cycle_workers import JobScoredV1
 from job_hunter_agent.application.worker_runtime import (
     DEFAULT_WORKER_DLQ_PATH,
     append_worker_dlq_event,
     build_worker_dlq_event,
     run_with_retry,
 )
+from job_hunter_agent.core.events import (
+    JobCollectedV1,
+    JobScoredV1,
+    event_from_dict,
+    event_to_json,
+)
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
 def append_scored_event_ndjson(*, output_path: Path, event: JobScoredV1) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(asdict(event), ensure_ascii=False, separators=(",", ":"))
+    payload = event_to_json(event)
     with output_path.open("a", encoding="utf-8") as handle:
         handle.write(payload)
         handle.write("\n")
@@ -45,10 +49,10 @@ def save_processed_event_ids(*, state_path: Path, processed_event_ids: set[str])
     state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _iter_collected_events(*, input_path: Path) -> list[dict]:
+def _iter_collected_events(*, input_path: Path) -> list[JobCollectedV1]:
     if not input_path.exists():
         return []
-    events: list[dict] = []
+    events: list[JobCollectedV1] = []
     for line in input_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
@@ -57,24 +61,15 @@ def _iter_collected_events(*, input_path: Path) -> list[dict]:
             parsed = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, dict):
-            events.append(parsed)
-    return events
-
-
-def _safe_int(value: object) -> int:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
+        if not isinstance(parsed, dict):
+            continue
         try:
-            return int(value.strip())
+            event = event_from_dict(parsed)
         except ValueError:
-            return 0
-    return 0
+            continue
+        if isinstance(event, JobCollectedV1):
+            events.append(event)
+    return events
 
 
 async def run_matching_worker_once(
@@ -94,26 +89,22 @@ async def run_matching_worker_once(
         skipped_duplicates = 0
 
         for event in events:
-            run_id = _safe_int(event.get("run_id"))
-            jobs = event.get("jobs")
-            if run_id <= 0 or not isinstance(jobs, list):
+            if event.run_id <= 0:
                 continue
-            for job in jobs:
-                if not isinstance(job, dict):
-                    continue
-                external_key = str(job.get("external_key") or "").strip()
+            for job in event.jobs:
+                external_key = str(job.external_key or "").strip()
                 if not external_key:
                     continue
-                event_key = f"{run_id}:{external_key}"
+                event_key = f"{event.run_id}:{external_key}"
                 if event_key in processed_ids:
                     skipped_duplicates += 1
                     continue
-                relevance = _safe_int(job.get("relevance"))
                 scored_event = JobScoredV1(
-                    run_id=run_id,
+                    run_id=event.run_id,
                     external_key=external_key,
-                    accepted=relevance >= runtime_settings.minimum_relevance,
-                    relevance=relevance,
+                    accepted=job.relevance >= runtime_settings.minimum_relevance,
+                    relevance=job.relevance,
+                    correlation_id=event.correlation_id or event.event_id,
                 )
                 append_scored_event_ndjson(output_path=output_path, event=scored_event)
                 processed_ids.add(event_key)
