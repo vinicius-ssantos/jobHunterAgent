@@ -142,7 +142,7 @@ Checklist:
 - [x] Documentar limites e riscos de automacao com browser.
 - [x] Garantir modo sem Telegram para workers internos.
 - [x] Adicionar validacao Docker em CI.
-- [ ] Validar build e comandos Docker localmente apos CI executar.
+- [x] Validar build e comandos Docker via workflow.
 
 ## Fase 6 — Broker Externo Opcional
 
@@ -197,4 +197,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Aguardar/validar o workflow Docker. Se passar, manter NDJSON local como transporte de desenvolvimento e so iniciar Fase 6 caso surja necessidade real de broker externo.
+Manter NDJSON local como transporte de desenvolvimento. Iniciar Fase 6 somente se surgir necessidade real de broker externo, como concorrencia entre multiplos consumidores, retries persistentes mais fortes ou execucao distribuida fora da maquina local.
