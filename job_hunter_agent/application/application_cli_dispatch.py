@@ -10,6 +10,7 @@ from job_hunter_agent.application.application_cli import (
 )
 from job_hunter_agent.application.collector_worker import run_collector_worker_once
 from job_hunter_agent.application.matching_worker import run_matching_worker_once
+from job_hunter_agent.application.worker_catalog import render_worker_catalog
 from job_hunter_agent.application.cli_bootstrap import (
     create_application_flow_app,
     create_auto_apply_app,
@@ -138,6 +139,9 @@ def _run_candidate_profile_command(args: Namespace) -> None:
 
 
 def _run_worker_command(args: Namespace) -> None:
+    if args.worker_command == "list":
+        print(render_worker_catalog())
+        return
     if args.worker_command == "collect":
         print(asyncio.run(run_collector_worker_once(output_path=args.output)))
         return

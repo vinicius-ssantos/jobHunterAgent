@@ -1,25 +1,25 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+import logging
 from pathlib import Path
 
-from job_hunter_agent.application.cycle_workers import JobScoredV1
 from job_hunter_agent.application.worker_runtime import (
     DEFAULT_WORKER_DLQ_PATH,
     append_worker_dlq_event,
     build_worker_dlq_event,
     run_with_retry,
 )
+from job_hunter_agent.core.event_bus import EventBusPort, LocalNdjsonEventBus
+from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
+from job_hunter_agent.core.idempotency import build_job_scoring_key
 from job_hunter_agent.core.settings import Settings, load_settings
+
+logger = logging.getLogger(__name__)
 
 
 def append_scored_event_ndjson(*, output_path: Path, event: JobScoredV1) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(asdict(event), ensure_ascii=False, separators=(",", ":"))
-    with output_path.open("a", encoding="utf-8") as handle:
-        handle.write(payload)
-        handle.write("\n")
+    LocalNdjsonEventBus(output_path).publish(event)
 
 
 def load_processed_event_ids(*, state_path: Path) -> set[str]:
@@ -45,36 +45,12 @@ def save_processed_event_ids(*, state_path: Path, processed_event_ids: set[str])
     state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _iter_collected_events(*, input_path: Path) -> list[dict]:
-    if not input_path.exists():
-        return []
-    events: list[dict] = []
-    for line in input_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            parsed = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(parsed, dict):
-            events.append(parsed)
-    return events
+def _iter_collected_events(*, input_path: Path) -> list[JobCollectedV1]:
+    return list(LocalNdjsonEventBus(input_path).read_job_collected())
 
 
-def _safe_int(value: object) -> int:
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value.strip())
-        except ValueError:
-            return 0
-    return 0
+def _legacy_job_scoring_key(*, event: JobCollectedV1, external_key: str) -> str:
+    return f"{event.run_id}:{external_key}"
 
 
 async def run_matching_worker_once(
@@ -83,39 +59,74 @@ async def run_matching_worker_once(
     output_path: Path,
     state_path: Path,
     settings: Settings | None = None,
+    input_bus: EventBusPort | None = None,
+    output_bus: EventBusPort | None = None,
 ) -> str:
     runtime_settings = settings or load_settings()
     dlq_path = DEFAULT_WORKER_DLQ_PATH
+    logger.info(
+        "matching_worker iniciado input=%s output=%s state=%s",
+        input_path,
+        output_path,
+        state_path,
+    )
 
     async def _process() -> tuple[int, int]:
         processed_ids = load_processed_event_ids(state_path=state_path)
-        events = _iter_collected_events(input_path=input_path)
+        source_bus = input_bus or LocalNdjsonEventBus(input_path)
+        sink_bus = output_bus or LocalNdjsonEventBus(output_path)
+        events = tuple(event for event in source_bus.read_all() if isinstance(event, JobCollectedV1))
         emitted_count = 0
         skipped_duplicates = 0
 
         for event in events:
-            run_id = _safe_int(event.get("run_id"))
-            jobs = event.get("jobs")
-            if run_id <= 0 or not isinstance(jobs, list):
+            if event.run_id <= 0:
+                logger.info(
+                    "matching_worker ignorou evento invalido event_id=%s correlation_id=%s run_id=%s",
+                    event.event_id,
+                    event.correlation_id,
+                    event.run_id,
+                )
                 continue
-            for job in jobs:
-                if not isinstance(job, dict):
-                    continue
-                external_key = str(job.get("external_key") or "").strip()
+            logger.info(
+                "matching_worker processando evento event_id=%s correlation_id=%s run_id=%s jobs=%s",
+                event.event_id,
+                event.correlation_id,
+                event.run_id,
+                len(event.jobs),
+            )
+            for job in event.jobs:
+                external_key = str(job.external_key or "").strip()
                 if not external_key:
                     continue
-                event_key = f"{run_id}:{external_key}"
-                if event_key in processed_ids:
+                event_key = build_job_scoring_key(event=event, external_key=external_key)
+                legacy_event_key = _legacy_job_scoring_key(event=event, external_key=external_key)
+                if event_key in processed_ids or legacy_event_key in processed_ids:
                     skipped_duplicates += 1
+                    processed_ids.add(event_key)
+                    logger.info(
+                        "matching_worker ignorou duplicado event_key=%s correlation_id=%s",
+                        event_key,
+                        event.correlation_id,
+                    )
                     continue
-                relevance = _safe_int(job.get("relevance"))
                 scored_event = JobScoredV1(
-                    run_id=run_id,
+                    run_id=event.run_id,
                     external_key=external_key,
-                    accepted=relevance >= runtime_settings.minimum_relevance,
-                    relevance=relevance,
+                    accepted=job.relevance >= runtime_settings.minimum_relevance,
+                    relevance=job.relevance,
+                    correlation_id=event.correlation_id or event.event_id,
                 )
-                append_scored_event_ndjson(output_path=output_path, event=scored_event)
+                sink_bus.publish(scored_event)
+                logger.info(
+                    "matching_worker publicou evento event_type=%s event_id=%s correlation_id=%s external_key=%s accepted=%s relevance=%s",
+                    scored_event.event_type,
+                    scored_event.event_id,
+                    scored_event.correlation_id,
+                    scored_event.external_key,
+                    scored_event.accepted,
+                    scored_event.relevance,
+                )
                 processed_ids.add(event_key)
                 emitted_count += 1
 
@@ -128,6 +139,12 @@ async def run_matching_worker_once(
             action=_process,
         )
     except Exception as exc:
+        logger.exception(
+            "matching_worker falhou input=%s output=%s state=%s",
+            input_path,
+            output_path,
+            state_path,
+        )
         append_worker_dlq_event(
             output_path=dlq_path,
             event=build_worker_dlq_event(
@@ -143,6 +160,13 @@ async def run_matching_worker_once(
         )
         raise
 
+    logger.info(
+        "matching_worker concluido emitidos=%s duplicados_ignorados=%s input=%s output=%s",
+        emitted_count,
+        skipped_duplicates,
+        input_path,
+        output_path,
+    )
     return (
         f"matching_worker: eventos JobScoredV1 emitidos={emitted_count} "
         f"duplicados_ignorados={skipped_duplicates} input={input_path} output={output_path}"

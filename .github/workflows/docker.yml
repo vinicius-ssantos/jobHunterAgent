@@ -1,0 +1,31 @@
+name: Docker
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    name: Validacao Docker local
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preparar env local para Compose
+        run: cp .env.example .env
+
+      - name: Validar Docker Compose
+        run: docker compose --profile workers --profile scheduler --profile telegram --profile application config
+
+      - name: Build da imagem Docker
+        run: docker build -t job-hunter-agent:ci .
+
+      - name: Validar comando leve de workers
+        run: docker run --rm --env-file .env job-hunter-agent:ci python main.py worker list

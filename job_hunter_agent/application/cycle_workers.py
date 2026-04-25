@@ -3,16 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from job_hunter_agent.core.domain import CollectionReport, JobPosting
-
-
-@dataclass(frozen=True)
-class JobCollectedV1:
-    run_id: int
-    jobs: tuple[JobPosting, ...]
-    jobs_seen: int
-    jobs_saved: int
-    errors: int
+from job_hunter_agent.core.domain import CollectionReport
+from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
 
 
 @dataclass(frozen=True)
@@ -20,14 +12,6 @@ class JobNormalizedV1:
     run_id: int
     external_key: str
     source_site: str
-
-
-@dataclass(frozen=True)
-class JobScoredV1:
-    run_id: int
-    external_key: str
-    accepted: bool
-    relevance: int
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,109 @@
+services:
+  scheduler:
+    build: .
+    command: ["python", "main.py", "--sem-telegram"]
+    env_file:
+      - .env
+    environment:
+      JOB_HUNTER_DATABASE_PATH: /app/data/jobs.db
+      JOB_HUNTER_BROWSER_USE_CONFIG_DIR: /app/.browseruse
+      JOB_HUNTER_LINKEDIN_PERSISTENT_PROFILE_DIR: /app/.browseruse/profiles/linkedin-bootstrap
+      JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH: /app/.browseruse/linkedin-storage-state.json
+      JOB_HUNTER_FAILURE_ARTIFACTS_DIR: /app/.artifacts/linkedin_failures
+      JOB_HUNTER_OLLAMA_URL: ${JOB_HUNTER_OLLAMA_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.browseruse:/app/.browseruse
+      - ./.artifacts:/app/.artifacts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["scheduler"]
+
+  collector-worker:
+    build: .
+    command: ["python", "main.py", "worker", "collect", "--output", "/app/logs/worker-events.ndjson"]
+    env_file:
+      - .env
+    environment:
+      JOB_HUNTER_DATABASE_PATH: /app/data/jobs.db
+      JOB_HUNTER_BROWSER_USE_CONFIG_DIR: /app/.browseruse
+      JOB_HUNTER_LINKEDIN_PERSISTENT_PROFILE_DIR: /app/.browseruse/profiles/linkedin-bootstrap
+      JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH: /app/.browseruse/linkedin-storage-state.json
+      JOB_HUNTER_FAILURE_ARTIFACTS_DIR: /app/.artifacts/linkedin_failures
+      JOB_HUNTER_OLLAMA_URL: ${JOB_HUNTER_OLLAMA_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.browseruse:/app/.browseruse
+      - ./.artifacts:/app/.artifacts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["workers"]
+
+  matching-worker:
+    build: .
+    command:
+      [
+        "python",
+        "main.py",
+        "worker",
+        "match",
+        "--input",
+        "/app/logs/worker-events.ndjson",
+        "--output",
+        "/app/logs/worker-scored-events.ndjson",
+        "--state",
+        "/app/logs/worker-match-state.json"
+      ]
+    env_file:
+      - .env
+    environment:
+      JOB_HUNTER_DATABASE_PATH: /app/data/jobs.db
+      JOB_HUNTER_OLLAMA_URL: ${JOB_HUNTER_OLLAMA_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["workers"]
+
+  telegram-bot:
+    build: .
+    command: ["python", "main.py"]
+    env_file:
+      - .env
+    environment:
+      JOB_HUNTER_DATABASE_PATH: /app/data/jobs.db
+      JOB_HUNTER_BROWSER_USE_CONFIG_DIR: /app/.browseruse
+      JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH: /app/.browseruse/linkedin-storage-state.json
+      JOB_HUNTER_FAILURE_ARTIFACTS_DIR: /app/.artifacts/linkedin_failures
+      JOB_HUNTER_OLLAMA_URL: ${JOB_HUNTER_OLLAMA_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.browseruse:/app/.browseruse
+      - ./.artifacts:/app/.artifacts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["telegram"]
+
+  application-worker:
+    build: .
+    command: ["python", "main.py", "applications", "auto-apply"]
+    env_file:
+      - .env
+    environment:
+      JOB_HUNTER_DATABASE_PATH: /app/data/jobs.db
+      JOB_HUNTER_BROWSER_USE_CONFIG_DIR: /app/.browseruse
+      JOB_HUNTER_LINKEDIN_STORAGE_STATE_PATH: /app/.browseruse/linkedin-storage-state.json
+      JOB_HUNTER_FAILURE_ARTIFACTS_DIR: /app/.artifacts/linkedin_failures
+      JOB_HUNTER_OLLAMA_URL: ${JOB_HUNTER_OLLAMA_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.browseruse:/app/.browseruse
+      - ./.artifacts:/app/.artifacts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["application"]
