@@ -10,7 +10,8 @@ from job_hunter_agent.application.worker_runtime import (
     run_with_retry,
 )
 from job_hunter_agent.core.domain import CollectionReport
-from job_hunter_agent.core.events import JobCollectedV1, event_to_json
+from job_hunter_agent.core.event_bus import EventBusPort, LocalNdjsonEventBus
+from job_hunter_agent.core.events import JobCollectedV1
 from job_hunter_agent.core.settings import Settings, load_settings
 
 
@@ -26,14 +27,15 @@ def build_job_collected_event(*, run_id: int, report: CollectionReport) -> JobCo
 
 
 def append_event_ndjson(*, output_path: Path, event: JobCollectedV1) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    serialized = event_to_json(event)
-    with output_path.open("a", encoding="utf-8") as handle:
-        handle.write(serialized)
-        handle.write("\n")
+    LocalNdjsonEventBus(output_path).publish(event)
 
 
-async def run_collector_worker_once(*, output_path: Path, settings: Settings | None = None) -> str:
+async def run_collector_worker_once(
+    *,
+    output_path: Path,
+    settings: Settings | None = None,
+    event_bus: EventBusPort | None = None,
+) -> str:
     runtime_settings = settings or load_settings()
     repository = create_repository(runtime_settings)
     collector = create_collection_service(settings=runtime_settings, repository=repository)
@@ -70,7 +72,8 @@ async def run_collector_worker_once(*, output_path: Path, settings: Settings | N
         )
         raise
     event = build_job_collected_event(run_id=run.id, report=report)
-    append_event_ndjson(output_path=output_path, event=event)
+    bus = event_bus or LocalNdjsonEventBus(output_path)
+    bus.publish(event)
     return (
         f"collector_worker: evento JobCollectedV1 emitido "
         f"run_id={run.id} vistas={report.jobs_seen} persistidas={report.jobs_saved} "
