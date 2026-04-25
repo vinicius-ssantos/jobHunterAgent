@@ -112,12 +112,12 @@ Antes de filas externas, o projeto precisa garantir consistencia quando workers 
 
 Checklist:
 
-- [ ] Definir ownership de escrita em `jobs`, `seen_jobs`, `job_applications` e eventos.
-- [ ] Criar estrategia de idempotencia por evento.
+- [x] Definir ownership de escrita em `jobs`, `seen_jobs`, `job_applications` e eventos.
+- [x] Criar estrategia de idempotencia por evento.
 - [ ] Avaliar schema versionado para SQLite.
 - [ ] Padronizar timestamps em UTC.
 - [ ] Registrar eventos de dominio para transicoes relevantes.
-- [ ] Garantir que reprocessar o mesmo evento nao duplica vagas ou candidaturas.
+- [x] Garantir que reprocessar o mesmo evento nao duplica vagas ou candidaturas.
 
 ## Fase 5 — Docker Compose Local
 
@@ -195,4 +195,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Implementar a Fase 4 com foco pequeno: definir ownership de escrita por tabela/evento e preparar estrategia de idempotencia antes de qualquer broker externo.
+Antes de iniciar Docker Compose, fechar pendencias estruturais menores: logs com `correlation_id`, avaliacao de schema versionado para SQLite e padronizacao de timestamps UTC.
