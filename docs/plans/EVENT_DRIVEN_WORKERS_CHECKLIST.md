@@ -141,7 +141,8 @@ Checklist:
 - [x] Documentar bootstrap de sessao LinkedIn em ambiente containerizado.
 - [x] Documentar limites e riscos de automacao com browser.
 - [x] Garantir modo sem Telegram para workers internos.
-- [ ] Validar build e comandos Docker localmente.
+- [x] Adicionar validacao Docker em CI.
+- [ ] Validar build e comandos Docker localmente apos CI executar.
 
 ## Fase 6 — Broker Externo Opcional
 
@@ -196,4 +197,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Validar localmente Docker build e comandos Compose. Depois disso, iniciar Fase 6 apenas se houver necessidade real de broker externo; caso contrario, manter NDJSON local como transporte de desenvolvimento.
+Aguardar/validar o workflow Docker. Se passar, manter NDJSON local como transporte de desenvolvimento e so iniciar Fase 6 caso surja necessidade real de broker externo.
