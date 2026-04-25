@@ -5,7 +5,15 @@ from unittest import TestCase
 
 from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.event_bus import LocalNdjsonEventBus
-from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
+from job_hunter_agent.core.events import (
+    ApplicationAuthorizedV1,
+    ApplicationBlockedV1,
+    ApplicationSubmittedV1,
+    JobCollectedV1,
+    JobReviewRequestedV1,
+    JobReviewedV1,
+    JobScoredV1,
+)
 from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
@@ -86,6 +94,53 @@ class LocalNdjsonEventBusTests(TestCase):
 
         self.assertEqual(len(bus.read_job_collected()), 1)
         self.assertEqual(len(bus.read_job_scored()), 1)
+
+    def test_read_helpers_filter_domain_review_and_application_events(self) -> None:
+        bus = LocalNdjsonEventBus(self.events_path)
+        bus.publish(
+            JobReviewRequestedV1(
+                job_id=123,
+                external_key="job-key-123",
+                source_site="LinkedIn",
+                relevance=9,
+            )
+        )
+        bus.publish(
+            JobReviewedV1(
+                job_id=123,
+                decision="approve",
+                status="approved",
+            )
+        )
+        bus.publish(
+            ApplicationAuthorizedV1(
+                application_id=55,
+                job_id=123,
+            )
+        )
+        bus.publish(
+            ApplicationSubmittedV1(
+                application_id=55,
+                job_id=123,
+                portal="LinkedIn",
+            )
+        )
+        bus.publish(
+            ApplicationBlockedV1(
+                application_id=56,
+                job_id=124,
+                reason="outside_schedule",
+                retryable=True,
+            )
+        )
+
+        self.assertEqual(len(bus.read_job_review_requested()), 1)
+        self.assertEqual(len(bus.read_job_reviewed()), 1)
+        self.assertEqual(len(bus.read_application_authorized()), 1)
+        self.assertEqual(len(bus.read_application_submitted()), 1)
+        self.assertEqual(len(bus.read_application_blocked()), 1)
+        self.assertEqual(bus.read_application_blocked()[0].reason, "outside_schedule")
+        self.assertTrue(bus.read_application_blocked()[0].retryable)
 
     def test_read_all_ignores_invalid_lines(self) -> None:
         self.events_path.parent.mkdir(parents=True, exist_ok=True)
