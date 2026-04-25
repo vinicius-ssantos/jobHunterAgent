@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from job_hunter_agent.application.worker_runtime import (
@@ -13,6 +14,8 @@ from job_hunter_agent.core.event_bus import EventBusPort, LocalNdjsonEventBus
 from job_hunter_agent.core.events import JobCollectedV1, JobScoredV1
 from job_hunter_agent.core.idempotency import build_job_scoring_key
 from job_hunter_agent.core.settings import Settings, load_settings
+
+logger = logging.getLogger(__name__)
 
 
 def append_scored_event_ndjson(*, output_path: Path, event: JobScoredV1) -> None:
@@ -57,6 +60,12 @@ async def run_matching_worker_once(
 ) -> str:
     runtime_settings = settings or load_settings()
     dlq_path = DEFAULT_WORKER_DLQ_PATH
+    logger.info(
+        "matching_worker iniciado input=%s output=%s state=%s",
+        input_path,
+        output_path,
+        state_path,
+    )
 
     async def _process() -> tuple[int, int]:
         processed_ids = load_processed_event_ids(state_path=state_path)
@@ -68,7 +77,20 @@ async def run_matching_worker_once(
 
         for event in events:
             if event.run_id <= 0:
+                logger.info(
+                    "matching_worker ignorou evento invalido event_id=%s correlation_id=%s run_id=%s",
+                    event.event_id,
+                    event.correlation_id,
+                    event.run_id,
+                )
                 continue
+            logger.info(
+                "matching_worker processando evento event_id=%s correlation_id=%s run_id=%s jobs=%s",
+                event.event_id,
+                event.correlation_id,
+                event.run_id,
+                len(event.jobs),
+            )
             for job in event.jobs:
                 external_key = str(job.external_key or "").strip()
                 if not external_key:
@@ -76,6 +98,11 @@ async def run_matching_worker_once(
                 event_key = build_job_scoring_key(event=event, external_key=external_key)
                 if event_key in processed_ids:
                     skipped_duplicates += 1
+                    logger.info(
+                        "matching_worker ignorou duplicado event_key=%s correlation_id=%s",
+                        event_key,
+                        event.correlation_id,
+                    )
                     continue
                 scored_event = JobScoredV1(
                     run_id=event.run_id,
@@ -85,6 +112,15 @@ async def run_matching_worker_once(
                     correlation_id=event.correlation_id or event.event_id,
                 )
                 sink_bus.publish(scored_event)
+                logger.info(
+                    "matching_worker publicou evento event_type=%s event_id=%s correlation_id=%s external_key=%s accepted=%s relevance=%s",
+                    scored_event.event_type,
+                    scored_event.event_id,
+                    scored_event.correlation_id,
+                    scored_event.external_key,
+                    scored_event.accepted,
+                    scored_event.relevance,
+                )
                 processed_ids.add(event_key)
                 emitted_count += 1
 
@@ -97,6 +133,12 @@ async def run_matching_worker_once(
             action=_process,
         )
     except Exception as exc:
+        logger.exception(
+            "matching_worker falhou input=%s output=%s state=%s",
+            input_path,
+            output_path,
+            state_path,
+        )
         append_worker_dlq_event(
             output_path=dlq_path,
             event=build_worker_dlq_event(
@@ -112,6 +154,13 @@ async def run_matching_worker_once(
         )
         raise
 
+    logger.info(
+        "matching_worker concluido emitidos=%s duplicados_ignorados=%s input=%s output=%s",
+        emitted_count,
+        skipped_duplicates,
+        input_path,
+        output_path,
+    )
     return (
         f"matching_worker: eventos JobScoredV1 emitidos={emitted_count} "
         f"duplicados_ignorados={skipped_duplicates} input={input_path} output={output_path}"
