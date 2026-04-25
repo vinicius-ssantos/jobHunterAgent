@@ -30,6 +30,7 @@ from job_hunter_agent.application.composition import (
     create_application_preparation_service,
     create_application_submission_service,
     create_collection_service,
+    create_domain_event_bus,
     create_notifier,
     create_repository,
     create_runtime_guard,
@@ -88,6 +89,7 @@ class JobHunterApplication:
         self.enable_telegram = enable_telegram
         self.settings = load_settings()
         self.repository = create_repository(self.settings)
+        self.domain_event_bus = create_domain_event_bus(self.settings)
         self._initialize_query_services()
         self._initialize_review_services()
         self._initialize_flow_services()
@@ -110,16 +112,23 @@ class JobHunterApplication:
 
     def _initialize_review_services(self) -> None:
         self.application_preparation = create_application_preparation_service(self.repository, self.settings)
-        self.job_review_commands = JobReviewCommandService(self.repository)
+        self.job_review_commands = JobReviewCommandService(self.repository, event_bus=self.domain_event_bus)
         self.application_draft_commands = ApplicationDraftCommandService(
             self.repository,
             self.application_preparation,
         )
-        self.application_transition_commands = ApplicationTransitionCommandService(self.repository)
+        self.application_transition_commands = ApplicationTransitionCommandService(
+            self.repository,
+            event_bus=self.domain_event_bus,
+        )
 
     def _initialize_flow_services(self) -> None:
         self.application_preflight = create_application_preflight_service(self.repository, self.settings)
-        self.application_submission = create_application_submission_service(self.repository, self.settings)
+        self.application_submission = create_application_submission_service(
+            self.repository,
+            self.settings,
+            event_bus=self.domain_event_bus,
+        )
         self.auto_easy_apply = AutoEasyApplyService(
             repository=self.repository,
             preflight=self.application_preflight,
@@ -284,7 +293,7 @@ class JobHunterApplication:
     def _job_review_commands(self) -> JobReviewCommandService:
         service = getattr(self, "job_review_commands", None)
         if service is None:
-            service = JobReviewCommandService(self.repository)
+            service = JobReviewCommandService(self.repository, event_bus=getattr(self, "domain_event_bus", None))
             self.job_review_commands = service
         return service
 
@@ -298,7 +307,10 @@ class JobHunterApplication:
     def _application_transition_commands(self) -> ApplicationTransitionCommandService:
         service = getattr(self, "application_transition_commands", None)
         if service is None:
-            service = ApplicationTransitionCommandService(self.repository)
+            service = ApplicationTransitionCommandService(
+                self.repository,
+                event_bus=getattr(self, "domain_event_bus", None),
+            )
             self.application_transition_commands = service
         return service
 
