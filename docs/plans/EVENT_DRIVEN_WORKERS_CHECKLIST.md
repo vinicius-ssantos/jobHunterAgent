@@ -59,15 +59,15 @@ Eventos candidatos:
 
 Checklist:
 
-- [ ] Criar modulo de contratos de eventos em `job_hunter_agent/core/events.py` ou pacote equivalente.
-- [ ] Definir campos minimos para `JobCollectedV1`.
-- [ ] Definir campos minimos para `JobScoredV1`.
+- [x] Criar modulo de contratos de eventos em `job_hunter_agent/core/events.py` ou pacote equivalente.
+- [x] Definir campos minimos para `JobCollectedV1`.
+- [x] Definir campos minimos para `JobScoredV1`.
 - [ ] Definir campos minimos para eventos de revisao.
 - [ ] Definir campos minimos para eventos de candidatura.
-- [ ] Incluir `event_id`, `event_type`, `event_version`, `occurred_at` e `correlation_id` onde fizer sentido.
-- [ ] Adicionar serializacao/deserializacao JSON.
-- [ ] Adicionar testes de round-trip dos eventos.
-- [ ] Garantir compatibilidade dos eventos com NDJSON atual dos workers.
+- [x] Incluir `event_id`, `event_type`, `event_version`, `occurred_at` e `correlation_id` onde fizer sentido.
+- [x] Adicionar serializacao/deserializacao JSON.
+- [x] Adicionar testes de round-trip dos eventos.
+- [x] Garantir compatibilidade dos eventos com NDJSON atual dos workers.
 
 ## Fase 2 — Porta De Event Bus Local
 
@@ -194,4 +194,4 @@ Esta frente sera considerada concluida quando:
 
 ## Proximo Passo Imediato
 
-Implementar a Fase 1 com foco em `JobCollectedV1` e `JobScoredV1`, porque eles ja aparecem no desenho dos workers atuais e permitem evolucao incremental sem tocar no fluxo sensivel de candidatura.
+Implementar a Fase 2 com `EventBusPort` e `LocalNdjsonEventBus`, mantendo o transporte NDJSON atual atras de uma porta e sem trocar ainda para broker externo.
