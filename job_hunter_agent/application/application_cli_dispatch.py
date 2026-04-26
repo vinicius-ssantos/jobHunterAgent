@@ -9,6 +9,7 @@ from job_hunter_agent.application.application_cli import (
     JOB_STATUS_ALIASES,
 )
 from job_hunter_agent.application.collector_worker import run_collector_worker_once
+from job_hunter_agent.application.domain_events_cli import render_domain_events
 from job_hunter_agent.application.matching_worker import run_matching_worker_once
 from job_hunter_agent.application.worker_catalog import render_worker_catalog
 from job_hunter_agent.application.cli_bootstrap import (
@@ -39,6 +40,9 @@ def execute_cli_command(args: Namespace) -> bool:
         return True
     if args.command == "applications":
         _run_applications_command(args)
+        return True
+    if args.command == "domain-events":
+        _run_domain_events_command(args)
         return True
     if args.command == "candidate-profile":
         _run_candidate_profile_command(args)
@@ -121,6 +125,12 @@ def _run_applications_command(args: Namespace) -> None:
             print(app.show_application_submit_dry_run(args.id))
             return
         print(asyncio.run(app.handle_application_submit(args.id)))
+
+
+def _run_domain_events_command(args: Namespace) -> None:
+    settings = load_settings()
+    path = args.path or settings.domain_events_path
+    print(render_domain_events(path=path, limit=args.limit))
 
 
 def _run_candidate_profile_command(args: Namespace) -> None:
