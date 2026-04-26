@@ -25,46 +25,50 @@ A meta desta frente e criar seams reais para execucao distribuida futura, manten
 
 ## Estado Atual Relevante
 
-O CLI ja possui comandos de worker isolado:
+O CLI possui comandos de worker e inspecao de eventos:
 
 - `python main.py worker list`
 - `python main.py worker collect`
 - `python main.py worker match`
+- `python main.py domain-events list`
 
-Esses comandos sao a base inicial para a extracao gradual.
+Esses comandos sao a base inicial para a extracao gradual e para observabilidade local sem broker externo.
 
 ## Fase 0 — Plano E Fronteiras
 
 - [x] Criar checklist da frente event-driven workers.
-- [ ] Mapear fluxos atuais que viram eventos.
-- [ ] Definir glossario minimo de eventos e comandos.
-- [ ] Registrar decisoes de fronteira entre runtime atual, workers e storage.
-- [ ] Garantir que nenhuma mudanca desta fase altere comportamento operacional.
+- [x] Mapear fluxos atuais que viram eventos.
+- [x] Definir glossario minimo de eventos e comandos.
+- [x] Registrar decisoes de fronteira entre runtime atual, workers e storage.
+- [x] Garantir que nenhuma mudanca desta fase altere comportamento operacional por padrao.
 
 ## Fase 1 — Contratos De Eventos Versionados
 
 Criar contratos pequenos, explicitos e testaveis para eventos do pipeline.
 
-Eventos candidatos:
+Eventos implementados:
 
 - `JobCollectedV1`
 - `JobScoredV1`
-- `JobPersistedV1`
 - `JobReviewRequestedV1`
 - `JobReviewedV1`
-- `ApplicationDraftCreatedV1`
-- `ApplicationPreflightCompletedV1`
 - `ApplicationAuthorizedV1`
 - `ApplicationSubmittedV1`
 - `ApplicationBlockedV1`
+
+Eventos ainda candidatos/futuros:
+
+- `JobPersistedV1`
+- `ApplicationDraftCreatedV1`
+- `ApplicationPreflightCompletedV1`
 
 Checklist:
 
 - [x] Criar modulo de contratos de eventos em `job_hunter_agent/core/events.py` ou pacote equivalente.
 - [x] Definir campos minimos para `JobCollectedV1`.
 - [x] Definir campos minimos para `JobScoredV1`.
-- [ ] Definir campos minimos para eventos de revisao.
-- [ ] Definir campos minimos para eventos de candidatura.
+- [x] Definir campos minimos para eventos de revisao.
+- [x] Definir campos minimos para eventos de candidatura.
 - [x] Incluir `event_id`, `event_type`, `event_version`, `occurred_at` e `correlation_id` onde fizer sentido.
 - [x] Adicionar serializacao/deserializacao JSON.
 - [x] Adicionar testes de round-trip dos eventos.
@@ -116,7 +120,9 @@ Checklist:
 - [x] Criar estrategia de idempotencia por evento.
 - [x] Avaliar schema versionado para SQLite.
 - [x] Padronizar timestamps em UTC para novos eventos/artefatos de worker.
-- [ ] Registrar eventos de dominio para transicoes relevantes.
+- [x] Registrar eventos de dominio para transicoes relevantes.
+- [x] Permitir publicacao opcional de eventos de dominio em NDJSON via `JOB_HUNTER_DOMAIN_EVENTS_ENABLED`.
+- [x] Adicionar CLI somente leitura para inspecionar eventos de dominio.
 - [x] Garantir que reprocessar o mesmo evento nao duplica vagas ou candidaturas.
 
 ## Fase 5 — Docker Compose Local
@@ -146,9 +152,9 @@ Checklist:
 
 ## Fase 6 — Broker Externo Opcional
 
-Somente apos contratos, workers e idempotencia estarem estaveis.
+Somente apos contratos, workers e idempotencia estarem estaveis e se houver necessidade real.
 
-Opcoes:
+Opcoes futuras:
 
 - Redis Streams
 - RabbitMQ
@@ -156,11 +162,11 @@ Opcoes:
 
 Checklist:
 
-- [ ] Escolher broker com base em simplicidade operacional.
+- [ ] Escolher broker com base em simplicidade operacional, somente se necessario.
 - [ ] Implementar adapter mantendo `EventBusPort`.
-- [ ] Manter `LocalNdjsonEventBus` para testes e desenvolvimento.
+- [x] Manter `LocalNdjsonEventBus` para testes e desenvolvimento.
 - [ ] Criar testes de contrato compartilhados entre adapters.
-- [ ] Documentar retries, dead-letter e poison messages.
+- [ ] Documentar retries, dead-letter e poison messages para broker externo.
 
 ## Fase 7 — Avaliacao De Microservicos Reais
 
@@ -171,8 +177,8 @@ Criterios para considerar multiplos repos:
 - [ ] deploy independente realmente necessario
 - [ ] ciclos de mudanca muito diferentes entre componentes
 - [ ] necessidade de escalar workers independentemente
-- [ ] contratos versionados ja estaveis
-- [ ] observabilidade e retry ja resolvidos
+- [x] contratos versionados ja estaveis para os fluxos principais
+- [x] observabilidade e retry local basicos ja resolvidos
 - [ ] custo de operacao aceito conscientemente
 
 ## Fora De Escopo Nesta Frente
@@ -183,18 +189,26 @@ Criterios para considerar multiplos repos:
 - introduzir Kubernetes
 - separar repositorios antes dos contratos
 - automatizar submissao sem gates humanos e operacionais
+- introduzir broker externo sem dor operacional concreta
 
 ## Definicao De Pronto Da Frente
 
 Esta frente sera considerada concluida quando:
 
-- workers principais puderem rodar separadamente no mesmo repositorio
-- contratos de eventos tiverem testes de round-trip
-- o transporte local NDJSON estiver atras de uma porta
-- reprocessamento basico for idempotente
-- Docker Compose local estiver documentado
-- o runtime atual continuar funcionando sem regressao
+- [x] workers principais puderem rodar separadamente no mesmo repositorio
+- [x] contratos de eventos tiverem testes de round-trip
+- [x] o transporte local NDJSON estiver atras de uma porta
+- [x] reprocessamento basico for idempotente
+- [x] Docker Compose local estiver documentado
+- [x] o runtime atual continuar funcionando sem regressao em CI
 
 ## Proximo Passo Imediato
 
-Manter NDJSON local como transporte de desenvolvimento. Iniciar Fase 6 somente se surgir necessidade real de broker externo, como concorrencia entre multiplos consumidores, retries persistentes mais fortes ou execucao distribuida fora da maquina local.
+Validar manualmente o fluxo de eventos de dominio com:
+
+```bash
+JOB_HUNTER_DOMAIN_EVENTS_ENABLED=true python main.py jobs approve --id <job_id>
+python main.py domain-events list --limit 20
+```
+
+Depois disso, manter NDJSON local como transporte de desenvolvimento. Iniciar Fase 6 somente se surgir necessidade real de broker externo, como concorrencia entre multiplos consumidores, retries persistentes mais fortes ou execucao distribuida fora da maquina local.
