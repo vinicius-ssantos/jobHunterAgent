@@ -43,7 +43,31 @@ Ou aponte para um arquivo especifico:
 python main.py domain-events list --path logs/domain-events.ndjson --limit 50
 ```
 
-Se o arquivo nao existir ou estiver vazio, o comando deve responder que nenhum evento foi encontrado.
+Filtre por tipo de evento:
+
+```bash
+python main.py domain-events list --event-type ApplicationBlockedV1 --limit 20
+```
+
+Filtre por correlation id:
+
+```bash
+python main.py domain-events list --correlation-id application:31 --limit 20
+```
+
+Combine filtros:
+
+```bash
+python main.py domain-events list --event-type ApplicationBlockedV1 --correlation-id application:31 --limit 20
+```
+
+Renderize como JSON para scripts locais:
+
+```bash
+python main.py domain-events list --event-type ApplicationBlockedV1 --json
+```
+
+Se o arquivo nao existir ou estiver vazio, o comando deve responder que nenhum evento foi encontrado. Em modo `--json`, o retorno vazio e `[]`.
 
 ## Eventos Ativos
 
@@ -193,6 +217,7 @@ Possiveis causas:
 - path diferente do esperado
 - nenhuma transicao real executada desde que a flag foi habilitada
 - comando executado em outro diretorio de trabalho
+- filtros `--event-type` ou `--correlation-id` nao encontraram eventos correspondentes
 
 ### `domain-events.ndjson` nao e criado
 

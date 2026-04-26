@@ -176,6 +176,21 @@ def parse_args() -> argparse.Namespace:
         default=20,
         help="Quantidade maxima de eventos exibidos.",
     )
+    domain_events_list_parser.add_argument(
+        "--event-type",
+        default="",
+        help="Filtra pelo event_type exato, como JobReviewedV1.",
+    )
+    domain_events_list_parser.add_argument(
+        "--correlation-id",
+        default="",
+        help="Filtra pelo correlation_id exato, como application:31.",
+    )
+    domain_events_list_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Renderiza os eventos selecionados como JSON.",
+    )
 
     candidate_profile_parser = subparsers.add_parser(
         "candidate-profile",

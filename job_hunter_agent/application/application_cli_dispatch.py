@@ -130,7 +130,15 @@ def _run_applications_command(args: Namespace) -> None:
 def _run_domain_events_command(args: Namespace) -> None:
     settings = load_settings()
     path = args.path or settings.domain_events_path
-    print(render_domain_events(path=path, limit=args.limit))
+    print(
+        render_domain_events(
+            path=path,
+            limit=args.limit,
+            event_type=args.event_type,
+            correlation_id=args.correlation_id,
+            as_json=args.json,
+        )
+    )
 
 
 def _run_candidate_profile_command(args: Namespace) -> None:
