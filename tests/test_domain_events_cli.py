@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from unittest import TestCase
@@ -25,7 +26,93 @@ class DomainEventsCliTests(TestCase):
 
         self.assertEqual(rendered, f"Nenhum evento de dominio encontrado em {self.events_path}")
 
+    def test_render_domain_events_returns_empty_json_for_missing_or_empty_file(self) -> None:
+        rendered = render_domain_events(path=self.events_path, limit=10, as_json=True)
+
+        self.assertEqual(rendered, "[]")
+
     def test_render_domain_events_lists_recent_events(self) -> None:
+        self._publish_sample_events()
+
+        rendered = render_domain_events(path=self.events_path, limit=1)
+
+        self.assertIn("Eventos de dominio: 1 de 2", rendered)
+        self.assertIn("ApplicationBlockedV1", rendered)
+        self.assertIn("application_id=55", rendered)
+        self.assertIn("reason=preflight_not_ready", rendered)
+        self.assertNotIn("JobReviewedV1", rendered)
+
+    def test_render_domain_events_filters_by_event_type(self) -> None:
+        self._publish_sample_events()
+
+        rendered = render_domain_events(path=self.events_path, limit=20, event_type="JobReviewedV1")
+
+        self.assertIn("Eventos de dominio: 1 de 1", rendered)
+        self.assertIn("JobReviewedV1", rendered)
+        self.assertIn("job_id=10", rendered)
+        self.assertNotIn("ApplicationBlockedV1", rendered)
+
+    def test_render_domain_events_filters_by_correlation_id(self) -> None:
+        self._publish_sample_events()
+
+        rendered = render_domain_events(path=self.events_path, limit=20, correlation_id="application:55")
+
+        self.assertIn("Eventos de dominio: 1 de 1", rendered)
+        self.assertIn("ApplicationBlockedV1", rendered)
+        self.assertIn("correlation_id=application:55", rendered)
+        self.assertNotIn("JobReviewedV1", rendered)
+
+    def test_render_domain_events_outputs_json_for_selected_events(self) -> None:
+        self._publish_sample_events()
+
+        rendered = render_domain_events(
+            path=self.events_path,
+            limit=20,
+            event_type="ApplicationBlockedV1",
+            as_json=True,
+        )
+
+        payload = json.loads(rendered)
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["event_type"], "ApplicationBlockedV1")
+        self.assertEqual(payload[0]["application_id"], 55)
+        self.assertEqual(payload[0]["correlation_id"], "application:55")
+
+    def test_parse_args_accepts_domain_events_list_command(self) -> None:
+        with patch("sys.argv", ["main.py", "domain-events", "list", "--path", "logs/domain-events.ndjson", "--limit", "5"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "domain-events")
+        self.assertEqual(args.domain_events_command, "list")
+        self.assertEqual(args.path, Path("logs/domain-events.ndjson"))
+        self.assertEqual(args.limit, 5)
+
+    def test_parse_args_accepts_domain_events_filters_and_json(self) -> None:
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "domain-events",
+                "list",
+                "--event-type",
+                "ApplicationBlockedV1",
+                "--correlation-id",
+                "application:55",
+                "--json",
+            ],
+        ):
+            args = parse_args()
+
+        self.assertEqual(args.event_type, "ApplicationBlockedV1")
+        self.assertEqual(args.correlation_id, "application:55")
+        self.assertTrue(args.json)
+
+    def test_parse_args_rejects_non_positive_domain_events_limit(self) -> None:
+        with patch("sys.argv", ["main.py", "domain-events", "list", "--limit", "0"]):
+            with self.assertRaises(SystemExit):
+                parse_args()
+
+    def _publish_sample_events(self) -> None:
         bus = LocalNdjsonEventBus(self.events_path)
         bus.publish(
             JobReviewedV1(
@@ -49,25 +136,3 @@ class DomainEventsCliTests(TestCase):
                 correlation_id="application:55",
             )
         )
-
-        rendered = render_domain_events(path=self.events_path, limit=1)
-
-        self.assertIn("Eventos de dominio: 1 de 2", rendered)
-        self.assertIn("ApplicationBlockedV1", rendered)
-        self.assertIn("application_id=55", rendered)
-        self.assertIn("reason=preflight_not_ready", rendered)
-        self.assertNotIn("JobReviewedV1", rendered)
-
-    def test_parse_args_accepts_domain_events_list_command(self) -> None:
-        with patch("sys.argv", ["main.py", "domain-events", "list", "--path", "logs/domain-events.ndjson", "--limit", "5"]):
-            args = parse_args()
-
-        self.assertEqual(args.command, "domain-events")
-        self.assertEqual(args.domain_events_command, "list")
-        self.assertEqual(args.path, Path("logs/domain-events.ndjson"))
-        self.assertEqual(args.limit, 5)
-
-    def test_parse_args_rejects_non_positive_domain_events_limit(self) -> None:
-        with patch("sys.argv", ["main.py", "domain-events", "list", "--limit", "0"]):
-            with self.assertRaises(SystemExit):
-                parse_args()
