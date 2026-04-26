@@ -6,6 +6,7 @@ from typing import Protocol
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
+    ApplicationPreflightCompletedV1,
     ApplicationSubmittedV1,
     DomainEvent,
     JobCollectedV1,
@@ -64,6 +65,9 @@ class LocalNdjsonEventBus:
 
     def read_application_authorized(self) -> tuple[ApplicationAuthorizedV1, ...]:
         return tuple(event for event in self.read_all() if isinstance(event, ApplicationAuthorizedV1))
+
+    def read_application_preflight_completed(self) -> tuple[ApplicationPreflightCompletedV1, ...]:
+        return tuple(event for event in self.read_all() if isinstance(event, ApplicationPreflightCompletedV1))
 
     def read_application_submitted(self) -> tuple[ApplicationSubmittedV1, ...]:
         return tuple(event for event in self.read_all() if isinstance(event, ApplicationSubmittedV1))
