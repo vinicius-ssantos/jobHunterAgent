@@ -18,7 +18,10 @@ class JobHunterApplicationBootstrapTests(TestCase):
         with patch("job_hunter_agent.application.cli_bootstrap.load_settings", return_value=settings) as load_settings_mock, patch(
             "job_hunter_agent.application.cli_bootstrap.create_repository",
             return_value=repository,
-        ) as create_repository_mock, patch.object(
+        ) as create_repository_mock, patch(
+            "job_hunter_agent.application.cli_bootstrap.create_domain_event_bus",
+            return_value=object(),
+        ) as create_event_bus_mock, patch.object(
             JobHunterApplication,
             "_initialize_query_services",
         ) as initialize_query_mock, patch.object(
@@ -32,6 +35,7 @@ class JobHunterApplicationBootstrapTests(TestCase):
 
         load_settings_mock.assert_called_once_with()
         create_repository_mock.assert_called_once_with(settings)
+        create_event_bus_mock.assert_called_once_with(settings)
         initialize_query_mock.assert_called_once_with()
         initialize_review_mock.assert_not_called()
         initialize_flow_mock.assert_not_called()
@@ -45,6 +49,9 @@ class JobHunterApplicationBootstrapTests(TestCase):
         with patch("job_hunter_agent.application.cli_bootstrap.load_settings", return_value=settings), patch(
             "job_hunter_agent.application.cli_bootstrap.create_repository",
             return_value=repository,
+        ), patch(
+            "job_hunter_agent.application.cli_bootstrap.create_domain_event_bus",
+            return_value=object(),
         ), patch.object(
             JobHunterApplication,
             "_initialize_query_services",
@@ -70,6 +77,9 @@ class JobHunterApplicationBootstrapTests(TestCase):
         with patch("job_hunter_agent.application.cli_bootstrap.load_settings", return_value=settings), patch(
             "job_hunter_agent.application.cli_bootstrap.create_repository",
             return_value=repository,
+        ), patch(
+            "job_hunter_agent.application.cli_bootstrap.create_domain_event_bus",
+            return_value=object(),
         ), patch.object(
             JobHunterApplication,
             "_initialize_query_services",
@@ -95,6 +105,9 @@ class JobHunterApplicationBootstrapTests(TestCase):
         with patch("job_hunter_agent.application.cli_bootstrap.load_settings", return_value=settings), patch(
             "job_hunter_agent.application.cli_bootstrap.create_repository",
             return_value=repository,
+        ), patch(
+            "job_hunter_agent.application.cli_bootstrap.create_domain_event_bus",
+            return_value=object(),
         ), patch.object(
             JobHunterApplication,
             "_initialize_query_services",
