@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from job_hunter_agent.application.app import JobHunterApplication
-from job_hunter_agent.application.composition import create_repository
+from job_hunter_agent.application.composition import create_domain_event_bus, create_repository
 from job_hunter_agent.core.settings import load_settings
 
 
@@ -38,4 +38,5 @@ def _create_cli_app_base() -> JobHunterApplication:
     app.enable_telegram = False
     app.settings = load_settings()
     app.repository = create_repository(app.settings)
+    app.domain_event_bus = create_domain_event_bus(app.settings)
     return app
