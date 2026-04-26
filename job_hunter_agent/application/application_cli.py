@@ -161,6 +161,22 @@ def parse_args() -> argparse.Namespace:
         help="Executa envio em lote com gates e limites de seguranca do auto easy apply.",
     )
 
+    domain_events_parser = subparsers.add_parser("domain-events", help="Inspeciona eventos de dominio em NDJSON.")
+    domain_events_subparsers = domain_events_parser.add_subparsers(dest="domain_events_command", required=True)
+    domain_events_list_parser = domain_events_subparsers.add_parser("list", help="Lista eventos de dominio recentes.")
+    domain_events_list_parser.add_argument(
+        "--path",
+        type=Path,
+        default=None,
+        help="Arquivo NDJSON de eventos. Usa JOB_HUNTER_DOMAIN_EVENTS_PATH por padrao.",
+    )
+    domain_events_list_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Quantidade maxima de eventos exibidos.",
+    )
+
     candidate_profile_parser = subparsers.add_parser(
         "candidate-profile",
         help="Operacoes do perfil estruturado do candidato.",
@@ -231,6 +247,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--ciclos deve ser maior que zero")
     if args.intervalo_ciclos_segundos < 0:
         parser.error("--intervalo-ciclos-segundos nao pode ser negativo")
+    if getattr(args, "limit", 1) is not None and getattr(args, "limit", 1) <= 0:
+        parser.error("--limit deve ser maior que zero")
     if args.agora and args.ciclos is not None:
         parser.error("use --agora ou --ciclos, nao ambos")
     if args.command is not None and (args.agora or args.ciclos is not None):
