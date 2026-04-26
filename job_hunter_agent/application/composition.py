@@ -27,6 +27,7 @@ from job_hunter_agent.collectors.linkedin_modal_llm import (
 )
 from job_hunter_agent.collectors.portal_collectors import BrowserUseSiteCollector
 from job_hunter_agent.core.candidate_profile import load_candidate_profile
+from job_hunter_agent.core.event_bus import EventBusPort, LocalNdjsonEventBus
 from job_hunter_agent.core.job_identity import PortalAwareJobIdentityStrategy
 from job_hunter_agent.core.runtime import RuntimeGuard
 from job_hunter_agent.core.runtime_matching import build_runtime_matching_profile_from_structured_source
@@ -47,6 +48,12 @@ def create_repository(settings: Settings) -> JobRepository:
         settings.database_path,
         identity_strategy=PortalAwareJobIdentityStrategy(),
     )
+
+
+def create_domain_event_bus(settings: Settings) -> EventBusPort | None:
+    if not getattr(settings, "domain_events_enabled", False):
+        return None
+    return LocalNdjsonEventBus(Path(settings.domain_events_path))
 
 
 def create_runtime_guard(settings: Settings) -> RuntimeGuard:
@@ -107,7 +114,11 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
     )
 
 
-def create_application_submission_service(repository: JobRepository, settings: Settings) -> ApplicationSubmissionService:
+def create_application_submission_service(
+    repository: JobRepository,
+    settings: Settings,
+    event_bus: EventBusPort | None = None,
+) -> ApplicationSubmissionService:
     return ApplicationSubmissionService(
         repository,
         applicant=create_linkedin_submission_applicant(settings),
@@ -118,6 +129,7 @@ def create_application_submission_service(repository: JobRepository, settings: S
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
         ),
+        event_bus=event_bus,
     )
 
 

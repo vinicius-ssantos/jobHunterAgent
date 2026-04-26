@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     linkedin_precision_gate_enabled: bool = True
     save_failure_artifacts: bool = False
     failure_artifacts_dir: Path = Path("./.artifacts/linkedin_failures")
+    domain_events_enabled: bool = False
+    domain_events_path: Path = Path("./logs/domain-events.ndjson")
     max_jobs_per_site: int = 20
     portal_collection_timeout_seconds: int = 180
     review_polling_grace_seconds: int = 120
@@ -170,6 +172,7 @@ class Settings(BaseSettings):
         "skill_taxonomy_path",
         "linkedin_company_policy_path",
         "operational_policy_path",
+        "domain_events_path",
     )
     @classmethod
     def validate_runtime_paths(cls, value: Path, info) -> Path:
