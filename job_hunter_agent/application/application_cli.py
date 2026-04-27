@@ -87,6 +87,12 @@ def parse_args() -> argparse.Namespace:
     applications_show_parser = applications_subparsers.add_parser("show", help="Mostra uma candidatura.")
     applications_show_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
 
+    applications_diagnose_parser = applications_subparsers.add_parser(
+        "diagnose",
+        help="Mostra diagnostico operacional agregado de uma candidatura.",
+    )
+    applications_diagnose_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
     applications_events_parser = applications_subparsers.add_parser(
         "events",
         help="Lista eventos recentes de uma candidatura.",

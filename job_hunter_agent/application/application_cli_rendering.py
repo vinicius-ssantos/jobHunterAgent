@@ -8,6 +8,7 @@ from job_hunter_agent.core.application_insights import (
     classify_operational_detail,
     describe_manual_review_need,
 )
+from job_hunter_agent.core.events import DomainEvent, event_to_dict
 from job_hunter_agent.core.operational_policy import get_runtime_operational_policy
 
 
@@ -138,6 +139,62 @@ def render_application_detail(*, application: object, job: object | None, events
     return "\n".join(lines)
 
 
+def render_application_diagnosis(
+    *,
+    application: object,
+    job: object | None,
+    events: list[object],
+    domain_events: tuple[DomainEvent, ...] = (),
+    domain_events_enabled: bool = False,
+) -> str:
+    job_title = job.title if job is not None else "vaga nao encontrada"
+    job_company = job.company if job is not None else "-"
+    job_status = job.status if job is not None else "-"
+    job_source = job.source_site if job is not None else "-"
+    job_url = job.url if job is not None else "-"
+    insight = classify_application_operational_insight(application)
+    next_action = _recommend_application_next_action(application=application, insight_reason=insight.reason_code)
+    lines = [
+        f"Diagnostico da candidatura {application.id}",
+        "candidatura:",
+        f"- id={application.id}",
+        f"- status={application.status}",
+        f"- job_id={application.job_id}",
+        f"- suporte={application.support_level}",
+        f"- classificacao_operacional={insight.classification}",
+        f"- motivo_operacional={insight.reason_code}",
+        "vaga:",
+        f"- titulo={job_title}",
+        f"- empresa={job_company}",
+        f"- status={job_status}",
+        f"- fonte={job_source}",
+        f"- url={job_url}",
+        "preflight_submit:",
+        f"- last_preflight_detail={application.last_preflight_detail or '-'}",
+        f"- last_submit_detail={application.last_submit_detail or '-'}",
+        f"- last_error={application.last_error or '-'}",
+        f"- submitted_at={application.submitted_at or '-'}",
+        f"- notes={application.notes or '-'}",
+        "proxima_acao:",
+        f"- {next_action}",
+    ]
+    if application.support_level == "manual_review":
+        lines.extend(["revisao_manual:", f"- {describe_manual_review_need(application)}"])
+    lines.append("eventos_sqlite_recentes:")
+    if events:
+        lines.extend(_render_event_lines(events))
+    else:
+        lines.append("- nenhum")
+    lines.append("domain_events_recentes:")
+    if not domain_events_enabled:
+        lines.append("- indisponivel_ou_desabilitado")
+    elif domain_events:
+        lines.extend(_render_domain_event_lines(domain_events))
+    else:
+        lines.append("- nenhum")
+    return "\n".join(lines)
+
+
 def render_failure_artifacts(*, artifacts_dir: Path, files: list[Path], limit: int) -> str:
     if not artifacts_dir.exists():
         return f"Nenhum diretorio de artefatos encontrado: {artifacts_dir}"
@@ -200,6 +257,28 @@ def render_execution_summary(*, events: list[object]) -> str:
     return "\n".join(lines)
 
 
+def _recommend_application_next_action(*, application: object, insight_reason: str) -> str:
+    application_id = application.id
+    status = application.status
+    if status == "draft":
+        return f"preparar revisao: python main.py applications prepare --id {application_id}"
+    if status == "ready_for_review":
+        return f"confirmar ou cancelar apos revisao humana: python main.py applications confirm --id {application_id}"
+    if status == "confirmed":
+        if insight_reason == "pronto_para_envio":
+            return f"autorizar envio se revisao humana estiver ok: python main.py applications authorize --id {application_id}"
+        return f"rodar preflight real ou dry-run: python main.py applications preflight --id {application_id}"
+    if status == "authorized_submit":
+        return f"executar submit controlado ou dry-run: python main.py applications submit --id {application_id}"
+    if status == "error_submit":
+        return "investigar bloqueio: revisar last_error, artifacts e domain-events antes de tentar novamente"
+    if status == "submitted":
+        return "nenhuma acao operacional pendente: candidatura ja enviada"
+    if status == "cancelled":
+        return "nenhuma acao automatica: candidatura cancelada"
+    return "revisar estado manualmente antes de executar nova transicao"
+
+
 def _render_conversion_ratio(numerator: int, denominator: int) -> str:
     if denominator <= 0:
         return "n/a"
@@ -214,3 +293,28 @@ def _render_event_lines(events: list[object]) -> list[str]:
         f"{event.detail or '-'}"
         for event in events
     ]
+
+
+def _render_domain_event_lines(events: tuple[DomainEvent, ...]) -> list[str]:
+    lines: list[str] = []
+    for event in events:
+        payload = event_to_dict(event)
+        interesting_keys = [
+            "application_id",
+            "job_id",
+            "status",
+            "application_status",
+            "outcome",
+            "reason",
+            "retryable",
+            "portal",
+        ]
+        details = " ".join(
+            f"{key}={payload[key]}" for key in interesting_keys if key in payload and payload[key] not in {None, ""}
+        )
+        suffix = f" {details}" if details else ""
+        lines.append(
+            f"- {event.occurred_at} | {event.event_type} | "
+            f"correlation_id={event.correlation_id or '-'}{suffix}"
+        )
+    return lines
