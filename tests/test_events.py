@@ -6,6 +6,7 @@ from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
+    ApplicationPreflightCompletedV1,
     ApplicationSubmittedV1,
     JobCollectedV1,
     JobReviewRequestedV1,
@@ -152,6 +153,29 @@ class EventContractTests(TestCase):
         self.assertEqual(decoded.authorized_by, "cli")
         self.assertEqual(decoded.authorization_source, "manual")
         self.assertEqual(decoded.status, "authorized_submit")
+        self.assertEqual(decoded.correlation_id, "application:55")
+
+    def test_application_preflight_completed_round_trip_json_preserves_payload_and_metadata(self) -> None:
+        event = ApplicationPreflightCompletedV1(
+            application_id=55,
+            job_id=123,
+            outcome="ready",
+            application_status="confirmed",
+            detail="preflight real ok | pronto_para_envio=sim",
+            event_id="evt-preflight",
+            occurred_at="2026-04-24T12:04:30+00:00",
+            correlation_id="application:55",
+        )
+
+        decoded = event_from_json(event_to_json(event))
+
+        self.assertIsInstance(decoded, ApplicationPreflightCompletedV1)
+        self.assertEqual(decoded.event_type, "ApplicationPreflightCompletedV1")
+        self.assertEqual(decoded.application_id, 55)
+        self.assertEqual(decoded.job_id, 123)
+        self.assertEqual(decoded.outcome, "ready")
+        self.assertEqual(decoded.application_status, "confirmed")
+        self.assertEqual(decoded.detail, "preflight real ok | pronto_para_envio=sim")
         self.assertEqual(decoded.correlation_id, "application:55")
 
     def test_application_submitted_round_trip_json_preserves_payload_and_metadata(self) -> None:
