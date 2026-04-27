@@ -267,7 +267,7 @@ def parse_args() -> argparse.Namespace:
     if args.ciclos is not None and args.ciclos <= 0:
         parser.error("--ciclos deve ser maior que zero")
     if args.intervalo_ciclos_segundos < 0:
-        parser.error("--intervalo-ciclos-segundos nao pode be negativo")
+        parser.error("--intervalo-ciclos-segundos nao pode ser negativo")
     if getattr(args, "limit", 1) is not None and getattr(args, "limit", 1) <= 0:
         parser.error("--limit deve ser maior que zero")
     if args.agora and args.ciclos is not None:
