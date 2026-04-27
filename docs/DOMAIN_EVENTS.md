@@ -101,6 +101,22 @@ Uso principal:
 - auditar gates humanos antes de submit real
 - identificar candidaturas que entraram no estado `authorized_submit`
 
+### `ApplicationDraftCreatedV1`
+
+Emitido quando uma vaga aprovada gera um novo rascunho de candidatura.
+
+Exemplo:
+
+```text
+ApplicationDraftCreatedV1 event_id=<uuid> correlation_id=application:77 application_id=77 job_id=238 status=draft support_level=supported created_by=command
+```
+
+Uso principal:
+
+- auditar quando uma vaga aprovada vira candidatura
+- diferenciar criacao real de draft de tentativas ignoradas porque ja existia candidatura
+- correlacionar o inicio da candidatura com preflight, autorizacao e envio
+
 ### `ApplicationPreflightCompletedV1`
 
 Emitido quando o preflight real de uma candidatura termina com qualquer resultado controlado.
@@ -164,6 +180,21 @@ Esperado:
 ```text
 JobReviewedV1 ... correlation_id=job:<job_id> ... decision=approve ... status=approved
 ```
+
+### Criacao De Draft De Candidatura
+
+```bash
+python main.py applications create --job-id <job_id>
+python main.py domain-events list --event-type ApplicationDraftCreatedV1 --limit 20
+```
+
+Esperado quando um novo draft for criado:
+
+```text
+ApplicationDraftCreatedV1 ... application_id=<application_id> ... job_id=<job_id> ... status=draft
+```
+
+Se ja existir candidatura para a vaga, o comando deve ser ignorado e nenhum `ApplicationDraftCreatedV1` novo deve ser emitido.
 
 ### Autorizacao De Candidatura
 
@@ -265,6 +296,8 @@ Confirme se a transicao realmente mudou estado.
 
 Exemplo: aprovar uma vaga ja aprovada pode ser ignorado e nao publicar novo evento.
 
+Criar candidatura para uma vaga que ja tem candidatura tambem e ignorado e nao publica novo `ApplicationDraftCreatedV1`.
+
 ### `ApplicationBlockedV1` apareceu no submit
 
 Isso nem sempre e erro. Pode indicar bloqueio seguro esperado, como:
@@ -283,13 +316,13 @@ Ativos hoje:
 
 - `JobReviewedV1`
 - `ApplicationAuthorizedV1`
+- `ApplicationDraftCreatedV1`
 - `ApplicationPreflightCompletedV1`
 - `ApplicationSubmittedV1`
 - `ApplicationBlockedV1`
 
 Candidatos futuros:
 
-- `ApplicationDraftCreatedV1`
 - `JobPersistedV1`
 
 Nao adicionar novos eventos sem valor operacional claro.
