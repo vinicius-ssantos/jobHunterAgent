@@ -100,7 +100,11 @@ def create_application_preparation_service(repository: JobRepository, settings: 
     )
 
 
-def create_application_preflight_service(repository: JobRepository, settings: Settings) -> ApplicationPreflightService:
+def create_application_preflight_service(
+    repository: JobRepository,
+    settings: Settings,
+    event_bus: EventBusPort | None = None,
+) -> ApplicationPreflightService:
     return ApplicationPreflightService(
         repository,
         flow_inspector=create_linkedin_preflight_inspector(settings),
@@ -111,6 +115,7 @@ def create_application_preflight_service(repository: JobRepository, settings: Se
             phone=settings.application_phone,
             phone_country_code=settings.application_phone_country_code,
         ),
+        event_bus=event_bus,
     )
 
 

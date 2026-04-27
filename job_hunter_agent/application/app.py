@@ -123,7 +123,11 @@ class JobHunterApplication:
         )
 
     def _initialize_flow_services(self) -> None:
-        self.application_preflight = create_application_preflight_service(self.repository, self.settings)
+        self.application_preflight = create_application_preflight_service(
+            self.repository,
+            self.settings,
+            event_bus=self.domain_event_bus,
+        )
         self.application_submission = create_application_submission_service(
             self.repository,
             self.settings,

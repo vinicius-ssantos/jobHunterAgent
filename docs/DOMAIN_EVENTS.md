@@ -101,6 +101,22 @@ Uso principal:
 - auditar gates humanos antes de submit real
 - identificar candidaturas que entraram no estado `authorized_submit`
 
+### `ApplicationPreflightCompletedV1`
+
+Emitido quando o preflight real de uma candidatura termina com qualquer resultado controlado.
+
+Exemplo:
+
+```text
+ApplicationPreflightCompletedV1 event_id=<uuid> correlation_id=application:31 application_id=31 job_id=128 outcome=ready status=confirmed
+```
+
+Uso principal:
+
+- auditar se o preflight terminou como `ready`, `blocked`, `manual_review`, `ignored` ou `error`
+- diagnosticar por que um submit posterior pode bloquear com `preflight_not_ready`
+- correlacionar a preparacao da candidatura com autorizacao e envio
+
 ### `ApplicationSubmittedV1`
 
 Emitido quando uma submissao real e concluida.
@@ -161,6 +177,19 @@ Esperado:
 
 ```text
 ApplicationAuthorizedV1 ... correlation_id=application:<application_id> ... status=authorized_submit
+```
+
+### Preflight De Candidatura
+
+```bash
+python main.py applications preflight --id <application_id>
+python main.py domain-events list --event-type ApplicationPreflightCompletedV1 --correlation-id application:<application_id> --limit 20
+```
+
+Esperado:
+
+```text
+ApplicationPreflightCompletedV1 ... correlation_id=application:<application_id> ... outcome=<resultado> ... status=<status>
 ```
 
 ### Submit Bloqueado Ou Enviado
@@ -254,13 +283,13 @@ Ativos hoje:
 
 - `JobReviewedV1`
 - `ApplicationAuthorizedV1`
+- `ApplicationPreflightCompletedV1`
 - `ApplicationSubmittedV1`
 - `ApplicationBlockedV1`
 
 Candidatos futuros:
 
 - `ApplicationDraftCreatedV1`
-- `ApplicationPreflightCompletedV1`
 - `JobPersistedV1`
 
 Nao adicionar novos eventos sem valor operacional claro.

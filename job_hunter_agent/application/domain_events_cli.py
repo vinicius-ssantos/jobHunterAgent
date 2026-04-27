@@ -7,6 +7,7 @@ from job_hunter_agent.core.event_bus import LocalNdjsonEventBus
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
+    ApplicationPreflightCompletedV1,
     ApplicationSubmittedV1,
     DomainEvent,
     JobCollectedV1,
@@ -89,6 +90,11 @@ def _render_event_line(event: DomainEvent) -> str:
         return (
             f"{base} application_id={event.application_id} job_id={event.job_id} "
             f"authorized_by={event.authorized_by or '-'} source={event.authorization_source} status={event.status}"
+        )
+    if isinstance(event, ApplicationPreflightCompletedV1):
+        return (
+            f"{base} application_id={event.application_id} job_id={event.job_id} "
+            f"outcome={event.outcome} status={event.application_status}"
         )
     if isinstance(event, ApplicationSubmittedV1):
         return (

@@ -88,6 +88,20 @@ class ApplicationAuthorizedV1:
 
 
 @dataclass(frozen=True)
+class ApplicationPreflightCompletedV1:
+    application_id: int
+    job_id: int
+    outcome: str
+    application_status: str
+    detail: str = ""
+    event_id: str = field(default_factory=new_event_id)
+    event_type: str = "ApplicationPreflightCompletedV1"
+    event_version: int = 1
+    occurred_at: str = field(default_factory=utc_now_iso)
+    correlation_id: str = ""
+
+
+@dataclass(frozen=True)
 class ApplicationSubmittedV1:
     application_id: int
     job_id: int
@@ -121,6 +135,7 @@ DomainEvent = (
     | JobReviewRequestedV1
     | JobReviewedV1
     | ApplicationAuthorizedV1
+    | ApplicationPreflightCompletedV1
     | ApplicationSubmittedV1
     | ApplicationBlockedV1
 )
@@ -153,6 +168,8 @@ def event_from_dict(payload: dict[str, Any]) -> DomainEvent:
         return job_reviewed_from_dict(payload)
     if event_type == "ApplicationAuthorizedV1":
         return application_authorized_from_dict(payload)
+    if event_type == "ApplicationPreflightCompletedV1":
+        return application_preflight_completed_from_dict(payload)
     if event_type == "ApplicationSubmittedV1":
         return application_submitted_from_dict(payload)
     if event_type == "ApplicationBlockedV1":
@@ -232,6 +249,21 @@ def application_authorized_from_dict(payload: dict[str, Any]) -> ApplicationAuth
         status=_safe_str(payload.get("status")) or "authorized_submit",
         event_id=_safe_str(payload.get("event_id")) or new_event_id(),
         event_type="ApplicationAuthorizedV1",
+        event_version=_safe_int(payload.get("event_version")) or 1,
+        occurred_at=_safe_str(payload.get("occurred_at")) or utc_now_iso(),
+        correlation_id=_safe_str(payload.get("correlation_id")),
+    )
+
+
+def application_preflight_completed_from_dict(payload: dict[str, Any]) -> ApplicationPreflightCompletedV1:
+    return ApplicationPreflightCompletedV1(
+        application_id=_safe_int(payload.get("application_id")),
+        job_id=_safe_int(payload.get("job_id")),
+        outcome=_safe_str(payload.get("outcome")),
+        application_status=_safe_str(payload.get("application_status")),
+        detail=_safe_str(payload.get("detail")),
+        event_id=_safe_str(payload.get("event_id")) or new_event_id(),
+        event_type="ApplicationPreflightCompletedV1",
         event_version=_safe_int(payload.get("event_version")) or 1,
         occurred_at=_safe_str(payload.get("occurred_at")) or utc_now_iso(),
         correlation_id=_safe_str(payload.get("correlation_id")),

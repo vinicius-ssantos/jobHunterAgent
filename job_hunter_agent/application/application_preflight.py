@@ -20,6 +20,8 @@ from job_hunter_agent.application.application_ports import (
     normalize_application_flow_inspection,
 )
 from job_hunter_agent.application.application_readiness import ApplicationReadinessCheckService
+from job_hunter_agent.core.event_bus import EventBusPort
+from job_hunter_agent.core.events import ApplicationPreflightCompletedV1
 from job_hunter_agent.core.portal_capabilities import get_portal_capabilities
 from job_hunter_agent.infrastructure.repository import JobRepository
 
@@ -37,11 +39,13 @@ class ApplicationPreflightService:
         repository: JobRepository,
         flow_inspector: InspectionPort | None = None,
         readiness_checker: ApplicationReadinessCheckService | None = None,
+        event_bus: EventBusPort | None = None,
     ) -> None:
         self.repository = repository
         self.flow_inspector = flow_inspector
         self.flow = ApplicationFlowCoordinator(repository)
         self.readiness_checker = readiness_checker
+        self.event_bus = event_bus
 
     def run_dry_run_for_application(self, application_id: int) -> ApplicationPreflightResult:
         context = load_application_context(self.repository, application_id)
@@ -99,6 +103,13 @@ class ApplicationPreflightService:
                 from_status=application.status,
                 to_status=application.status,
             )
+            self._publish_preflight_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                outcome="ignored",
+                detail=detail,
+                application_status=application.status,
+            )
             return ApplicationPreflightResult(
                 outcome="ignored",
                 detail=detail,
@@ -114,6 +125,13 @@ class ApplicationPreflightService:
                 event_type="preflight_blocked",
                 status="error_submit",
                 clear_error=False,
+            )
+            self._publish_preflight_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                outcome="blocked",
+                detail=detail,
+                application_status=application_status,
             )
             return ApplicationPreflightResult(
                 outcome="blocked",
@@ -134,6 +152,13 @@ class ApplicationPreflightService:
                     event_type="preflight_blocked",
                     status="error_submit",
                     clear_error=False,
+                )
+                self._publish_preflight_event(
+                    application_id=application.id,
+                    job_id=job.id or application.job_id,
+                    outcome="blocked",
+                    detail=detail,
+                    application_status=application_status,
                 )
                 return ApplicationPreflightResult(
                     outcome="blocked",
@@ -156,6 +181,13 @@ class ApplicationPreflightService:
                         status="confirmed",
                         clear_error=True,
                     )
+                    self._publish_preflight_event(
+                        application_id=application.id,
+                        job_id=job.id or application.job_id,
+                        outcome="error",
+                        detail=detail,
+                        application_status=application_status,
+                    )
                     return ApplicationPreflightResult(
                         outcome="error",
                         detail=detail,
@@ -171,6 +203,13 @@ class ApplicationPreflightService:
                             status="confirmed",
                             clear_error=True,
                         )
+                        self._publish_preflight_event(
+                            application_id=application.id,
+                            job_id=job.id or application.job_id,
+                            outcome="ready",
+                            detail=inspection.detail,
+                            application_status=application_status,
+                        )
                         return ApplicationPreflightResult(
                             outcome="ready",
                             detail=inspection.detail,
@@ -184,6 +223,13 @@ class ApplicationPreflightService:
                             event_type="preflight_manual_review",
                             status="confirmed",
                             clear_error=True,
+                        )
+                        self._publish_preflight_event(
+                            application_id=application.id,
+                            job_id=job.id or application.job_id,
+                            outcome="manual_review",
+                            detail=inspection.detail,
+                            application_status=application_status,
                         )
                         return ApplicationPreflightResult(
                             outcome="manual_review",
@@ -199,6 +245,13 @@ class ApplicationPreflightService:
                         status="error_submit",
                         clear_error=False,
                     )
+                    self._publish_preflight_event(
+                        application_id=application.id,
+                        job_id=job.id or application.job_id,
+                        outcome="blocked",
+                        detail=detail,
+                        application_status=application_status,
+                    )
                     return ApplicationPreflightResult(
                         outcome="blocked",
                         detail=detail,
@@ -212,6 +265,13 @@ class ApplicationPreflightService:
                 event_type="preflight_ready",
                 status="confirmed",
                 clear_error=True,
+            )
+            self._publish_preflight_event(
+                application_id=application.id,
+                job_id=job.id or application.job_id,
+                outcome="ready",
+                detail=detail,
+                application_status=application_status,
             )
             return ApplicationPreflightResult(
                 outcome="ready",
@@ -228,8 +288,37 @@ class ApplicationPreflightService:
             status="error_submit",
             clear_error=False,
         )
+        self._publish_preflight_event(
+            application_id=application.id,
+            job_id=job.id or application.job_id,
+            outcome="blocked",
+            detail=detail,
+            application_status=application_status,
+        )
         return ApplicationPreflightResult(
             outcome="blocked",
             detail=detail,
             application_status=application_status,
+        )
+
+    def _publish_preflight_event(
+        self,
+        *,
+        application_id: int | None,
+        job_id: int,
+        outcome: str,
+        detail: str,
+        application_status: str,
+    ) -> None:
+        if self.event_bus is None or application_id is None:
+            return
+        self.event_bus.publish(
+            ApplicationPreflightCompletedV1(
+                application_id=application_id,
+                job_id=job_id,
+                outcome=outcome,
+                application_status=application_status,
+                detail=detail,
+                correlation_id=f"application:{application_id}",
+            )
         )
