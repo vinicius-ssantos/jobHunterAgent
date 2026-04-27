@@ -1,14 +1,21 @@
-import sqlite3
+import shutil
 from unittest import TestCase
 
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.infrastructure.schema_migrations import CURRENT_SCHEMA_VERSION
+from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
 class RepositorySchemaBootstrapTests(TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = prepare_workspace_tmp_dir("schema-bootstrap")
+        self.db_path = self.temp_dir / "jobs.db"
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
     def test_repository_startup_registers_current_schema_version(self) -> None:
-        connection = sqlite3.connect(":memory:")
-        repository = SqliteJobRepository(":memory:")
+        repository = SqliteJobRepository(self.db_path)
 
         # Use the repository connection helper so the assertion covers the
         # startup path installed by the infrastructure package bootstrap.
