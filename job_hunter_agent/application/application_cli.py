@@ -87,6 +87,12 @@ def parse_args() -> argparse.Namespace:
     applications_show_parser = applications_subparsers.add_parser("show", help="Mostra uma candidatura.")
     applications_show_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
 
+    applications_diagnose_parser = applications_subparsers.add_parser(
+        "diagnose",
+        help="Mostra diagnostico operacional agregado de uma candidatura.",
+    )
+    applications_diagnose_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+
     applications_events_parser = applications_subparsers.add_parser(
         "events",
         help="Lista eventos recentes de uma candidatura.",
@@ -261,7 +267,7 @@ def parse_args() -> argparse.Namespace:
     if args.ciclos is not None and args.ciclos <= 0:
         parser.error("--ciclos deve ser maior que zero")
     if args.intervalo_ciclos_segundos < 0:
-        parser.error("--intervalo-ciclos-segundos nao pode ser negativo")
+        parser.error("--intervalo-ciclos-segundos nao pode be negativo")
     if getattr(args, "limit", 1) is not None and getattr(args, "limit", 1) <= 0:
         parser.error("--limit deve ser maior que zero")
     if args.agora and args.ciclos is not None:
