@@ -28,15 +28,15 @@ Para workers separados, isso cria risco de:
 
 Plano recomendado:
 
-- [ ] Criar tabela `schema_migrations` ou `app_metadata`.
-- [ ] Registrar versao inicial do schema atual.
-- [ ] Criar helper central de migracoes idempotentes.
-- [ ] Rodar migracoes no startup do repositorio.
-- [ ] Adicionar teste com banco vazio.
-- [ ] Adicionar teste com banco legado sem tabela de versao.
+- [x] Criar tabela `schema_migrations` ou `app_metadata`.
+- [x] Registrar versao inicial do schema atual.
+- [x] Criar helper central de migracoes idempotentes.
+- [x] Rodar migracoes no startup do repositorio.
+- [x] Adicionar teste com banco vazio.
+- [x] Adicionar teste com banco legado sem tabela de versao.
 - [ ] Documentar rollback manual para banco local.
 
-Sugestao de tabela:
+Tabela implementada:
 
 ```sql
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -50,19 +50,30 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 Plano recomendado:
 
-- [ ] Criar helper unico `utc_now_iso()` para persistencia.
-- [ ] Trocar usos de `datetime.now().isoformat(...)` por UTC.
-- [ ] Evitar `CURRENT_TIMESTAMP` em novas tabelas, preferindo timestamp gerado pela aplicacao.
-- [ ] Documentar que timestamps persistidos sao UTC.
+- [x] Criar helper unico `utc_now_iso()` para persistencia.
+- [x] Trocar novos writes operacionais cobertos nesta frente para UTC explicito.
+- [ ] Remover dependencias remanescentes de `CURRENT_TIMESTAMP` em definicoes antigas quando houver uma migracao segura de schema.
+- [x] Documentar que timestamps persistidos novos devem ser UTC explicito.
 - [ ] Converter renderizacao local apenas na borda de UI/CLI/notifier.
+
+Writes operacionais cobertos por UTC explicito:
+
+- [x] `schema_migrations.applied_at_utc`
+- [x] `jobs.created_at` em novos jobs salvos pela aplicacao
+- [x] `job_status_events.created_at` em novos eventos de vaga
+- [x] `seen_jobs.first_seen_at` e `seen_jobs.last_seen_at` em novos writes da aplicacao
+- [x] `collection_logs.created_at` em novos logs de coleta
+- [x] `collection_cursors.updated_at` em novos writes de cursor
+- [x] `job_applications.created_at` e `job_applications.updated_at` em novos writes de candidatura
+- [x] `job_application_events.created_at` em novos eventos de candidatura
 
 ## Ordem Segura De Execucao
 
-1. adicionar tabela de schema versionado sem alterar tabelas existentes
-2. padronizar novos writes para UTC em codigo
-3. adicionar testes de regressao para timestamps com `+00:00`
-4. planejar migracao opcional dos campos antigos
-5. so depois considerar broker externo ou Postgres
+1. [x] adicionar tabela de schema versionado sem alterar tabelas existentes
+2. [x] padronizar novos writes para UTC em codigo
+3. [x] adicionar testes de regressao para timestamps com `+00:00`
+4. [ ] planejar migracao opcional dos campos antigos
+5. [ ] so depois considerar broker externo ou Postgres
 
 ## Fora De Escopo Agora
 
