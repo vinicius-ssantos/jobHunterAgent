@@ -4,6 +4,7 @@ from pathlib import Path
 
 from job_hunter_agent.application.application_cli_rendering import (
     render_application_detail,
+    render_application_diagnosis,
     render_application_events,
     render_application_list,
     render_execution_summary,
@@ -14,6 +15,7 @@ from job_hunter_agent.application.application_cli_rendering import (
     summarize_operational_counts,
 )
 from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
+from job_hunter_agent.core.event_bus import EventBusPort
 from job_hunter_agent.infrastructure.repository import JobRepository
 
 
@@ -31,8 +33,9 @@ JOB_STATUS_ORDER = ("collected", "approved", "rejected", "error_collect")
 
 
 class ApplicationQueryService:
-    def __init__(self, repository: JobRepository) -> None:
+    def __init__(self, repository: JobRepository, domain_event_bus: EventBusPort | None = None) -> None:
         self.repository = repository
+        self.domain_event_bus = domain_event_bus
 
     def list_applications(self, *, status: str | None = None) -> str:
         requested_statuses = (
@@ -98,6 +101,26 @@ class ApplicationQueryService:
         job = self.repository.get_job(application.job_id)
         events = self.repository.list_application_events(application_id, limit=5)
         return render_application_detail(application=application, job=job, events=events)
+
+    def diagnose_application(self, application_id: int) -> str:
+        application = self.repository.get_application(application_id)
+        if application is None:
+            return f"Candidatura nao encontrada: id={application_id}"
+        job = self.repository.get_job(application.job_id)
+        events = self.repository.list_application_events(application_id, limit=10)
+        correlation_id = f"application:{application_id}"
+        domain_events = ()
+        if self.domain_event_bus is not None:
+            domain_events = tuple(
+                event for event in self.domain_event_bus.read_all() if event.correlation_id == correlation_id
+            )[-10:]
+        return render_application_diagnosis(
+            application=application,
+            job=job,
+            events=events,
+            domain_events=domain_events,
+            domain_events_enabled=self.domain_event_bus is not None,
+        )
 
     def show_latest_failure_artifacts(self, *, artifacts_dir: Path, limit: int = 5) -> str:
         files = sorted(
