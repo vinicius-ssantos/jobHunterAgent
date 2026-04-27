@@ -116,7 +116,7 @@ class DomainTransitionEventTests(TestCase):
 
         rendered = service.create_application_draft_for_job(10)
 
-        self.assertIn("Candidatura criada", rendered)
+        self.assertIn("Rascunho criado", rendered)
         self.assertEqual(len(event_bus.events), 1)
         event = event_bus.events[0]
         self.assertIsInstance(event, ApplicationDraftCreatedV1)
@@ -144,7 +144,7 @@ class DomainTransitionEventTests(TestCase):
 
         rendered = service.create_application_draft_for_job(10)
 
-        self.assertIn("Ja existe candidatura", rendered)
+        self.assertIn("Candidatura ja existe", rendered)
         self.assertEqual(event_bus.events, [])
 
     def test_authorize_application_publishes_application_authorized(self) -> None:
