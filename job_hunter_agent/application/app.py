@@ -108,7 +108,7 @@ class JobHunterApplication:
         )
 
     def _initialize_query_services(self) -> None:
-        self.query = ApplicationQueryService(self.repository)
+        self.query = ApplicationQueryService(self.repository, domain_event_bus=getattr(self, "domain_event_bus", None))
 
     def _initialize_review_services(self) -> None:
         self.application_preparation = create_application_preparation_service(self.repository, self.settings)
@@ -211,6 +211,9 @@ class JobHunterApplication:
     def show_application(self, application_id: int) -> str:
         return self._query_service().show_application(application_id)
 
+    def diagnose_application(self, application_id: int) -> str:
+        return self._query_service().diagnose_application(application_id)
+
     def transition_application(self, application_id: int, action: str) -> str:
         return self._application_transition_commands().transition_application(application_id, action)
 
@@ -291,7 +294,10 @@ class JobHunterApplication:
     def _query_service(self) -> ApplicationQueryService:
         query = getattr(self, "query", None)
         if query is None:
-            query = ApplicationQueryService(self.repository)
+            query = ApplicationQueryService(
+                self.repository,
+                domain_event_bus=getattr(self, "domain_event_bus", None),
+            )
             self.query = query
         return query
 
