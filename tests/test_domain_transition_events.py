@@ -6,12 +6,14 @@ from job_hunter_agent.application.application_commands import (
     ApplicationTransitionCommandService,
     JobReviewCommandService,
 )
+from job_hunter_agent.application.application_preflight import ApplicationPreflightService
 from job_hunter_agent.application.application_submission import ApplicationSubmissionService
-from job_hunter_agent.application.contracts import ApplicationSubmissionResult
+from job_hunter_agent.application.contracts import ApplicationFlowInspection, ApplicationSubmissionResult
 from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
+    ApplicationPreflightCompletedV1,
     ApplicationSubmittedV1,
     DomainEvent,
     JobReviewedV1,
@@ -133,6 +135,64 @@ class DomainTransitionEventTests(TestCase):
         self.assertEqual(event.authorized_by, "command")
         self.assertEqual(event.status, "authorized_submit")
         self.assertEqual(event.correlation_id, "application:55")
+
+    def test_application_preflight_publishes_completed_event(self) -> None:
+        class _Repository:
+            def __init__(self) -> None:
+                self.marked: list[dict[str, object]] = []
+                self.events: list[dict[str, object]] = []
+
+            def get_application(self, application_id: int):
+                return JobApplication(id=application_id, job_id=10, status="confirmed")
+
+            def get_job(self, job_id: int):
+                return _job(job_id=job_id)
+
+            def mark_application_status(self, application_id: int, **kwargs) -> None:
+                self.marked.append({"application_id": application_id, **kwargs})
+
+            def record_application_event(self, application_id: int, **kwargs) -> None:
+                self.events.append({"application_id": application_id, **kwargs})
+
+        class _Inspector:
+            def inspect(self, job: JobPosting):
+                return ApplicationFlowInspection(
+                    outcome="ready",
+                    detail="preflight real ok | pronto_para_envio=sim",
+                )
+
+        event_bus = _EventBus()
+        service = ApplicationPreflightService(_Repository(), flow_inspector=_Inspector(), event_bus=event_bus)
+
+        result = service.run_for_application(55)
+
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(result.application_status, "confirmed")
+        self.assertEqual(len(event_bus.events), 1)
+        event = event_bus.events[0]
+        self.assertIsInstance(event, ApplicationPreflightCompletedV1)
+        self.assertEqual(event.application_id, 55)
+        self.assertEqual(event.job_id, 10)
+        self.assertEqual(event.outcome, "ready")
+        self.assertEqual(event.application_status, "confirmed")
+        self.assertEqual(event.detail, "preflight real ok | pronto_para_envio=sim")
+        self.assertEqual(event.correlation_id, "application:55")
+
+    def test_application_preflight_dry_run_does_not_publish_event(self) -> None:
+        class _Repository:
+            def get_application(self, application_id: int):
+                return JobApplication(id=application_id, job_id=10, status="confirmed")
+
+            def get_job(self, job_id: int):
+                return _job(job_id=job_id)
+
+        event_bus = _EventBus()
+        service = ApplicationPreflightService(_Repository(), event_bus=event_bus)
+
+        result = service.run_dry_run_for_application(55)
+
+        self.assertEqual(result.outcome, "ready")
+        self.assertEqual(event_bus.events, [])
 
     def test_application_submission_publishes_submitted_event(self) -> None:
         class _Repository:
