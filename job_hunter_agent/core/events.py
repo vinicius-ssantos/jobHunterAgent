@@ -88,6 +88,20 @@ class ApplicationAuthorizedV1:
 
 
 @dataclass(frozen=True)
+class ApplicationDraftCreatedV1:
+    application_id: int
+    job_id: int
+    status: str
+    support_level: str = ""
+    created_by: str = "command"
+    event_id: str = field(default_factory=new_event_id)
+    event_type: str = "ApplicationDraftCreatedV1"
+    event_version: int = 1
+    occurred_at: str = field(default_factory=utc_now_iso)
+    correlation_id: str = ""
+
+
+@dataclass(frozen=True)
 class ApplicationPreflightCompletedV1:
     application_id: int
     job_id: int
@@ -135,6 +149,7 @@ DomainEvent = (
     | JobReviewRequestedV1
     | JobReviewedV1
     | ApplicationAuthorizedV1
+    | ApplicationDraftCreatedV1
     | ApplicationPreflightCompletedV1
     | ApplicationSubmittedV1
     | ApplicationBlockedV1
@@ -168,6 +183,8 @@ def event_from_dict(payload: dict[str, Any]) -> DomainEvent:
         return job_reviewed_from_dict(payload)
     if event_type == "ApplicationAuthorizedV1":
         return application_authorized_from_dict(payload)
+    if event_type == "ApplicationDraftCreatedV1":
+        return application_draft_created_from_dict(payload)
     if event_type == "ApplicationPreflightCompletedV1":
         return application_preflight_completed_from_dict(payload)
     if event_type == "ApplicationSubmittedV1":
@@ -249,6 +266,21 @@ def application_authorized_from_dict(payload: dict[str, Any]) -> ApplicationAuth
         status=_safe_str(payload.get("status")) or "authorized_submit",
         event_id=_safe_str(payload.get("event_id")) or new_event_id(),
         event_type="ApplicationAuthorizedV1",
+        event_version=_safe_int(payload.get("event_version")) or 1,
+        occurred_at=_safe_str(payload.get("occurred_at")) or utc_now_iso(),
+        correlation_id=_safe_str(payload.get("correlation_id")),
+    )
+
+
+def application_draft_created_from_dict(payload: dict[str, Any]) -> ApplicationDraftCreatedV1:
+    return ApplicationDraftCreatedV1(
+        application_id=_safe_int(payload.get("application_id")),
+        job_id=_safe_int(payload.get("job_id")),
+        status=_safe_str(payload.get("status")),
+        support_level=_safe_str(payload.get("support_level")),
+        created_by=_safe_str(payload.get("created_by")) or "command",
+        event_id=_safe_str(payload.get("event_id")) or new_event_id(),
+        event_type="ApplicationDraftCreatedV1",
         event_version=_safe_int(payload.get("event_version")) or 1,
         occurred_at=_safe_str(payload.get("occurred_at")) or utc_now_iso(),
         correlation_id=_safe_str(payload.get("correlation_id")),

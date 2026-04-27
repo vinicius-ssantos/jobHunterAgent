@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest import TestCase
 
 from job_hunter_agent.application.application_commands import (
+    ApplicationDraftCommandService,
     ApplicationTransitionCommandService,
     JobReviewCommandService,
 )
@@ -13,6 +14,7 @@ from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
+    ApplicationDraftCreatedV1,
     ApplicationPreflightCompletedV1,
     ApplicationSubmittedV1,
     DomainEvent,
@@ -95,6 +97,54 @@ class DomainTransitionEventTests(TestCase):
         detail = service.review_job(10, "approve")
 
         self.assertEqual(detail, "Vaga ja estava aprovada: Backend Java - ACME")
+        self.assertEqual(event_bus.events, [])
+
+    def test_application_draft_creation_publishes_draft_created(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _job(job_id=job_id)
+
+            def get_application_by_job(self, job_id: int):
+                return None
+
+        class _Preparation:
+            def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = ""):
+                return [JobApplication(id=77, job_id=job_ids[0], status="draft", support_level="supported")]
+
+        event_bus = _EventBus()
+        service = ApplicationDraftCommandService(_Repository(), _Preparation(), event_bus=event_bus)
+
+        rendered = service.create_application_draft_for_job(10)
+
+        self.assertIn("Rascunho criado", rendered)
+        self.assertEqual(len(event_bus.events), 1)
+        event = event_bus.events[0]
+        self.assertIsInstance(event, ApplicationDraftCreatedV1)
+        self.assertEqual(event.application_id, 77)
+        self.assertEqual(event.job_id, 10)
+        self.assertEqual(event.status, "draft")
+        self.assertEqual(event.support_level, "supported")
+        self.assertEqual(event.created_by, "command")
+        self.assertEqual(event.correlation_id, "application:77")
+
+    def test_application_draft_creation_does_not_publish_when_application_exists(self) -> None:
+        class _Repository:
+            def get_job(self, job_id: int):
+                return _job(job_id=job_id)
+
+            def get_application_by_job(self, job_id: int):
+                return JobApplication(id=77, job_id=job_id, status="draft")
+
+        class _Preparation:
+            def create_drafts_for_approved_jobs(self, job_ids: list[int], notes: str = ""):
+                raise AssertionError("should not create a new draft")
+
+        event_bus = _EventBus()
+        service = ApplicationDraftCommandService(_Repository(), _Preparation(), event_bus=event_bus)
+
+        rendered = service.create_application_draft_for_job(10)
+
+        self.assertIn("Candidatura ja existe", rendered)
         self.assertEqual(event_bus.events, [])
 
     def test_authorize_application_publishes_application_authorized(self) -> None:

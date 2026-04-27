@@ -8,7 +8,7 @@ from job_hunter_agent.application.application_messages import (
 from job_hunter_agent.application.contracts import PreparationPort
 from job_hunter_agent.application.review_workflow import resolve_application_action, resolve_review_action
 from job_hunter_agent.core.event_bus import EventBusPort
-from job_hunter_agent.core.events import ApplicationAuthorizedV1, JobReviewedV1
+from job_hunter_agent.core.events import ApplicationAuthorizedV1, ApplicationDraftCreatedV1, JobReviewedV1
 from job_hunter_agent.infrastructure.repository import JobRepository
 
 
@@ -45,9 +45,11 @@ class ApplicationDraftCommandService:
         self,
         repository: JobRepository,
         preparation_service: PreparationPort,
+        event_bus: EventBusPort | None = None,
     ) -> None:
         self.repository = repository
         self.preparation_service = preparation_service
+        self.event_bus = event_bus
 
     def create_application_draft_for_job(self, job_id: int) -> str:
         job = self.repository.get_job(job_id)
@@ -66,6 +68,17 @@ class ApplicationDraftCommandService:
         if not drafts:
             return format_job_not_approved_for_draft(job_id=job_id)
         draft = drafts[0]
+        if self.event_bus is not None:
+            self.event_bus.publish(
+                ApplicationDraftCreatedV1(
+                    application_id=draft.id or 0,
+                    job_id=job_id,
+                    status=draft.status,
+                    support_level=draft.support_level,
+                    created_by="command",
+                    correlation_id=f"application:{draft.id}" if draft.id is not None else f"job:{job_id}",
+                )
+            )
         return format_created_application_draft(
             application_id=draft.id,
             job_id=job_id,

@@ -116,6 +116,7 @@ class JobHunterApplication:
         self.application_draft_commands = ApplicationDraftCommandService(
             self.repository,
             self.application_preparation,
+            event_bus=self.domain_event_bus,
         )
         self.application_transition_commands = ApplicationTransitionCommandService(
             self.repository,
@@ -304,7 +305,11 @@ class JobHunterApplication:
     def _application_draft_commands(self) -> ApplicationDraftCommandService:
         service = getattr(self, "application_draft_commands", None)
         if service is None:
-            service = ApplicationDraftCommandService(self.repository, self.application_preparation)
+            service = ApplicationDraftCommandService(
+                self.repository,
+                self.application_preparation,
+                event_bus=getattr(self, "domain_event_bus", None),
+            )
             self.application_draft_commands = service
         return service
 
