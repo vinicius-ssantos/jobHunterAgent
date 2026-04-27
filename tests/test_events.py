@@ -6,6 +6,7 @@ from job_hunter_agent.core.domain import JobPosting
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
+    ApplicationDraftCreatedV1,
     ApplicationPreflightCompletedV1,
     ApplicationSubmittedV1,
     JobCollectedV1,
@@ -153,6 +154,29 @@ class EventContractTests(TestCase):
         self.assertEqual(decoded.authorized_by, "cli")
         self.assertEqual(decoded.authorization_source, "manual")
         self.assertEqual(decoded.status, "authorized_submit")
+        self.assertEqual(decoded.correlation_id, "application:55")
+
+    def test_application_draft_created_round_trip_json_preserves_payload_and_metadata(self) -> None:
+        event = ApplicationDraftCreatedV1(
+            application_id=55,
+            job_id=123,
+            status="draft",
+            support_level="supported",
+            created_by="command",
+            event_id="evt-draft",
+            occurred_at="2026-04-24T12:04:15+00:00",
+            correlation_id="application:55",
+        )
+
+        decoded = event_from_json(event_to_json(event))
+
+        self.assertIsInstance(decoded, ApplicationDraftCreatedV1)
+        self.assertEqual(decoded.event_type, "ApplicationDraftCreatedV1")
+        self.assertEqual(decoded.application_id, 55)
+        self.assertEqual(decoded.job_id, 123)
+        self.assertEqual(decoded.status, "draft")
+        self.assertEqual(decoded.support_level, "supported")
+        self.assertEqual(decoded.created_by, "command")
         self.assertEqual(decoded.correlation_id, "application:55")
 
     def test_application_preflight_completed_round_trip_json_preserves_payload_and_metadata(self) -> None:
