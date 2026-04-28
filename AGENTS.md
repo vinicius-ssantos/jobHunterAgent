@@ -10,6 +10,94 @@ Siga esta ordem em todo trabalho:
 4. preferir mudanças pequenas, explícitas e testáveis
 5. atualizar documentação quando a verdade do sistema mudar
 
+## Política de Escolha de Modelo no Codex
+
+Antes de implementar qualquer tarefa, classifique o risco da mudança e verifique se o modelo atual é adequado.
+
+### T0 — Baixo risco
+
+Exemplos:
+
+- documentação simples
+- README
+- mensagens de CLI ou Telegram
+- pequenos ajustes de nomes
+- testes unitários simples
+
+Modelos suficientes:
+
+- `gpt-5.4-mini`
+- `gpt-5.3-codex-spark`
+- `gpt-5.3-codex`
+
+Pode implementar diretamente quando a alteração for pequena, explícita e testável.
+
+### T1 — Feature localizada
+
+Exemplos:
+
+- novo comando CLI simples
+- ajuste em um caso de uso existente
+- melhoria de validação
+- teste de regressão
+- correção isolada
+
+Modelos recomendados:
+
+- `gpt-5.3-codex`
+- `gpt-5.4`
+
+Pode implementar se o modelo atual for pelo menos `gpt-5.3-codex`.
+
+### T2 — Feature arquitetural ou multi-módulo
+
+Exemplos:
+
+- mudanças entre `application`, `collectors`, `infrastructure` e `llm`
+- alteração no matching estruturado
+- refatoração de fluxo
+- mudança em contratos de domínio
+- alteração de persistência ou schema
+
+Modelos recomendados:
+
+- `gpt-5.4`
+- `gpt-5.5`, se disponível
+
+Se o modelo atual for menor que `gpt-5.4`, não implemente direto. Primeiro explique o risco e recomende trocar de modelo.
+
+### T3 — Área crítica
+
+Exemplos:
+
+- submit real
+- gates humanos
+- estados de candidatura
+- Playwright/LinkedIn com risco operacional
+- fallback legado de matching
+- mudanças que possam burlar autorização humana
+
+Modelos obrigatórios:
+
+- `gpt-5.4`
+- `gpt-5.5`, se disponível
+
+Antes de implementar:
+
+1. leia este `AGENTS.md`
+2. proponha plano em passos pequenos
+3. indique arquivos afetados
+4. explique riscos
+5. só então aplique mudanças incrementais
+
+Nunca use modelo mini para T3.
+
+### Regra de parada
+
+Se a tarefa exigir um modelo mais forte do que o modelo atual, pare antes de codar e responda:
+
+> Esta tarefa parece exigir `<modelo recomendado>` porque afeta `<motivo>`. Recomendo reiniciar ou continuar a tarefa com esse modelo antes de implementar.
+
 ## GitFlow
 
 Quando iniciar trabalho novo:
