@@ -1,0 +1,74 @@
+name: Setup GitHub Project Roadmap
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_title:
+        description: "GitHub Project V2 title"
+        required: true
+        default: "Job Hunter Agent — Roadmap Operacional"
+      dry_run:
+        description: "Run without writing changes"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      create_issues:
+        description: "Create/update seed issues and add them to the Project"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      create_views:
+        description: "Try to create Project views through the GitHub REST API"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+jobs:
+  setup-project:
+    name: Setup operational roadmap project
+    runs-on: ubuntu-latest
+    env:
+      OWNER: vinicius-ssantos
+      REPO_NAME: jobHunterAgent
+      PROJECT_TITLE: ${{ inputs.project_title }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      CREATE_ISSUES: ${{ inputs.create_issues }}
+      CREATE_VIEWS: ${{ inputs.create_views }}
+      PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate secret
+        shell: bash
+        run: |
+          if [ -z "${PROJECT_PAT}" ]; then
+            echo "Missing repository secret PROJECT_PAT."
+            echo "Create a classic PAT with scopes: repo, project."
+            echo "Then add it in Settings > Secrets and variables > Actions > New repository secret."
+            exit 1
+          fi
+
+      - name: Show GitHub CLI auth status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: gh auth status || true
+
+      - name: Setup GitHub Project V2
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: python3 scripts/setup_github_project.py
