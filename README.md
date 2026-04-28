@@ -19,6 +19,7 @@ O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
 Guias operacionais atuais:
 
+- `docs/DATA_CONTRACT.md`
 - `docs/APPLICATION_OPERATIONS.md`
 - `docs/DOMAIN_EVENTS.md`
 - `docs/SQLITE_SCHEMA_AND_UTC_CHECKLIST.md`
@@ -43,8 +44,9 @@ Documentacao historica:
 - persistir vagas relevantes em SQLite
 - enviar vagas para revisao humana via Telegram
 - registrar aprovacao ou rejeicao manual
+- apoiar fluxo de candidatura assistido por comandos, diagnostico operacional e gates humanos de revisao/autorizacao
 
-Candidatura automatica continua fora do caminho critico desta versao.
+Submit real sem revisao humana e autorizacao explicita continua fora do caminho critico desta versao.
 
 ## Setup
 
@@ -81,6 +83,7 @@ Comportamento:
 - se o arquivo nao existir e o fallback estiver habilitado, o runtime cai para o contrato legado
 - se o arquivo nao existir e o fallback estiver desligado, o runtime falha cedo
 - o fallback vem desligado por padrao (`JOB_HUNTER_STRUCTURED_MATCHING_FALLBACK_ENABLED=false`)
+- o gate de precisao do LinkedIn usa `matching.linkedin_precision_gate` quando configurado; se a secao estiver ausente, usa `include_keywords` como sinal positivo generico
 
 Exemplo versionado:
 
@@ -131,6 +134,7 @@ Tratamento esperado:
 - `JOB_HUNTER_LINKEDIN_MAX_PAGE_DEPTH`
 - `JOB_HUNTER_LINKEDIN_SCROLL_STABILIZATION_PASSES`
 - `JOB_HUNTER_LINKEDIN_DUPLICATE_PAGES_STOP_THRESHOLD`
+- `JOB_HUNTER_LINKEDIN_PRECISION_GATE_ENABLED`
 - `JOB_HUNTER_REVIEW_POLLING_GRACE_SECONDS`
 - `JOB_HUNTER_ADAPTIVE_POLLING_BACKOFF_ENABLED`
 - `JOB_HUNTER_ADAPTIVE_POLLING_EMPTY_CYCLES_BEFORE_BACKOFF`
