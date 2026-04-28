@@ -20,6 +20,7 @@ O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 Guias operacionais atuais:
 
 - `docs/DATA_CONTRACT.md`
+- `docs/V1_HARDENING_CHECKLIST.md`
 - `docs/APPLICATION_OPERATIONS.md`
 - `docs/DOMAIN_EVENTS.md`
 - `docs/SQLITE_SCHEMA_AND_UTC_CHECKLIST.md`
