@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import re
 from typing import Protocol
 
 from job_hunter_agent.core.browser_support import (
@@ -269,13 +270,30 @@ class JobCollectionService:
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".strip().lower()
         if not combined_text:
             return "precision_gate_texto_indisponivel"
-        if any(term in combined_text for term in gate.blocked_terms):
-            return "precision_gate_termo_negocio"
-        if not all(term in combined_text for term in gate.required_terms):
+        if contains_any_precision_term(combined_text, gate.blocked_terms):
+            return "precision_gate_termo_bloqueado"
+        if not contains_all_precision_terms(combined_text, gate.required_terms):
             return "precision_gate_stack_fora_do_alvo"
-        if gate.any_terms and not any(term in combined_text for term in gate.any_terms):
+        if gate.any_terms and not contains_any_precision_term(combined_text, gate.any_terms):
             return "precision_gate_perfil_fora_do_alvo"
         return None
+
+
+def contains_any_precision_term(text: str, terms: tuple[str, ...]) -> bool:
+    return any(contains_precision_term(text, term) for term in terms)
+
+
+def contains_all_precision_terms(text: str, terms: tuple[str, ...]) -> bool:
+    return all(contains_precision_term(text, term) for term in terms)
+
+
+def contains_precision_term(text: str, term: str) -> bool:
+    normalized_text = text.strip().lower()
+    normalized_term = term.strip().lower()
+    if not normalized_text or not normalized_term:
+        return False
+    pattern = rf"(?<![0-9a-z]){re.escape(normalized_term)}(?![0-9a-z])"
+    return re.search(pattern, normalized_text) is not None
 
 
 def build_external_key(raw_job: RawJob) -> str:

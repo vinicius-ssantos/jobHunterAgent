@@ -14,6 +14,7 @@ from job_hunter_agent.collectors.collector import (
     clean_linkedin_title,
     JobCollectionService,
     build_external_key,
+    contains_precision_term,
     extract_json_object,
     load_playwright_storage_state,
     merge_linkedin_card_with_detail,
@@ -575,6 +576,61 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
 
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].title, "Python Backend Developer")
+
+    async def test_collect_new_jobs_precision_gate_does_not_match_short_terms_inside_words(self) -> None:
+        class _Collector:
+            async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+                return [
+                    RawJob(
+                        title="Django Backend Developer",
+                        company="ACME",
+                        location="Brasil",
+                        work_mode="remoto",
+                        salary_text="Nao informado",
+                        url="https://www.linkedin.com/jobs/view/1001/",
+                        source_site="LinkedIn",
+                        summary="Cargo backend com Django.",
+                        description="Desenvolvimento de APIs.",
+                    )
+                ]
+
+        gate_settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            linkedin_precision_gate_enabled=True,
+            sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+        )
+        service = JobCollectionService(
+            settings=gate_settings,
+            runtime_matching_profile=RuntimeMatchingProfile(
+                candidate_summary="Go backend",
+                include_keywords=("go",),
+                exclude_keywords=(),
+                accepted_work_modes=(),
+                minimum_salary_brl=0,
+                minimum_relevance=6,
+                linkedin_precision_gate=RuntimeLinkedInPrecisionGate(any_terms=("go",)),
+            ),
+            repository=self.repository,
+            site_collector=_Collector(),
+            scorer=FailingIfCalledScorer(),
+        )
+
+        jobs = await service.collect_new_jobs()
+
+        self.assertEqual(jobs, [])
+
+
+class PrecisionTermMatchingTests(TestCase):
+    def test_contains_precision_term_matches_whole_short_token(self) -> None:
+        self.assertTrue(contains_precision_term("Go backend developer", "go"))
+
+    def test_contains_precision_term_does_not_match_inside_larger_words(self) -> None:
+        self.assertFalse(contains_precision_term("Django backend cargo", "go"))
+
+    def test_contains_precision_term_preserves_phrase_matching(self) -> None:
+        self.assertTrue(contains_precision_term("Senior software engineer backend", "software engineer"))
+        self.assertTrue(contains_precision_term("Business development manager", "business development"))
 
 
 class ExternalKeyTests(TestCase):
