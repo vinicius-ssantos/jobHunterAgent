@@ -43,8 +43,9 @@ Documentacao historica:
 - persistir vagas relevantes em SQLite
 - enviar vagas para revisao humana via Telegram
 - registrar aprovacao ou rejeicao manual
+- apoiar fluxo de candidatura assistido por comandos, diagnostico operacional e gates humanos de revisao/autorizacao
 
-Candidatura automatica continua fora do caminho critico desta versao.
+Submit real sem revisao humana e autorizacao explicita continua fora do caminho critico desta versao.
 
 ## Setup
 
