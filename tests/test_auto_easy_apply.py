@@ -58,12 +58,20 @@ class _FakeRepository:
 
 
 class _FakePreflight:
+    def __init__(self) -> None:
+        self.called: list[int] = []
+
     def run_for_application(self, application_id: int):
+        self.called.append(application_id)
         return type("Result", (), {"outcome": "ready", "detail": "ok"})()
 
 
 class _FakeTransitions:
+    def __init__(self) -> None:
+        self.called: list[int] = []
+
     def authorize_application(self, application_id: int) -> str:
+        self.called.append(application_id)
         return f"autorizada {application_id}"
 
 
@@ -114,6 +122,49 @@ class AutoEasyApplyServiceTests(TestCase):
         self.assertEqual(report.blocked, 0)
         self.assertEqual(report.skipped, 0)
         self.assertEqual(submission.called, [1])
+
+    def test_run_once_does_not_submit_confirmed_without_explicit_authorization(self) -> None:
+        repository = _FakeRepository(
+            applications=[_application(app_id=1, job_id=10, status="confirmed")],
+            jobs={10: _job(job_id=10, relevance=9)},
+        )
+        preflight = _FakePreflight()
+        transitions = _FakeTransitions()
+        submission = _FakeSubmission()
+        service = AutoEasyApplyService(
+            repository=repository,
+            preflight=preflight,
+            submission=submission,
+            transitions=transitions,
+            settings=self._settings(auto_easy_apply_cooldown_seconds=0),
+        )
+
+        report = service.run_once()
+
+        self.assertEqual(report.analyzed, 0)
+        self.assertEqual(report.submitted, 0)
+        self.assertEqual(report.blocked, 0)
+        self.assertEqual(report.skipped, 0)
+        self.assertEqual(preflight.called, [])
+        self.assertEqual(transitions.called, [])
+        self.assertEqual(submission.called, [])
+
+    def test_run_once_rejects_non_authorized_application_in_gate(self) -> None:
+        repository = _FakeRepository(applications=[], jobs={})
+        service = AutoEasyApplyService(
+            repository=repository,
+            preflight=_FakePreflight(),
+            submission=_FakeSubmission(),
+            transitions=_FakeTransitions(),
+            settings=self._settings(),
+        )
+
+        reason = service._evaluate_gates(
+            application=_application(app_id=1, job_id=10, status="confirmed"),
+            job=_job(job_id=10, relevance=9),
+        )
+
+        self.assertEqual(reason, "submit_sem_autorizacao_explicita")
 
     def test_run_once_skips_below_min_score(self) -> None:
         repository = _FakeRepository(
