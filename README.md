@@ -47,6 +47,7 @@ Documentacao historica:
 - apoiar fluxo de candidatura assistido por comandos, diagnostico operacional e gates humanos de revisao/autorizacao
 
 Submit real sem revisao humana e autorizacao explicita continua fora do caminho critico desta versao.
+Mesmo com `JOB_HUNTER_AUTO_EASY_APPLY_ENABLED=true`, o submit real so considera candidaturas em `authorized_submit`; candidaturas apenas `confirmed` exigem autorizacao humana explicita antes de qualquer submissao.
 
 ## Setup
 

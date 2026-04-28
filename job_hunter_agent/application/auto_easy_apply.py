@@ -123,49 +123,11 @@ class AutoEasyApplyService:
                 details.append(f"app_id={application.id} gate={gate_reason}")
                 continue
 
-            final_application = application
-            if application.status == "confirmed":
-                preflight_result = self.preflight.run_for_application(application.id)
-                if preflight_result.outcome != "ready":
-                    blocked += 1
-                    reason_code = f"preflight:{preflight_result.outcome}"
-                    blocked_by_reason[reason_code] += 1
-                    details.append(
-                        f"app_id={application.id} preflight_bloqueou={preflight_result.detail}"
-                    )
-                    consecutive_errors = 0
-                    if self._should_stop_for_repeated_block(blocked_by_reason):
-                        details.append(
-                            f"parada por bloqueio repetido: {reason_code}={blocked_by_reason[reason_code]}"
-                        )
-                        break
-                    continue
-                if not _preflight_indicates_easy_apply(preflight_result.detail):
-                    blocked += 1
-                    reason_code = "preflight:sem_easy_apply_explicito"
-                    blocked_by_reason[reason_code] += 1
-                    details.append(
-                        f"app_id={application.id} preflight_sem_easy_apply={preflight_result.detail}"
-                    )
-                    if self._should_stop_for_repeated_block(blocked_by_reason):
-                        details.append(
-                            f"parada por bloqueio repetido: {reason_code}={blocked_by_reason[reason_code]}"
-                        )
-                        break
-                    continue
-                self.transitions.authorize_application(application.id)
-                refreshed = self.repository.get_application(application.id)
-                if refreshed is None:
-                    blocked += 1
-                    details.append(f"app_id={application.id} nao encontrada apos autorizar")
-                    continue
-                final_application = refreshed
-
-            submit_result = self.submission.run_for_application(final_application.id)
+            submit_result = self.submission.run_for_application(application.id)
             if submit_result.outcome == "submitted":
                 submitted += 1
                 consecutive_errors = 0
-                details.append(f"app_id={final_application.id} enviada com sucesso")
+                details.append(f"app_id={application.id} enviada com sucesso")
                 if (
                     submitted < self.settings.auto_easy_apply_max_submits_per_cycle
                     and self.settings.auto_easy_apply_cooldown_seconds > 0
@@ -178,7 +140,7 @@ class AutoEasyApplyService:
             reason_code = f"submit:{submit_result.outcome}"
             blocked_by_reason[reason_code] += 1
             details.append(
-                f"app_id={final_application.id} submit_{submit_result.outcome}={submit_result.detail}"
+                f"app_id={application.id} submit_{submit_result.outcome}={submit_result.detail}"
             )
             if self._should_stop_for_repeated_block(blocked_by_reason):
                 details.append(
@@ -197,18 +159,17 @@ class AutoEasyApplyService:
 
     def _load_candidates(self) -> list[tuple[JobApplication, JobPosting]]:
         ordered: list[tuple[JobApplication, JobPosting]] = []
-        for status in ("authorized_submit", "confirmed"):
-            for application in self.repository.list_applications_by_status(status):
-                job = self.repository.get_job(application.job_id)
-                if job is None:
-                    continue
-                ordered.append((application, job))
+        for application in self.repository.list_applications_by_status("authorized_submit"):
+            job = self.repository.get_job(application.job_id)
+            if job is None:
+                continue
+            ordered.append((application, job))
         ordered.sort(key=lambda item: item[1].relevance, reverse=True)
         return ordered
 
     def _evaluate_gates(self, *, application: JobApplication, job: JobPosting) -> str | None:
-        if application.status not in {"confirmed", "authorized_submit"}:
-            return "status_invalido"
+        if application.status != "authorized_submit":
+            return "submit_sem_autorizacao_explicita"
         if job.status != "approved":
             return "vaga_nao_aprovada"
         if job.relevance < self.settings.auto_easy_apply_min_score:
@@ -228,9 +189,7 @@ class AutoEasyApplyService:
         for denied in self.settings.auto_easy_apply_denylist_url_terms:
             if denied and denied in url_text:
                 return "url_na_denylist"
-        if application.status == "authorized_submit" and not _preflight_indicates_easy_apply(
-            application.last_preflight_detail
-        ):
+        if not _preflight_indicates_easy_apply(application.last_preflight_detail):
             return "preflight_sem_easy_apply_explicito"
         return None
 
