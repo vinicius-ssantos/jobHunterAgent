@@ -17,12 +17,20 @@ O diretorio `files/` foi removido da arquitetura ativa e nao deve ser recriado.
 
 ## Documentacao
 
-Documentacao ativa:
+Guias operacionais atuais:
+
+- `docs/APPLICATION_OPERATIONS.md`
+- `docs/DOMAIN_EVENTS.md`
+- `docs/SQLITE_SCHEMA_AND_UTC_CHECKLIST.md`
+- `docs/SQLITE_LEGACY_TIMESTAMP_MIGRATION_PLAN.md`
+
+Planos e checklists ativos:
 
 - `docs/plans/POS_MVP_ESTRUTURA_E_REFATORACAO_CHECKLIST.md`
 - `docs/plans/REMOVE_LEGACY_MATCHING_HARDCODES_CHECKLIST.md`
 - `docs/plans/RUNTIME_STRUCTURED_MATCHING_SOURCE_CHECKLIST.md`
 - `docs/plans/STRUCTURED_MATCHING_FALLBACK_EXIT_CRITERIA.md`
+- `docs/plans/SQLITE_SCHEMA_AND_UTC_CHECKLIST.md` aponta para o checklist canonico em `docs/SQLITE_SCHEMA_AND_UTC_CHECKLIST.md`
 
 Documentacao historica:
 
