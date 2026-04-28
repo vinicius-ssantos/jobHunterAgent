@@ -38,6 +38,37 @@
       "junior",
       "pleno"
     ],
-    "allow_unknown_seniority": true
+    "allow_unknown_seniority": true,
+    "linkedin_precision_gate": {
+      "required_terms": [
+        "java"
+      ],
+      "any_terms": [
+        "backend",
+        "back-end",
+        "engineer",
+        "engenharia de software",
+        "software engineer",
+        "developer",
+        "desenvolvedor",
+        "spring",
+        "api",
+        "microservices"
+      ],
+      "blocked_terms": [
+        "account executive",
+        "program manager",
+        "operations analyst",
+        "operations",
+        "sales",
+        "bdr",
+        "sdr",
+        "customer success",
+        "marketing",
+        "business development",
+        "gtm",
+        "consultor comercial"
+      ]
+    }
   }
 }

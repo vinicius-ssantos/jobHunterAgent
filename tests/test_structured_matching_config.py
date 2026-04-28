@@ -5,6 +5,7 @@ from unittest import TestCase
 
 from job_hunter_agent.core.legacy_matching_config import LegacyMatchingConfig
 from job_hunter_agent.core.structured_matching_config import (
+    LinkedInPrecisionGateConfig,
     StructuredMatchingSource,
     load_structured_matching_source,
     resolve_structured_matching_source,
@@ -26,6 +27,11 @@ class StructuredMatchingConfigTests(TestCase):
                             "minimum_salary_brl": 10000,
                             "minimum_relevance": 6,
                             "allow_unknown_seniority": False,
+                            "linkedin_precision_gate": {
+                                "required_terms": ["java"],
+                                "any_terms": ["backend", "spring"],
+                                "blocked_terms": ["sales"],
+                            },
                         },
                     }
                 ),
@@ -42,6 +48,37 @@ class StructuredMatchingConfigTests(TestCase):
         self.assertEqual(config.matching.minimum_salary_brl, 10000)
         self.assertEqual(config.matching.minimum_relevance, 6)
         self.assertFalse(config.matching.allow_unknown_seniority)
+        self.assertEqual(
+            config.matching.linkedin_precision_gate,
+            LinkedInPrecisionGateConfig(
+                required_terms=("java",),
+                any_terms=("backend", "spring"),
+                blocked_terms=("sales",),
+            ),
+        )
+
+    def test_load_structured_matching_source_defaults_linkedin_precision_gate_to_include_keywords(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "job_target.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "profile": {"summary": "Backend engineer com foco em Java."},
+                        "matching": {
+                            "include_keywords": ["java", "kotlin"],
+                            "minimum_salary_brl": 0,
+                            "minimum_relevance": 6,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_structured_matching_source(config_path)
+
+        self.assertEqual(config.matching.linkedin_precision_gate.required_terms, ())
+        self.assertEqual(config.matching.linkedin_precision_gate.any_terms, ("java", "kotlin"))
+        self.assertEqual(config.matching.linkedin_precision_gate.blocked_terms, ())
 
     def test_resolve_structured_matching_source_falls_back_to_legacy_when_file_is_missing(self) -> None:
         legacy = LegacyMatchingConfig(
@@ -62,6 +99,7 @@ class StructuredMatchingConfigTests(TestCase):
         self.assertTrue(resolved.used_legacy_fallback)
         self.assertEqual(resolved.config.profile.summary, "Legacy profile")
         self.assertEqual(resolved.config.matching.include_keywords, ("java",))
+        self.assertEqual(resolved.config.matching.linkedin_precision_gate.any_terms, ("java",))
 
     def test_resolve_structured_matching_source_fails_fast_when_fallback_is_disabled(self) -> None:
         legacy = LegacyMatchingConfig(

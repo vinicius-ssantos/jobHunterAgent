@@ -14,7 +14,7 @@ from job_hunter_agent.core.browser_support import (
 )
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
 from job_hunter_agent.core.matching import MatchingCriteria
-from job_hunter_agent.core.runtime_matching import RuntimeMatchingPolicy, RuntimeMatchingProfile
+from job_hunter_agent.core.runtime_matching import RuntimeLinkedInPrecisionGate, RuntimeMatchingPolicy, RuntimeMatchingProfile
 from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
     OllamaLinkedInFieldRepairer,
@@ -52,35 +52,6 @@ LINKEDIN_EXTERNAL_APPLY_HINTS: tuple[str, ...] = (
     "apply on company website",
     "apply externally",
 )
-LINKEDIN_PRECISION_REQUIRED_TERMS: tuple[str, ...] = (
-    "java",
-)
-LINKEDIN_PRECISION_BACKEND_TERMS: tuple[str, ...] = (
-    "backend",
-    "back-end",
-    "engineer",
-    "engenharia de software",
-    "software engineer",
-    "developer",
-    "desenvolvedor",
-    "spring",
-)
-LINKEDIN_PRECISION_BUSINESS_TERMS: tuple[str, ...] = (
-    "account executive",
-    "program manager",
-    "operations analyst",
-    "operations",
-    "sales",
-    "bdr",
-    "sdr",
-    "customer success",
-    "marketing",
-    "business development",
-    "gtm",
-    "consultor comercial",
-)
-
-
 class SiteCollector(Protocol):
     async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
         raise NotImplementedError
@@ -114,6 +85,7 @@ class JobCollectionService:
                 minimum_relevance=matching_criteria.minimum_relevance,
                 target_seniorities=matching_criteria.target_seniorities,
                 allow_unknown_seniority=matching_criteria.allow_unknown_seniority,
+                linkedin_precision_gate=RuntimeLinkedInPrecisionGate(any_terms=matching_criteria.include_keywords),
             )
         self.settings = settings
         self.runtime_matching_profile = runtime_matching_profile
@@ -291,15 +263,18 @@ class JobCollectionService:
         source_site = (raw_job.source_site or "").strip().lower()
         if source_site != "linkedin":
             return None
+        gate = self.runtime_matching_profile.linkedin_precision_gate
+        if not gate.has_rules():
+            return None
         combined_text = f"{raw_job.title} {raw_job.summary} {raw_job.description}".strip().lower()
         if not combined_text:
             return "precision_gate_texto_indisponivel"
-        if any(term in combined_text for term in LINKEDIN_PRECISION_BUSINESS_TERMS):
+        if any(term in combined_text for term in gate.blocked_terms):
             return "precision_gate_termo_negocio"
-        if not all(term in combined_text for term in LINKEDIN_PRECISION_REQUIRED_TERMS):
+        if not all(term in combined_text for term in gate.required_terms):
             return "precision_gate_stack_fora_do_alvo"
-        if not any(term in combined_text for term in LINKEDIN_PRECISION_BACKEND_TERMS):
-            return "precision_gate_perfil_nao_backend"
+        if gate.any_terms and not any(term in combined_text for term in gate.any_terms):
+            return "precision_gate_perfil_fora_do_alvo"
         return None
 
 

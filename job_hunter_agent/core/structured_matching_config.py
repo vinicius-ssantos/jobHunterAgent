@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 from typing import Any
@@ -15,6 +15,13 @@ class StructuredCandidateProfile:
 
 
 @dataclass(frozen=True)
+class LinkedInPrecisionGateConfig:
+    required_terms: tuple[str, ...] = ()
+    any_terms: tuple[str, ...] = ()
+    blocked_terms: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class StructuredMatchingConfig:
     include_keywords: tuple[str, ...]
     exclude_keywords: tuple[str, ...]
@@ -23,6 +30,7 @@ class StructuredMatchingConfig:
     minimum_relevance: int
     target_seniorities: tuple[str, ...] = ()
     allow_unknown_seniority: bool = True
+    linkedin_precision_gate: LinkedInPrecisionGateConfig = field(default_factory=LinkedInPrecisionGateConfig)
 
 
 @dataclass(frozen=True)
@@ -65,12 +73,13 @@ def load_structured_matching_source(path: str | Path) -> StructuredMatchingSourc
 def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatchingSource:
     profile_payload = _require_dict(payload, "profile")
     matching_payload = _require_dict(payload, "matching")
+    include_keywords = _require_string_list(matching_payload, "include_keywords", section="matching")
     return StructuredMatchingSource(
         profile=StructuredCandidateProfile(
             summary=_require_non_empty_string(profile_payload, "summary", section="profile"),
         ),
         matching=StructuredMatchingConfig(
-            include_keywords=_require_string_list(matching_payload, "include_keywords", section="matching"),
+            include_keywords=include_keywords,
             exclude_keywords=_optional_string_list(matching_payload, "exclude_keywords"),
             accepted_work_modes=_optional_string_list(matching_payload, "accepted_work_modes"),
             minimum_salary_brl=_require_non_negative_int(
@@ -92,6 +101,7 @@ def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatch
                 default=True,
                 section="matching",
             ),
+            linkedin_precision_gate=_optional_linkedin_precision_gate(matching_payload, include_keywords),
         ),
     )
 
@@ -113,6 +123,7 @@ def build_structured_matching_source_from_legacy(
             minimum_relevance=legacy_matching.minimum_relevance,
             target_seniorities=target_seniorities,
             allow_unknown_seniority=True,
+            linkedin_precision_gate=LinkedInPrecisionGateConfig(any_terms=legacy_matching.include_keywords),
         ),
     )
 
@@ -232,3 +243,21 @@ def _optional_bool(payload: dict[str, Any], key: str, *, default: bool, section:
             f"Arquivo de matching estruturado invalido: campo '{section}.{key}' deve ser booleano."
         )
     return value
+
+
+def _optional_linkedin_precision_gate(
+    payload: dict[str, Any],
+    include_keywords: tuple[str, ...],
+) -> LinkedInPrecisionGateConfig:
+    raw_value = payload.get("linkedin_precision_gate")
+    if raw_value is None:
+        return LinkedInPrecisionGateConfig(any_terms=include_keywords)
+    if not isinstance(raw_value, dict):
+        raise ValueError(
+            "Arquivo de matching estruturado invalido: campo 'matching.linkedin_precision_gate' deve ser objeto."
+        )
+    return LinkedInPrecisionGateConfig(
+        required_terms=_optional_string_list(raw_value, "required_terms"),
+        any_terms=_optional_string_list(raw_value, "any_terms"),
+        blocked_terms=_optional_string_list(raw_value, "blocked_terms"),
+    )
