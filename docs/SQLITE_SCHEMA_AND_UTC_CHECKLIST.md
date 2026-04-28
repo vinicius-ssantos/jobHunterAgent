@@ -20,10 +20,20 @@ Esta checklist cobre dois eixos:
 - [x] Cobrir helper com testes de banco legado sem tabela de versao.
 - [x] Cobrir execucao idempotente de migracoes.
 - [x] Cobrir aplicacao ordenada de migracoes pendentes.
-- [ ] Mover migracoes ad-hoc de `job_applications` para migracoes versionadas.
-- [ ] Padronizar writes restantes que ainda usam `datetime.now().isoformat(...)` para `_utc_now_iso()`.
-- [ ] Padronizar writes SQL restantes que ainda usam `CURRENT_TIMESTAMP` quando forem tocados por migracoes futuras.
-- [ ] Validar suite completa em CI.
+- [x] Padronizar novos writes operacionais cobertos nesta frente para UTC explicito.
+- [x] Validar suite completa em CI.
+- [x] Validar Docker.
+- [x] Atualizar checklists ativos ao final.
+
+## Fora Do Escopo Desta Frente
+
+Os pontos abaixo continuam sendo evolucoes futuras e nao bloqueiam a conclusao da issue #34:
+
+- converter dados antigos em massa;
+- trocar SQLite por Postgres;
+- introduzir broker externo;
+- remover todos os defaults antigos com `CURRENT_TIMESTAMP` sem uma migracao segura;
+- mover todo ajuste legado/ad-hoc para migracoes versionadas quando houver necessidade real de alterar schema.
 
 ## Migracoes SQLite
 
@@ -74,13 +84,46 @@ Ou o helper ja existente:
 SqliteJobRepository._utc_now_iso()
 ```
 
+Writes operacionais cobertos por UTC explicito nesta frente:
+
+- `schema_migrations.applied_at_utc`;
+- `jobs.created_at` em novos jobs salvos pela aplicacao;
+- `job_status_events.created_at` em novos eventos de vaga;
+- `seen_jobs.first_seen_at` e `seen_jobs.last_seen_at` em novos writes da aplicacao;
+- `collection_logs.created_at` em novos logs de coleta;
+- `collection_cursors.updated_at` em novos writes de cursor;
+- `job_applications.created_at` e `job_applications.updated_at` em novos writes de candidatura;
+- `job_application_events.created_at` em novos eventos de candidatura.
+
 Criterio esperado:
 
 - novos timestamps gerados pela aplicacao devem conter `+00:00`;
 - migracoes devem registrar `applied_at_utc` com `+00:00`;
 - comparacoes operacionais devem continuar aceitando dados antigos que nao tenham offset.
 
-## Pontos Conhecidos Para Revisao
+## Rollback Manual Para Banco Local
+
+Esta frente nao altera dados antigos em massa. Ainda assim, antes de uma intervencao manual em banco local, faca backup do arquivo SQLite:
+
+```bash
+cp jobs.db jobs.db.backup-$(date -u +%Y%m%dT%H%M%SZ)
+```
+
+Para voltar ao backup:
+
+```bash
+cp jobs.db.backup-<timestamp> jobs.db
+```
+
+Se o problema estiver restrito ao registro de versao de schema, inspecione antes de apagar qualquer dado:
+
+```bash
+sqlite3 jobs.db "SELECT version, name, applied_at_utc FROM schema_migrations ORDER BY version;"
+```
+
+Evite remover linhas de `schema_migrations` manualmente sem tambem entender quais mudancas de schema ja foram aplicadas.
+
+## Pontos Conhecidos Para Revisao Futura
 
 Procurar ocorrencias de:
 
@@ -93,10 +136,8 @@ Ajustar apenas quando houver teste cobrindo o comportamento, para evitar migraca
 
 ## Criterio De Conclusao Da Issue #34
 
-A issue pode ser fechada quando:
-
-- `SqliteJobRepository` registra a versao baseline em bancos novos;
-- bancos legados sem `schema_migrations` recebem a tabela e preservam dados;
-- novos writes operacionais alterados nesta frente usam UTC explicito;
-- testes cobrem banco vazio, banco legado e idempotencia;
-- esta checklist reflete o estado final.
+- [x] `SqliteJobRepository` registra a versao baseline em bancos novos.
+- [x] Bancos legados sem `schema_migrations` recebem a tabela e preservam dados.
+- [x] Novos writes operacionais alterados nesta frente usam UTC explicito.
+- [x] Testes cobrem banco vazio, banco legado e idempotencia.
+- [x] Checklists refletem o que foi concluido.
