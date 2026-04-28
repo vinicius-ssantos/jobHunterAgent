@@ -43,6 +43,7 @@ from job_hunter_agent.collectors.portal_collectors import (
     LinkedInCollectorAdapter,
 )
 from job_hunter_agent.core.matching import MatchingCriteria, build_matching_criteria
+from job_hunter_agent.core.runtime_matching import RuntimeLinkedInPrecisionGate, RuntimeMatchingProfile
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.llm.scoring import HybridJobScorer
 from job_hunter_agent.core.settings import Settings
@@ -487,17 +488,18 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         )
         service = JobCollectionService(
             settings=gate_settings,
-            matching_criteria=build_matching_criteria(
-                profile_text=gate_settings.profile_text,
-                include_keywords=gate_settings.include_keywords,
-                exclude_keywords=gate_settings.exclude_keywords,
-                accepted_work_modes=gate_settings.accepted_work_modes,
-                minimum_salary_brl=gate_settings.minimum_salary_brl,
-                minimum_relevance=gate_settings.minimum_relevance,
-                relaxed_matching_for_testing=gate_settings.relaxed_matching_for_testing,
-                relaxed_testing_profile_hint=gate_settings.relaxed_testing_profile_hint,
-                relaxed_testing_remove_exclude_keywords=gate_settings.relaxed_testing_remove_exclude_keywords,
-                relaxed_testing_minimum_relevance=gate_settings.relaxed_testing_minimum_relevance,
+            runtime_matching_profile=RuntimeMatchingProfile(
+                candidate_summary="Backend Java",
+                include_keywords=("java",),
+                exclude_keywords=(),
+                accepted_work_modes=(),
+                minimum_salary_brl=0,
+                minimum_relevance=6,
+                linkedin_precision_gate=RuntimeLinkedInPrecisionGate(
+                    required_terms=("java",),
+                    any_terms=("backend", "developer"),
+                    blocked_terms=("program manager", "operations", "sales"),
+                ),
             ),
             repository=self.repository,
             site_collector=_Collector(),
@@ -525,6 +527,54 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
                 ),
             )
         )
+
+    async def test_collect_new_jobs_precision_gate_uses_configured_terms_instead_of_java_hardcode(self) -> None:
+        class _Collector:
+            async def collect(self, site: SiteConfig, max_jobs: int) -> list[RawJob]:
+                return [
+                    RawJob(
+                        title="Python Backend Developer",
+                        company="ACME",
+                        location="Brasil",
+                        work_mode="remoto",
+                        salary_text="Nao informado",
+                        url="https://www.linkedin.com/jobs/view/1000/",
+                        source_site="LinkedIn",
+                        summary="Backend role com Python e APIs.",
+                        description="Desenvolvimento de servicos backend.",
+                    )
+                ]
+
+        class _Scorer:
+            def score(self, raw_job: RawJob, runtime_matching_profile: RuntimeMatchingProfile) -> ScoredJob:
+                return ScoredJob(relevance=8, rationale="fit python backend", accepted=True)
+
+        gate_settings = Settings(
+            telegram_token="token",
+            telegram_chat_id="chat",
+            linkedin_precision_gate_enabled=True,
+            sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
+        )
+        service = JobCollectionService(
+            settings=gate_settings,
+            runtime_matching_profile=RuntimeMatchingProfile(
+                candidate_summary="Backend Python",
+                include_keywords=("python",),
+                exclude_keywords=(),
+                accepted_work_modes=(),
+                minimum_salary_brl=0,
+                minimum_relevance=6,
+                linkedin_precision_gate=RuntimeLinkedInPrecisionGate(any_terms=("python", "backend")),
+            ),
+            repository=self.repository,
+            site_collector=_Collector(),
+            scorer=_Scorer(),
+        )
+
+        jobs = await service.collect_new_jobs()
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Python Backend Developer")
 
 
 class ExternalKeyTests(TestCase):

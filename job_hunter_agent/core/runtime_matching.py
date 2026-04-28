@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from job_hunter_agent.core.matching_reasons import (
     REASON_EXCLUDED_KEYWORDS,
@@ -14,6 +14,16 @@ from job_hunter_agent.core.structured_matching_config import StructuredMatchingS
 
 
 @dataclass(frozen=True)
+class RuntimeLinkedInPrecisionGate:
+    required_terms: tuple[str, ...] = ()
+    any_terms: tuple[str, ...] = ()
+    blocked_terms: tuple[str, ...] = ()
+
+    def has_rules(self) -> bool:
+        return bool(self.required_terms or self.any_terms or self.blocked_terms)
+
+
+@dataclass(frozen=True)
 class RuntimeMatchingProfile:
     candidate_summary: str
     include_keywords: tuple[str, ...]
@@ -23,6 +33,7 @@ class RuntimeMatchingProfile:
     minimum_relevance: int
     target_seniorities: tuple[str, ...] = ()
     allow_unknown_seniority: bool = True
+    linkedin_precision_gate: RuntimeLinkedInPrecisionGate = field(default_factory=RuntimeLinkedInPrecisionGate)
 
 
 @dataclass(frozen=True)
@@ -98,6 +109,11 @@ def build_runtime_matching_profile_from_structured_source(
         minimum_relevance=minimum_relevance,
         target_seniorities=structured_matching_source.matching.target_seniorities,
         allow_unknown_seniority=structured_matching_source.matching.allow_unknown_seniority,
+        linkedin_precision_gate=RuntimeLinkedInPrecisionGate(
+            required_terms=structured_matching_source.matching.linkedin_precision_gate.required_terms,
+            any_terms=structured_matching_source.matching.linkedin_precision_gate.any_terms,
+            blocked_terms=structured_matching_source.matching.linkedin_precision_gate.blocked_terms,
+        ),
     )
 
 
