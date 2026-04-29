@@ -87,7 +87,13 @@ def _run_applications_command(args: Namespace) -> None:
         return
     if args.applications_command == "report":
         app = create_query_app()
-        print(app.generate_application_report(args.id))
+        print(
+            app.generate_application_report(
+                args.id,
+                output_path=getattr(args, "output", None),
+                force=getattr(args, "force", False),
+            )
+        )
         return
     if args.applications_command == "events":
         app = create_query_app()
