@@ -13,6 +13,14 @@ class ApplicationCliParseTests(TestCase):
         self.assertEqual(args.applications_command, "diagnose")
         self.assertEqual(args.id, 32)
 
+    def test_parse_args_accepts_applications_report_command(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "report", "--id", "32"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "report")
+        self.assertEqual(args.id, 32)
+
     def test_parse_args_rejects_negative_cycle_interval_with_portuguese_message(self) -> None:
         with patch("sys.argv", ["main.py", "--ciclos", "2", "--intervalo-ciclos-segundos", "-1"]):
             with self.assertRaises(SystemExit) as raised:

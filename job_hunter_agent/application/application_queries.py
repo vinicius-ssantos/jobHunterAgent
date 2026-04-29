@@ -14,6 +14,7 @@ from job_hunter_agent.application.application_cli_rendering import (
     render_status_overview,
     summarize_operational_counts,
 )
+from job_hunter_agent.application.application_report import write_application_report
 from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
 from job_hunter_agent.core.event_bus import EventBusPort
 from job_hunter_agent.infrastructure.repository import JobRepository
@@ -121,6 +122,21 @@ class ApplicationQueryService:
             domain_events=domain_events,
             domain_events_enabled=self.domain_event_bus is not None,
         )
+
+    def generate_application_report(self, application_id: int) -> str:
+        application = self.repository.get_application(application_id)
+        if application is None:
+            return f"Candidatura nao encontrada: id={application_id}"
+        job = self.repository.get_job(application.job_id)
+        if job is None:
+            return f"Vaga associada nao encontrada: application_id={application_id} job_id={application.job_id}"
+        events = self.repository.list_application_events(application_id, limit=10)
+        report_path = write_application_report(
+            application=application,
+            job=job,
+            events=events,
+        )
+        return f"Relatorio gerado: {report_path}"
 
     def show_latest_failure_artifacts(self, *, artifacts_dir: Path, limit: int = 5) -> str:
         files = sorted(

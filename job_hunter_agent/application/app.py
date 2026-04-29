@@ -214,6 +214,9 @@ class JobHunterApplication:
     def diagnose_application(self, application_id: int) -> str:
         return self._query_service().diagnose_application(application_id)
 
+    def generate_application_report(self, application_id: int) -> str:
+        return self._query_service().generate_application_report(application_id)
+
     def transition_application(self, application_id: int, action: str) -> str:
         return self._application_transition_commands().transition_application(application_id, action)
 
