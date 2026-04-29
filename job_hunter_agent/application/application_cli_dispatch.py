@@ -85,6 +85,10 @@ def _run_applications_command(args: Namespace) -> None:
         app = create_query_app()
         print(app.diagnose_application(args.id))
         return
+    if args.applications_command == "report":
+        app = create_query_app()
+        print(app.generate_application_report(args.id))
+        return
     if args.applications_command == "events":
         app = create_query_app()
         print(app.show_application_events(args.id, limit=args.limit))
