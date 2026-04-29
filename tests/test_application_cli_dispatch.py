@@ -85,6 +85,33 @@ class ApplicationCliDispatchTests(TestCase):
         app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("diagnose=35")
 
+    def test_execute_cli_command_dispatches_application_report(self) -> None:
+        fake_app = type(
+            "FakeApp",
+            (),
+            {
+                "generate_application_report": lambda self, application_id: f"report={application_id}",
+            },
+        )()
+
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="applications",
+            applications_command="report",
+            id=35,
+            sem_telegram=False,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.create_query_app",
+            return_value=fake_app,
+        ) as app_factory, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        app_factory.assert_called_once_with()
+        print_mock.assert_called_once_with("report=35")
+
     def test_execute_cli_command_dispatches_application_preflight_with_flow_app(self) -> None:
         fake_app = type(
             "FakeApp",
