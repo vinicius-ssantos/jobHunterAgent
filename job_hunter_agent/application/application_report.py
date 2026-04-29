@@ -7,6 +7,12 @@ from pathlib import Path
 DEFAULT_APPLICATION_REPORTS_DIR = Path("artifacts/reports")
 
 
+class ApplicationReportAlreadyExistsError(Exception):
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        super().__init__(str(path))
+
+
 def build_application_report_path(application_id: int, *, reports_dir: Path = DEFAULT_APPLICATION_REPORTS_DIR) -> Path:
     return reports_dir / f"application-{application_id}.md"
 
@@ -17,9 +23,13 @@ def write_application_report(
     job: object,
     events: list[object],
     reports_dir: Path = DEFAULT_APPLICATION_REPORTS_DIR,
+    output_path: Path | None = None,
+    force: bool = False,
 ) -> Path:
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    path = build_application_report_path(application.id, reports_dir=reports_dir)
+    path = output_path or build_application_report_path(application.id, reports_dir=reports_dir)
+    if path.exists() and not force:
+        raise ApplicationReportAlreadyExistsError(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         render_application_evaluation_report(application=application, job=job, events=events),
         encoding="utf-8",
