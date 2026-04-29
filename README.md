@@ -24,6 +24,7 @@ Guias operacionais atuais:
 - `docs/POST_MVP_SAFETY_BOUNDARIES.md`
 - `docs/V1_ROADMAP_MAINTENANCE.md`
 - `docs/V1_CRITICAL_VALIDATION_MATRIX.md`
+- `docs/LEGACY_CLEANUP_MAP.md`
 - `docs/APPLICATION_OPERATIONS.md`
 - `docs/TELEGRAM_HUMAN_REVIEW_GATES.md`
 - `docs/DOMAIN_EVENTS.md`
