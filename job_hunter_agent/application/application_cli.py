@@ -135,6 +135,21 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_APPLICATION_REPORTS_DIR,
         help="Diretorio de relatorios A-F.",
     )
+    applications_reports_validate_parser = applications_reports_subparsers.add_parser(
+        "validate",
+        help="Valida integridade dos relatorios A-F gerados.",
+    )
+    applications_reports_validate_parser.add_argument(
+        "--dir",
+        type=Path,
+        default=DEFAULT_APPLICATION_REPORTS_DIR,
+        help="Diretorio de relatorios A-F.",
+    )
+    applications_reports_validate_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Trata pares Markdown/JSON ausentes como erro em vez de warning.",
+    )
 
     applications_events_parser = applications_subparsers.add_parser(
         "events",
