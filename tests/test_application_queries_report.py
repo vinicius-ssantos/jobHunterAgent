@@ -2,7 +2,10 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from job_hunter_agent.application.application_report import ApplicationReportAlreadyExistsError
+from job_hunter_agent.application.application_report import (
+    ApplicationReportAlreadyExistsError,
+    ApplicationReportArtifacts,
+)
 from job_hunter_agent.application.application_queries import ApplicationQueryService
 from job_hunter_agent.core.domain import JobApplication, JobApplicationEvent, JobPosting
 
@@ -61,16 +64,23 @@ class _RepositoryStub:
 
 
 class ApplicationQueryServiceReportTests(TestCase):
-    def test_generate_application_report_writes_markdown_and_returns_path(self) -> None:
+    def test_generate_application_report_writes_markdown_and_manifest_and_returns_paths(self) -> None:
         service = ApplicationQueryService(repository=_RepositoryStub())
 
         with patch(
             "job_hunter_agent.application.application_queries.write_application_report",
-            return_value="artifacts/reports/application-32.md",
+            return_value=ApplicationReportArtifacts(
+                report_path=Path("artifacts/reports/application-32.md"),
+                manifest_path=Path("artifacts/reports/application-32.json"),
+            ),
         ) as write_report:
             rendered = service.generate_application_report(32)
 
-        self.assertEqual(rendered, "Relatorio gerado: artifacts/reports/application-32.md")
+        self.assertEqual(
+            rendered,
+            "Relatorio gerado: artifacts/reports/application-32.md\n"
+            "Manifesto gerado: artifacts/reports/application-32.json",
+        )
         write_report.assert_called_once()
         kwargs = write_report.call_args.kwargs
         self.assertEqual(kwargs["application"].id, 32)
@@ -85,11 +95,14 @@ class ApplicationQueryServiceReportTests(TestCase):
 
         with patch(
             "job_hunter_agent.application.application_queries.write_application_report",
-            return_value=output_path,
+            return_value=ApplicationReportArtifacts(
+                report_path=output_path,
+                manifest_path=Path("custom/report.json"),
+            ),
         ) as write_report:
             rendered = service.generate_application_report(32, output_path=output_path, force=True)
 
-        self.assertEqual(rendered, "Relatorio gerado: custom/report.md")
+        self.assertEqual(rendered, "Relatorio gerado: custom/report.md\nManifesto gerado: custom/report.json")
         kwargs = write_report.call_args.kwargs
         self.assertEqual(kwargs["output_path"], output_path)
         self.assertTrue(kwargs["force"])
@@ -99,11 +112,11 @@ class ApplicationQueryServiceReportTests(TestCase):
 
         with patch(
             "job_hunter_agent.application.application_queries.write_application_report",
-            side_effect=ApplicationReportAlreadyExistsError(Path("custom/report.md")),
+            side_effect=ApplicationReportAlreadyExistsError(Path("custom/report.json")),
         ):
             rendered = service.generate_application_report(32)
 
-        self.assertEqual(rendered, "Relatorio ja existe: custom/report.md. Use --force para sobrescrever.")
+        self.assertEqual(rendered, "Relatorio ja existe: custom/report.json. Use --force para sobrescrever.")
 
     def test_generate_application_report_reports_missing_application(self) -> None:
         service = ApplicationQueryService(repository=_RepositoryStub())

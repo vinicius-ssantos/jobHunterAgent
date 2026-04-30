@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 DEFAULT_APPLICATION_REPORTS_DIR = Path("artifacts/reports")
@@ -13,8 +16,26 @@ class ApplicationReportAlreadyExistsError(Exception):
         super().__init__(str(path))
 
 
+@dataclass(frozen=True)
+class ApplicationReportArtifacts:
+    report_path: Path
+    manifest_path: Path
+
+
 def build_application_report_path(application_id: int, *, reports_dir: Path = DEFAULT_APPLICATION_REPORTS_DIR) -> Path:
     return reports_dir / f"application-{application_id}.md"
+
+
+def build_application_report_manifest_path(
+    application_id: int,
+    *,
+    reports_dir: Path = DEFAULT_APPLICATION_REPORTS_DIR,
+) -> Path:
+    return reports_dir / f"application-{application_id}.json"
+
+
+def build_application_report_manifest_path_for_report(report_path: Path) -> Path:
+    return report_path.with_suffix(".json")
 
 
 def write_application_report(
@@ -25,20 +46,99 @@ def write_application_report(
     reports_dir: Path = DEFAULT_APPLICATION_REPORTS_DIR,
     output_path: Path | None = None,
     force: bool = False,
-) -> Path:
-    path = output_path or build_application_report_path(application.id, reports_dir=reports_dir)
-    if path.exists() and not force:
-        raise ApplicationReportAlreadyExistsError(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        render_application_evaluation_report(application=application, job=job, events=events),
+) -> ApplicationReportArtifacts:
+    report_path = output_path or build_application_report_path(application.id, reports_dir=reports_dir)
+    manifest_path = (
+        build_application_report_manifest_path_for_report(report_path)
+        if output_path is not None
+        else build_application_report_manifest_path(application.id, reports_dir=reports_dir)
+    )
+    for path in (report_path, manifest_path):
+        if path.exists() and not force:
+            raise ApplicationReportAlreadyExistsError(path)
+
+    generated_at_utc = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        render_application_evaluation_report(
+            application=application,
+            job=job,
+            events=events,
+            generated_at_utc=generated_at_utc,
+        ),
         encoding="utf-8",
     )
-    return path
+    manifest_path.write_text(
+        json.dumps(
+            build_application_report_manifest(
+                application=application,
+                job=job,
+                report_path=report_path,
+                manifest_path=manifest_path,
+                generated_at_utc=generated_at_utc,
+            ),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return ApplicationReportArtifacts(report_path=report_path, manifest_path=manifest_path)
 
 
-def render_application_evaluation_report(*, application: object, job: object, events: list[object]) -> str:
-    generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+def build_application_report_manifest(
+    *,
+    application: object,
+    job: object,
+    report_path: Path,
+    manifest_path: Path,
+    generated_at_utc: str,
+) -> dict[str, Any]:
+    return {
+        "application": {
+            "id": getattr(application, "id", None),
+            "job_id": getattr(application, "job_id", None),
+            "status": _raw_value(getattr(application, "status", None)),
+        },
+        "generated_at_utc": generated_at_utc,
+        "job": {
+            "id": getattr(job, "id", None),
+            "title": _raw_value(getattr(job, "title", None)),
+            "company": _raw_value(getattr(job, "company", None)),
+            "source_site": _raw_value(getattr(job, "source_site", None)),
+            "url": _raw_value(getattr(job, "url", None)),
+            "status": _raw_value(getattr(job, "status", None)),
+        },
+        "manifest_path": str(manifest_path),
+        "report_path": str(report_path),
+        "safety": {
+            "changes_status": False,
+            "read_only": True,
+            "runs_preflight": False,
+            "runs_submit": False,
+            "uses_llm": False,
+        },
+        "status": {
+            "application": _raw_value(getattr(application, "status", None)),
+            "job": _raw_value(getattr(job, "status", None)),
+        },
+        "support": {
+            "level": _raw_value(getattr(application, "support_level", None)),
+            "rationale": _raw_value(getattr(application, "support_rationale", None)),
+        },
+    }
+
+
+def render_application_evaluation_report(
+    *,
+    application: object,
+    job: object,
+    events: list[object],
+    generated_at_utc: str | None = None,
+) -> str:
+    generated_at = generated_at_utc or datetime.now(timezone.utc).isoformat(timespec="seconds")
     recent_events = _render_recent_events(events)
     return "\n".join(
         [
@@ -150,3 +250,10 @@ def _value(value: object) -> str:
         return "-"
     text = str(value).strip()
     return text if text else "-"
+
+
+def _raw_value(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
