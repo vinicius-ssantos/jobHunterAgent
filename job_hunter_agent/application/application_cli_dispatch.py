@@ -95,6 +95,11 @@ def _run_applications_command(args: Namespace) -> None:
             )
         )
         return
+    if args.applications_command == "reports":
+        if args.applications_reports_command == "list":
+            app = create_query_app()
+            print(app.list_application_reports(reports_dir=args.dir, limit=args.limit))
+        return
     if args.applications_command == "events":
         app = create_query_app()
         print(app.show_application_events(args.id, limit=args.limit))
