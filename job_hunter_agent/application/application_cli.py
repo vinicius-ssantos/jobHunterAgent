@@ -5,6 +5,7 @@ import asyncio
 from pathlib import Path
 
 from job_hunter_agent.application.app import JobHunterApplication
+from job_hunter_agent.application.application_report import DEFAULT_APPLICATION_REPORTS_DIR
 from job_hunter_agent.core.domain import VALID_APPLICATION_STATUSES, VALID_STATUSES
 
 
@@ -108,6 +109,31 @@ def parse_args() -> argparse.Namespace:
         "--force",
         action="store_true",
         help="Sobrescreve o relatorio de destino se ele ja existir.",
+    )
+
+    applications_reports_parser = applications_subparsers.add_parser(
+        "reports",
+        help="Operacoes sobre relatorios A-F gerados.",
+    )
+    applications_reports_subparsers = applications_reports_parser.add_subparsers(
+        dest="applications_reports_command",
+        required=True,
+    )
+    applications_reports_list_parser = applications_reports_subparsers.add_parser(
+        "list",
+        help="Lista relatorios A-F gerados em disco.",
+    )
+    applications_reports_list_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Quantidade maxima de relatorios exibidos.",
+    )
+    applications_reports_list_parser.add_argument(
+        "--dir",
+        type=Path,
+        default=DEFAULT_APPLICATION_REPORTS_DIR,
+        help="Diretorio de relatorios A-F.",
     )
 
     applications_events_parser = applications_subparsers.add_parser(
