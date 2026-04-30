@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -20,6 +21,30 @@ class ApplicationCliParseTests(TestCase):
         self.assertEqual(args.command, "applications")
         self.assertEqual(args.applications_command, "report")
         self.assertEqual(args.id, 32)
+        self.assertIsNone(args.output)
+        self.assertFalse(args.force)
+
+    def test_parse_args_accepts_applications_report_output_and_force(self) -> None:
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "applications",
+                "report",
+                "--id",
+                "32",
+                "--output",
+                "custom/report.md",
+                "--force",
+            ],
+        ):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "report")
+        self.assertEqual(args.id, 32)
+        self.assertEqual(args.output, Path("custom/report.md"))
+        self.assertTrue(args.force)
 
     def test_parse_args_rejects_negative_cycle_interval_with_portuguese_message(self) -> None:
         with patch("sys.argv", ["main.py", "--ciclos", "2", "--intervalo-ciclos-segundos", "-1"]):

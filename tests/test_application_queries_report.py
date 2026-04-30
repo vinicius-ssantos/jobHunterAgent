@@ -1,6 +1,8 @@
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
+from job_hunter_agent.application.application_report import ApplicationReportAlreadyExistsError
 from job_hunter_agent.application.application_queries import ApplicationQueryService
 from job_hunter_agent.core.domain import JobApplication, JobApplicationEvent, JobPosting
 
@@ -74,6 +76,34 @@ class ApplicationQueryServiceReportTests(TestCase):
         self.assertEqual(kwargs["application"].id, 32)
         self.assertEqual(kwargs["job"].id, 10)
         self.assertEqual(len(kwargs["events"]), 1)
+        self.assertIsNone(kwargs["output_path"])
+        self.assertFalse(kwargs["force"])
+
+    def test_generate_application_report_passes_output_path_and_force(self) -> None:
+        service = ApplicationQueryService(repository=_RepositoryStub())
+        output_path = Path("custom/report.md")
+
+        with patch(
+            "job_hunter_agent.application.application_queries.write_application_report",
+            return_value=output_path,
+        ) as write_report:
+            rendered = service.generate_application_report(32, output_path=output_path, force=True)
+
+        self.assertEqual(rendered, "Relatorio gerado: custom/report.md")
+        kwargs = write_report.call_args.kwargs
+        self.assertEqual(kwargs["output_path"], output_path)
+        self.assertTrue(kwargs["force"])
+
+    def test_generate_application_report_reports_existing_file_without_force(self) -> None:
+        service = ApplicationQueryService(repository=_RepositoryStub())
+
+        with patch(
+            "job_hunter_agent.application.application_queries.write_application_report",
+            side_effect=ApplicationReportAlreadyExistsError(Path("custom/report.md")),
+        ):
+            rendered = service.generate_application_report(32)
+
+        self.assertEqual(rendered, "Relatorio ja existe: custom/report.md. Use --force para sobrescrever.")
 
     def test_generate_application_report_reports_missing_application(self) -> None:
         service = ApplicationQueryService(repository=_RepositoryStub())

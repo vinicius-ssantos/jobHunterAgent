@@ -98,6 +98,17 @@ def parse_args() -> argparse.Namespace:
         help="Gera relatorio A-F deterministico de uma candidatura.",
     )
     applications_report_parser.add_argument("--id", type=int, required=True, help="ID da candidatura.")
+    applications_report_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Caminho customizado para salvar o relatorio Markdown.",
+    )
+    applications_report_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Sobrescreve o relatorio de destino se ele ja existir.",
+    )
 
     applications_events_parser = applications_subparsers.add_parser(
         "events",
