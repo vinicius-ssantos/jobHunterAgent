@@ -1,4 +1,5 @@
 from argparse import Namespace
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -90,7 +91,9 @@ class ApplicationCliDispatchTests(TestCase):
             "FakeApp",
             (),
             {
-                "generate_application_report": lambda self, application_id: f"report={application_id}",
+                "generate_application_report": lambda self, application_id, output_path=None, force=False: (
+                    f"report={application_id}|output={output_path}|force={force}"
+                ),
             },
         )()
 
@@ -99,6 +102,8 @@ class ApplicationCliDispatchTests(TestCase):
             command="applications",
             applications_command="report",
             id=35,
+            output=None,
+            force=False,
             sem_telegram=False,
         )
 
@@ -110,7 +115,38 @@ class ApplicationCliDispatchTests(TestCase):
 
         self.assertTrue(handled)
         app_factory.assert_called_once_with()
-        print_mock.assert_called_once_with("report=35")
+        print_mock.assert_called_once_with("report=35|output=None|force=False")
+
+    def test_execute_cli_command_dispatches_application_report_output_and_force(self) -> None:
+        fake_app = type(
+            "FakeApp",
+            (),
+            {
+                "generate_application_report": lambda self, application_id, output_path=None, force=False: (
+                    f"report={application_id}|output={output_path}|force={force}"
+                ),
+            },
+        )()
+
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="applications",
+            applications_command="report",
+            id=35,
+            output=Path("custom/report.md"),
+            force=True,
+            sem_telegram=False,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.create_query_app",
+            return_value=fake_app,
+        ) as app_factory, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        app_factory.assert_called_once_with()
+        print_mock.assert_called_once_with("report=35|output=custom/report.md|force=True")
 
     def test_execute_cli_command_dispatches_application_preflight_with_flow_app(self) -> None:
         fake_app = type(
