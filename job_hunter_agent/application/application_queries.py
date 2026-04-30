@@ -132,7 +132,7 @@ class ApplicationQueryService:
             return f"Vaga associada nao encontrada: application_id={application_id} job_id={application.job_id}"
         events = self.repository.list_application_events(application_id, limit=10)
         try:
-            report_path = write_application_report(
+            artifacts = write_application_report(
                 application=application,
                 job=job,
                 events=events,
@@ -141,7 +141,7 @@ class ApplicationQueryService:
             )
         except ApplicationReportAlreadyExistsError as error:
             return f"Relatorio ja existe: {error.path}. Use --force para sobrescrever."
-        return f"Relatorio gerado: {report_path}"
+        return f"Relatorio gerado: {artifacts.report_path}\nManifesto gerado: {artifacts.manifest_path}"
 
     def show_latest_failure_artifacts(self, *, artifacts_dir: Path, limit: int = 5) -> str:
         files = sorted(
