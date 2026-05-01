@@ -177,6 +177,37 @@ class ApplicationCliDispatchTests(TestCase):
         app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("reports=custom/reports|limit=7")
 
+    def test_execute_cli_command_dispatches_application_reports_validate(self) -> None:
+        fake_app = type(
+            "FakeApp",
+            (),
+            {
+                "validate_application_reports": lambda self, reports_dir, strict=False: (
+                    f"validate={reports_dir}|strict={strict}"
+                ),
+            },
+        )()
+
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="applications",
+            applications_command="reports",
+            applications_reports_command="validate",
+            dir=Path("custom/reports"),
+            strict=True,
+            sem_telegram=False,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.create_query_app",
+            return_value=fake_app,
+        ) as app_factory, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        app_factory.assert_called_once_with()
+        print_mock.assert_called_once_with("validate=custom/reports|strict=True")
+
     def test_execute_cli_command_dispatches_application_preflight_with_flow_app(self) -> None:
         fake_app = type(
             "FakeApp",
