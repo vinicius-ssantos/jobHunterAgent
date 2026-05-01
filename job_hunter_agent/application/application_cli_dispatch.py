@@ -35,6 +35,9 @@ def execute_cli_command(args: Namespace) -> bool:
         app = create_query_app()
         print(app.show_health_report())
         return True
+    if args.command == "operations":
+        _run_operations_command(args)
+        return True
     if args.command == "jobs":
         _run_jobs_command(args)
         return True
@@ -51,6 +54,12 @@ def execute_cli_command(args: Namespace) -> bool:
         _run_worker_command(args)
         return True
     return False
+
+
+def _run_operations_command(args: Namespace) -> None:
+    app = create_query_app()
+    if args.operations_command == "report":
+        print(app.show_operations_report(days=args.days, date=args.date))
 
 
 def _run_jobs_command(args: Namespace) -> None:
