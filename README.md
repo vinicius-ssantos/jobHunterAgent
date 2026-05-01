@@ -213,6 +213,14 @@ python main.py --bootstrap-linkedin-session
 - falhas por portal nao interrompem as demais fontes
 - o runtime informa quando cai no fallback legado de matching
 
+Resumo operacional local read-only:
+
+```bash
+python main.py operations report
+python main.py operations report --days 7
+python main.py operations report --date 2026-05-01
+```
+
 ## Testes
 
 ```bash
