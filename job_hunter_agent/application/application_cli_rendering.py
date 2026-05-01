@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from job_hunter_agent.core.application_insights import (
     classify_application_operational_insight,
@@ -246,7 +248,7 @@ def render_failure_artifacts(*, artifacts_dir: Path, files: list[Path], limit: i
     lines = [f"Artefatos recentes: {min(len(files), limit)}"]
     for path in files[:limit]:
         timestamp = datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds")
-        lines.append(f"{timestamp} | {path.name}")
+        lines.append(_render_failure_artifact_line(path=path, timestamp=timestamp))
     return "\n".join(lines)
 
 
@@ -336,6 +338,38 @@ def _render_event_lines(events: list[object]) -> list[str]:
         f"{event.detail or '-'}"
         for event in events
     ]
+
+
+def _render_failure_artifact_line(*, path: Path, timestamp: str) -> str:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return f"{timestamp} | {path.name} | metadata=invalido"
+    if not isinstance(payload, dict):
+        return f"{timestamp} | {path.name} | metadata=invalido"
+    metadata = _extract_failure_artifact_metadata(payload)
+    if not metadata:
+        return f"{timestamp} | {path.name}"
+    return f"{timestamp} | {path.name} | {' | '.join(metadata)}"
+
+
+def _extract_failure_artifact_metadata(payload: dict[str, Any]) -> list[str]:
+    fields = {
+        "application_id": _first_present(payload, "application_id", "applicationId"),
+        "job_id": _first_present(payload, "job_id", "jobId"),
+        "portal": _first_present(payload, "portal", "source", "source_site"),
+        "reason": _first_present(payload, "reason", "reason_code", "readiness"),
+        "url": _first_present(payload, "url", "page_url", "current_url"),
+    }
+    return [f"{key}={value}" for key, value in fields.items() if value not in {None, ""}]
+
+
+def _first_present(payload: dict[str, Any], *keys: str) -> object | None:
+    for key in keys:
+        value = payload.get(key)
+        if value not in {None, ""}:
+            return value
+    return None
 
 
 def _render_domain_event_lines(events: tuple[DomainEvent, ...]) -> list[str]:
