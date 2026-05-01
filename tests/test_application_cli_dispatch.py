@@ -60,7 +60,7 @@ class ApplicationCliDispatchTests(TestCase):
         app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("operations=7|date=2026-05-01")
 
-    def test_execute_cli_command_dispatches_operations_next_actions(self) -> None:
+    def test_execute_cli_command_dispatches_operations_next_actions_with_limit(self) -> None:
         fake_repository = object()
         fake_app = type(
             "FakeApp",
@@ -69,11 +69,13 @@ class ApplicationCliDispatchTests(TestCase):
                 "repository": fake_repository,
             },
         )()
+        actions = ["a1", "a2", "a3"]
 
         args = Namespace(
             bootstrap_linkedin_session=False,
             command="operations",
             operations_command="next-actions",
+            limit=2,
             sem_telegram=True,
         )
 
@@ -82,14 +84,18 @@ class ApplicationCliDispatchTests(TestCase):
             return_value=fake_app,
         ) as app_factory, patch(
             "job_hunter_agent.application.application_cli_dispatch.build_operations_next_actions_from_repository",
-            return_value=[],
-        ) as build_actions, patch("builtins.print") as print_mock:
+            return_value=actions,
+        ) as build_actions, patch(
+            "job_hunter_agent.application.application_cli_dispatch.render_operations_next_actions",
+            return_value="rendered",
+        ) as render_actions, patch("builtins.print") as print_mock:
             handled = execute_cli_command(args)
 
         self.assertTrue(handled)
         app_factory.assert_called_once_with()
         build_actions.assert_called_once_with(fake_repository)
-        print_mock.assert_called_once_with("Nenhuma proxima acao operacional encontrada.")
+        render_actions.assert_called_once_with(actions[:2])
+        print_mock.assert_called_once_with("rendered")
 
     def test_execute_cli_command_dispatches_application_list_alias(self) -> None:
         fake_app = type(
