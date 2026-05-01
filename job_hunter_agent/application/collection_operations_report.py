@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -36,3 +39,92 @@ EMPTY_COLLECTION_OPERATIONS_REPORT = CollectionOperationsReport(
         recent_warnings_or_errors=(),
     ),
 )
+
+
+def build_collection_operations_report(repository: object, *, since: str) -> CollectionOperationsReport:
+    db_path = getattr(repository, "db_path", None)
+    if db_path is None:
+        return EMPTY_COLLECTION_OPERATIONS_REPORT
+    path = Path(db_path)
+    if not path.exists():
+        return EMPTY_COLLECTION_OPERATIONS_REPORT
+    with sqlite3.connect(path) as connection:
+        if not _table_exists(connection, "collection_runs") or not _table_exists(connection, "collection_logs"):
+            return EMPTY_COLLECTION_OPERATIONS_REPORT
+        return CollectionOperationsReport(
+            run_summary=_build_run_summary(connection, since=since),
+            log_summary=_build_log_summary(connection, since=since),
+        )
+
+
+def _build_run_summary(connection: sqlite3.Connection, *, since: str) -> CollectionRunSummary:
+    query = """
+        SELECT
+            COUNT(*),
+            SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN status = 'interrupted' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END),
+            SUM(jobs_seen),
+            SUM(jobs_saved),
+            SUM(errors)
+        FROM collection_runs
+        WHERE started_at >= ?
+    """
+    row = connection.execute(query, (since,)).fetchone()
+    return CollectionRunSummary(
+        total_runs=_int_value(row[0]),
+        success_runs=_int_value(row[1]),
+        error_runs=_int_value(row[2]),
+        interrupted_runs=_int_value(row[3]),
+        running_runs=_int_value(row[4]),
+        jobs_seen=_int_value(row[5]),
+        jobs_saved=_int_value(row[6]),
+        errors=_int_value(row[7]),
+    )
+
+
+def _build_log_summary(connection: sqlite3.Connection, *, since: str) -> CollectionLogSummary:
+    source_rows = connection.execute(
+        "SELECT source_site, COUNT(*) FROM collection_logs WHERE created_at >= ? GROUP BY source_site ORDER BY source_site",
+        (since,),
+    ).fetchall()
+    level_rows = connection.execute(
+        "SELECT level, COUNT(*) FROM collection_logs WHERE created_at >= ? GROUP BY level ORDER BY level",
+        (since,),
+    ).fetchall()
+    recent_rows = connection.execute(
+        """
+        SELECT created_at, source_site, level, message
+        FROM collection_logs
+        WHERE created_at >= ? AND LOWER(level) IN ('warning', 'warn', 'error')
+        ORDER BY id DESC
+        LIMIT 5
+        """,
+        (since,),
+    ).fetchall()
+    return CollectionLogSummary(
+        by_source={str(source): int(count) for source, count in source_rows},
+        by_level={str(level): int(count) for level, count in level_rows},
+        recent_warnings_or_errors=tuple(
+            {
+                "created_at": str(created_at or ""),
+                "source_site": str(source_site or ""),
+                "level": str(level or ""),
+                "message": str(message or ""),
+            }
+            for created_at, source_site, level, message in recent_rows
+        ),
+    )
+
+
+def _table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def _int_value(value: Any) -> int:
+    return int(value or 0)
