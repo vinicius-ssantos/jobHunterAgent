@@ -78,6 +78,36 @@ class ApplicationCliParseTests(TestCase):
         self.assertEqual(args.limit, 7)
         self.assertEqual(args.dir, Path("custom/reports"))
 
+    def test_parse_args_accepts_applications_reports_validate_defaults(self) -> None:
+        with patch("sys.argv", ["main.py", "applications", "reports", "validate"]):
+            args = parse_args()
+
+        self.assertEqual(args.command, "applications")
+        self.assertEqual(args.applications_command, "reports")
+        self.assertEqual(args.applications_reports_command, "validate")
+        self.assertEqual(args.dir, DEFAULT_APPLICATION_REPORTS_DIR)
+        self.assertFalse(args.strict)
+
+    def test_parse_args_accepts_applications_reports_validate_options(self) -> None:
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "applications",
+                "reports",
+                "validate",
+                "--dir",
+                "custom/reports",
+                "--strict",
+            ],
+        ):
+            args = parse_args()
+
+        self.assertEqual(args.applications_command, "reports")
+        self.assertEqual(args.applications_reports_command, "validate")
+        self.assertEqual(args.dir, Path("custom/reports"))
+        self.assertTrue(args.strict)
+
     def test_parse_args_rejects_reports_list_non_positive_limit(self) -> None:
         with patch("sys.argv", ["main.py", "applications", "reports", "list", "--limit", "0"]):
             with self.assertRaises(SystemExit) as raised:

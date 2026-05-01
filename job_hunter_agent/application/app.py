@@ -25,6 +25,7 @@ from job_hunter_agent.application.application_messages import (
 )
 from job_hunter_agent.application.application_queries import ApplicationQueryService
 from job_hunter_agent.application.application_report_listing import render_application_reports_list
+from job_hunter_agent.application.application_report_validation import render_application_reports_validation
 from job_hunter_agent.application.application_cli_rendering import render_failure_artifacts
 from job_hunter_agent.application.composition import (
     create_application_preflight_service,
@@ -230,6 +231,9 @@ class JobHunterApplication:
 
     def list_application_reports(self, *, reports_dir: Path, limit: int = 20) -> str:
         return render_application_reports_list(reports_dir=reports_dir, limit=limit)
+
+    def validate_application_reports(self, *, reports_dir: Path, strict: bool = False) -> str:
+        return render_application_reports_validation(reports_dir=reports_dir, strict=strict)
 
     def transition_application(self, application_id: int, action: str) -> str:
         return self._application_transition_commands().transition_application(application_id, action)
