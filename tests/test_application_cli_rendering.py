@@ -14,6 +14,7 @@ from job_hunter_agent.application.application_cli_rendering import (
     summarize_operational_counts,
 )
 from job_hunter_agent.core.domain import JobApplication, JobApplicationEvent, JobPosting
+from tests.tmp_workspace import prepare_workspace_tmp_dir
 
 
 def _sample_job(*, job_id: int, status: str) -> JobPosting:
@@ -187,6 +188,35 @@ class ApplicationCliRenderingTests(unittest.TestCase):
         )
 
         self.assertEqual(rendered, "Nenhum diretorio de artefatos encontrado: diretorio-inexistente")
+
+    def test_render_failure_artifacts_includes_metadata_when_available(self) -> None:
+        temp_dir = prepare_workspace_tmp_dir("failure-artifacts-valid")
+        artifact = temp_dir / "20260501_meta.json"
+        artifact.write_text(
+            '{"application_id": 42, "job_id": 101, "portal": "LinkedIn", "reason_code": "no_apply_cta", "page_url": "https://example.com/job"}',
+            encoding="utf-8",
+        )
+
+        rendered = render_failure_artifacts(artifacts_dir=temp_dir, files=[artifact], limit=5)
+
+        self.assertIn("Artefatos recentes: 1", rendered)
+        self.assertIn("20260501_meta.json", rendered)
+        self.assertIn("application_id=42", rendered)
+        self.assertIn("job_id=101", rendered)
+        self.assertIn("portal=LinkedIn", rendered)
+        self.assertIn("reason=no_apply_cta", rendered)
+        self.assertIn("url=https://example.com/job", rendered)
+
+    def test_render_failure_artifacts_tolerates_invalid_json(self) -> None:
+        temp_dir = prepare_workspace_tmp_dir("failure-artifacts-invalid")
+        artifact = temp_dir / "broken_meta.json"
+        artifact.write_text("{invalid", encoding="utf-8")
+
+        rendered = render_failure_artifacts(artifacts_dir=temp_dir, files=[artifact], limit=5)
+
+        self.assertIn("Artefatos recentes: 1", rendered)
+        self.assertIn("broken_meta.json", rendered)
+        self.assertIn("metadata=invalido", rendered)
 
     def test_render_execution_summary_groups_block_types(self) -> None:
         events = [
