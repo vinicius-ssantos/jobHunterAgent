@@ -8,6 +8,10 @@ from job_hunter_agent.application.application_cli import (
     APPLICATION_STATUS_ALIASES,
     JOB_STATUS_ALIASES,
 )
+from job_hunter_agent.application.collection_operations_report import (
+    build_collection_operations_report,
+    render_collection_operations_report,
+)
 from job_hunter_agent.application.collector_worker import run_collector_worker_once
 from job_hunter_agent.application.domain_events_cli import render_domain_events
 from job_hunter_agent.application.matching_worker import run_matching_worker_once
@@ -59,7 +63,20 @@ def execute_cli_command(args: Namespace) -> bool:
 def _run_operations_command(args: Namespace) -> None:
     app = create_query_app()
     if args.operations_command == "report":
-        print(app.show_operations_report(days=args.days, date=args.date))
+        report = app.show_operations_report(days=args.days, date=args.date)
+        repository = getattr(app, "repository", None)
+        if repository is not None:
+            since = _extract_report_since(report)
+            collection_report = build_collection_operations_report(repository, since=since)
+            report = "\n".join([report, render_collection_operations_report(collection_report)])
+        print(report)
+
+
+def _extract_report_since(report: str) -> str:
+    for line in report.splitlines():
+        if line.startswith("janela_desde="):
+            return line.split("=", 1)[1]
+    return ""
 
 
 def _run_jobs_command(args: Namespace) -> None:
