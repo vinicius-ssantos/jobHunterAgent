@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from job_hunter_agent.application.application_cli_rendering import (
@@ -11,6 +12,7 @@ from job_hunter_agent.application.application_cli_rendering import (
     render_failure_artifacts,
     render_job_detail,
     render_job_list,
+    render_operations_report,
     render_status_overview,
     summarize_operational_counts,
 )
@@ -88,6 +90,21 @@ class ApplicationQueryService:
             operational_counts=operational_counts,
         )
 
+    def show_operations_report(self, *, days: int | None = None, date: str | None = None) -> str:
+        since = _resolve_operations_report_since(days=days, date=date)
+        job_summary = self.repository.summary()
+        application_summary = self.repository.application_summary()
+        tracked_applications = self._list_tracked_applications()
+        operational_counts = summarize_operational_counts(applications=tracked_applications)
+        events = self._list_recent_application_events_since(since)
+        return render_operations_report(
+            since=since,
+            job_summary=job_summary,
+            application_summary=application_summary,
+            operational_counts=operational_counts,
+            events=events,
+        )
+
     def show_application_events(self, application_id: int, *, limit: int = 10) -> str:
         application = self.repository.get_application(application_id)
         if application is None:
@@ -156,11 +173,14 @@ class ApplicationQueryService:
         )
 
     def build_execution_summary(self, since: str) -> str:
+        events = self._list_recent_application_events_since(since)
+        return render_execution_summary(events=events)
+
+    def _list_recent_application_events_since(self, since: str) -> list[object]:
         list_events_since = getattr(self.repository, "list_recent_application_events_since", None)
         if list_events_since is None:
-            return "Execucao operacional:\n- preflights_concluidos=0\n- submits_concluidos=0\n- bloqueios_por_tipo=nenhum"
-        events = list_events_since(since)
-        return render_execution_summary(events=events)
+            return []
+        return list_events_since(since)
 
     def _list_tracked_applications(self) -> list[object]:
         list_tracked = getattr(self.repository, "list_tracked_applications_with_jobs", None)
@@ -171,3 +191,14 @@ class ApplicationQueryService:
         for status in tracked_statuses:
             applications.extend(self.repository.list_applications_by_status(status))
         return applications
+
+
+def _resolve_operations_report_since(*, days: int | None, date: str | None) -> str:
+    if date:
+        try:
+            parsed = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return date
+        return parsed.isoformat(timespec="seconds")
+    window_days = days or 1
+    return (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat(timespec="seconds")
