@@ -28,6 +28,7 @@ Guias operacionais atuais:
 - `docs/STRUCTURED_MATCHING_SCORING.md`
 - `docs/APPLICATION_OPERATIONS.md`
 - `docs/APPLICATION_REPORTS.md`
+- `docs/OPERATIONS_REPORT.md`
 - `docs/TELEGRAM_HUMAN_REVIEW_GATES.md`
 - `docs/DOMAIN_EVENTS.md`
 - `docs/SQLITE_CRITICAL_STATE_AUDIT.md`
@@ -220,6 +221,8 @@ python main.py operations report
 python main.py operations report --days 7
 python main.py operations report --date 2026-05-01
 ```
+
+Guia detalhado: `docs/OPERATIONS_REPORT.md`.
 
 ## Testes
 
