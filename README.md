@@ -27,6 +27,7 @@ Guias operacionais atuais:
 - `docs/LEGACY_CLEANUP_MAP.md`
 - `docs/STRUCTURED_MATCHING_SCORING.md`
 - `docs/APPLICATION_OPERATIONS.md`
+- `docs/APPLICATION_REPORTS.md`
 - `docs/TELEGRAM_HUMAN_REVIEW_GATES.md`
 - `docs/DOMAIN_EVENTS.md`
 - `docs/SQLITE_CRITICAL_STATE_AUDIT.md`
