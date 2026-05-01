@@ -222,6 +222,12 @@ python main.py operations report --days 7
 python main.py operations report --date 2026-05-01
 ```
 
+Proximas acoes operacionais sugeridas, sem executar nenhuma acao:
+
+```bash
+python main.py operations next-actions
+```
+
 Guia detalhado: `docs/OPERATIONS_REPORT.md`.
 
 ## Testes

@@ -15,6 +15,10 @@ from job_hunter_agent.application.collection_operations_report import (
 from job_hunter_agent.application.collector_worker import run_collector_worker_once
 from job_hunter_agent.application.domain_events_cli import render_domain_events
 from job_hunter_agent.application.matching_worker import run_matching_worker_once
+from job_hunter_agent.application.operations_next_actions import (
+    build_operations_next_actions_from_repository,
+    render_operations_next_actions,
+)
 from job_hunter_agent.application.worker_catalog import render_worker_catalog
 from job_hunter_agent.application.cli_bootstrap import (
     create_application_flow_app,
@@ -70,6 +74,13 @@ def _run_operations_command(args: Namespace) -> None:
             collection_report = build_collection_operations_report(repository, since=since)
             report = "\n".join([report, render_collection_operations_report(collection_report)])
         print(report)
+        return
+    if args.operations_command == "next-actions":
+        repository = getattr(app, "repository", None)
+        if repository is None:
+            print("Nenhuma proxima acao operacional encontrada.")
+            return
+        print(render_operations_next_actions(build_operations_next_actions_from_repository(repository)))
 
 
 def _extract_report_since(report: str) -> str:
