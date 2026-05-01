@@ -103,6 +103,49 @@ def render_status_overview(
     return "\n".join(lines)
 
 
+def render_operations_report(
+    *,
+    since: str,
+    job_summary: dict[str, int],
+    application_summary: dict[str, int],
+    operational_counts: dict[str, int],
+    events: list[object],
+) -> str:
+    lines = [
+        "Relatorio operacional local:",
+        f"janela_desde={since}",
+        "snapshot_atual:",
+        "vagas:",
+        f"- total={job_summary['total']}",
+        f"- collected={job_summary['collected']}",
+        f"- approved={job_summary['approved']}",
+        f"- rejected={job_summary['rejected']}",
+        f"- error_collect={job_summary['error_collect']}",
+        "candidaturas:",
+        f"- total={application_summary['total']}",
+        f"- draft={application_summary['draft']}",
+        f"- ready_for_review={application_summary['ready_for_review']}",
+        f"- confirmed={application_summary['confirmed']}",
+        f"- authorized_submit={application_summary['authorized_submit']}",
+        f"- submitted={application_summary['submitted']}",
+        f"- error_submit={application_summary['error_submit']}",
+        f"- cancelled={application_summary['cancelled']}",
+    ]
+    if operational_counts:
+        lines.append("operacao_atual:")
+        for key in get_runtime_operational_policy().operational_summary_order:
+            if key in operational_counts:
+                lines.append(f"- {key}={operational_counts[key]}")
+    lines.append("resumo_da_janela:")
+    lines.extend(render_execution_summary(events=events).splitlines()[1:])
+    lines.append("eventos_recentes:")
+    if events:
+        lines.extend(_render_event_lines(events[-10:]))
+    else:
+        lines.append("- nenhum")
+    return "\n".join(lines)
+
+
 def render_application_events(*, application_id: int, events: list[object]) -> str:
     if not events:
         return f"Nenhum evento encontrado para candidatura: id={application_id}"

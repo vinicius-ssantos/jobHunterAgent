@@ -48,6 +48,25 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("status", help="Mostra um resumo operacional de vagas e candidaturas.")
     subparsers.add_parser("health", help="Mostra health checks operacionais locais.")
+
+    operations_parser = subparsers.add_parser("operations", help="Relatorios operacionais locais read-only.")
+    operations_subparsers = operations_parser.add_subparsers(dest="operations_command", required=True)
+    operations_report_parser = operations_subparsers.add_parser(
+        "report",
+        help="Mostra um relatorio resumido por janela operacional.",
+    )
+    operations_report_parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help="Quantidade de dias recentes a considerar. Padrao: 1.",
+    )
+    operations_report_parser.add_argument(
+        "--date",
+        default=None,
+        help="Data inicial da janela no formato YYYY-MM-DD.",
+    )
+
     jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
     jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", required=True)
 
@@ -328,6 +347,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--intervalo-ciclos-segundos nao pode ser negativo")
     if getattr(args, "limit", 1) is not None and getattr(args, "limit", 1) <= 0:
         parser.error("--limit deve ser maior que zero")
+    if getattr(args, "days", None) is not None and getattr(args, "days", 1) <= 0:
+        parser.error("--days deve ser maior que zero")
     if args.agora and args.ciclos is not None:
         parser.error("use --agora ou --ciclos, nao ambos")
     if args.command is not None and (args.agora or args.ciclos is not None):

@@ -198,6 +198,9 @@ class JobHunterApplication:
     def show_status_overview(self) -> str:
         return self._query_service().show_status_overview()
 
+    def show_operations_report(self, *, days: int | None = None, date: str | None = None) -> str:
+        return self._query_service().show_operations_report(days=days, date=date)
+
     def show_health_report(self) -> str:
         return render_application_health_report(build_application_health_report(self.settings))
 

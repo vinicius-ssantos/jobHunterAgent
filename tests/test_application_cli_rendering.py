@@ -9,6 +9,7 @@ from job_hunter_agent.application.application_cli_rendering import (
     render_failure_artifacts,
     render_job_detail,
     render_job_list,
+    render_operations_report,
     render_status_overview,
     summarize_operational_counts,
 )
@@ -115,6 +116,42 @@ class ApplicationCliRenderingTests(unittest.TestCase):
         self.assertIn("Resumo operacional:", rendered)
         self.assertIn("- approved=1", rendered)
         self.assertIn("- similar_jobs=1", rendered)
+
+    def test_render_operations_report_combines_snapshot_and_window(self) -> None:
+        events = [
+            JobApplicationEvent(
+                id=1,
+                application_id=3,
+                event_type="preflight_blocked",
+                detail="readiness=no_apply_cta | motivo=a vaga so oferece candidatura externa no site da empresa",
+                created_at="2026-05-01T10:00:00",
+            )
+        ]
+
+        rendered = render_operations_report(
+            since="2026-05-01T00:00:00+00:00",
+            job_summary={"total": 2, "collected": 1, "approved": 1, "rejected": 0, "error_collect": 0},
+            application_summary={
+                "total": 1,
+                "draft": 0,
+                "ready_for_review": 0,
+                "confirmed": 1,
+                "authorized_submit": 0,
+                "submitted": 0,
+                "error_submit": 0,
+                "cancelled": 0,
+            },
+            operational_counts={"candidatura_externa": 1},
+            events=events,
+        )
+
+        self.assertIn("Relatorio operacional local:", rendered)
+        self.assertIn("janela_desde=2026-05-01T00:00:00+00:00", rendered)
+        self.assertIn("snapshot_atual:", rendered)
+        self.assertIn("resumo_da_janela:", rendered)
+        self.assertIn("candidatura_externa=1", rendered)
+        self.assertIn("eventos_recentes:", rendered)
+        self.assertIn("preflight_blocked", rendered)
 
     def test_render_application_events_handles_empty(self) -> None:
         rendered = render_application_events(application_id=2, events=[])

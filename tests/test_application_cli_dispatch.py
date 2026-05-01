@@ -32,6 +32,34 @@ class ApplicationCliDispatchTests(TestCase):
         app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("resumo")
 
+    def test_execute_cli_command_dispatches_operations_report(self) -> None:
+        fake_app = type(
+            "FakeApp",
+            (),
+            {
+                "show_operations_report": lambda self, days=None, date=None: f"operations={days}|date={date}",
+            },
+        )()
+
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="operations",
+            operations_command="report",
+            days=7,
+            date="2026-05-01",
+            sem_telegram=True,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.create_query_app",
+            return_value=fake_app,
+        ) as app_factory, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        app_factory.assert_called_once_with()
+        print_mock.assert_called_once_with("operations=7|date=2026-05-01")
+
     def test_execute_cli_command_dispatches_application_list_alias(self) -> None:
         fake_app = type(
             "FakeApp",
