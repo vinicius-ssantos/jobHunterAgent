@@ -14,6 +14,8 @@ STATUS_PRIORITY = {
     "draft": 50,
 }
 
+TRACKED_STATUSES = tuple(STATUS_PRIORITY)
+
 
 @dataclass(frozen=True)
 class OperationNextAction:
@@ -26,6 +28,18 @@ class OperationNextAction:
     reason_code: str
     command: str
     note: str
+
+
+def build_operations_next_actions_from_repository(repository: object) -> list[OperationNextAction]:
+    list_with_jobs = getattr(repository, "list_applications_with_jobs_by_status", None)
+    applications_with_jobs: list[tuple[object, object | None]] = []
+    for status in TRACKED_STATUSES:
+        if list_with_jobs is not None:
+            applications_with_jobs.extend(list_with_jobs(status))
+            continue
+        for application in repository.list_applications_by_status(status):
+            applications_with_jobs.append((application, repository.get_job(application.job_id)))
+    return build_operations_next_actions(applications_with_jobs)
 
 
 def build_operations_next_actions(applications_with_jobs: Iterable[tuple[object, object | None]]) -> list[OperationNextAction]:
