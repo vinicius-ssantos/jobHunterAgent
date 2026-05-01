@@ -216,6 +216,56 @@ Procure um destes eventos:
 - `ApplicationSubmittedV1`;
 - `ApplicationBlockedV1`.
 
+## Artefatos De Falha
+
+Para listar artefatos recentes de falha do fluxo de candidatura:
+
+```bash
+python main.py applications artifacts --limit 5
+```
+
+O comando procura arquivos `*_meta.json` no diretorio de artefatos configurado e permanece read-only.
+
+Ele nao deve:
+
+- alterar status;
+- rodar preflight;
+- rodar submit;
+- criar novos artefatos;
+- mover arquivos;
+- usar LLM;
+- enviar mensagens via Telegram.
+
+Quando o JSON de metadata e valido, a listagem tenta exibir campos uteis, quando disponiveis:
+
+- `application_id`;
+- `job_id`;
+- `portal` ou fonte;
+- `reason` ou `reason_code`;
+- `url` ou pagina atual.
+
+Exemplo de saida:
+
+```text
+Artefatos recentes: 1
+2026-05-01T18:30:00 | 20260501_meta.json | application_id=42 | job_id=101 | portal=LinkedIn | reason=no_apply_cta | url=https://example.com/job
+```
+
+Se o JSON estiver invalido, a listagem nao deve interromper os demais itens. O item problemático aparece com aviso curto:
+
+```text
+2026-05-01T18:30:00 | broken_meta.json | metadata=invalido
+```
+
+Se o arquivo existir mas nao tiver campos conhecidos, a listagem volta ao formato basico com timestamp e nome do arquivo.
+
+Use os artefatos junto com o diagnostico individual:
+
+```bash
+python main.py applications diagnose --id <application_id>
+python main.py domain-events list --correlation-id application:<application_id> --limit 20
+```
+
 ## Troubleshooting De Estados E Bloqueios
 
 ### `preflight_not_ready`
