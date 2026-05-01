@@ -57,6 +57,37 @@ def build_collection_operations_report(repository: object, *, since: str) -> Col
         )
 
 
+def render_collection_operations_report(report: CollectionOperationsReport) -> str:
+    run_summary = report.run_summary
+    log_summary = report.log_summary
+    lines = [
+        "coleta:",
+        f"- ciclos={run_summary.total_runs}",
+        f"- ciclos_success={run_summary.success_runs}",
+        f"- ciclos_error={run_summary.error_runs}",
+        f"- ciclos_interrupted={run_summary.interrupted_runs}",
+        f"- ciclos_running={run_summary.running_runs}",
+        f"- jobs_seen={run_summary.jobs_seen}",
+        f"- jobs_saved={run_summary.jobs_saved}",
+        f"- errors={run_summary.errors}",
+    ]
+    if log_summary.by_source:
+        lines.append("coleta_por_fonte:")
+        for source_site, count in sorted(log_summary.by_source.items()):
+            lines.append(f"- {source_site}={count}")
+    if log_summary.by_level:
+        lines.append("logs_por_nivel:")
+        for level, count in sorted(log_summary.by_level.items()):
+            lines.append(f"- {level}={count}")
+    if log_summary.recent_warnings_or_errors:
+        lines.append("logs_recentes_warning_error:")
+        for item in log_summary.recent_warnings_or_errors:
+            lines.append(
+                f"- {item['created_at']} | {item['source_site']} | {item['level']} | {item['message']}"
+            )
+    return "\n".join(lines)
+
+
 def _build_run_summary(connection: sqlite3.Connection, *, since: str) -> CollectionRunSummary:
     query = """
         SELECT
