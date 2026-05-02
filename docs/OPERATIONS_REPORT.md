@@ -73,9 +73,12 @@ A data informada e interpretada como inicio do dia em UTC.
 
 ```bash
 python main.py operations next-actions
+python main.py operations next-actions --limit 10
 ```
 
 Use este comando quando quiser uma lista curta de candidaturas que podem exigir atencao humana ou proxima acao operacional.
+
+Sem `--limit`, o comando exibe ate 20 proximas acoes. Use `--limit N` para reduzir ou ampliar a quantidade maxima exibida.
 
 O comando apenas sugere comandos conservadores. Ele nao executa nenhum dos comandos sugeridos.
 
@@ -205,7 +208,7 @@ Use essa secao para identificar rapidamente falhas de portal, problemas de naveg
 
 A saida e textual e ordenada por prioridade conservadora.
 
-Quando houver itens, a primeira linha informa a quantidade total:
+Quando houver itens, a primeira linha informa a quantidade total exibida:
 
 ```text
 Proximas acoes operacionais: 3
@@ -249,6 +252,8 @@ A ordem e deterministica e conservadora:
 5. `draft`: preparar candidatura para revisao humana.
 
 Candidaturas ja `submitted` ou `cancelled` nao aparecem como proximas acoes.
+
+O limite de saida e aplicado depois dessa ordenacao. Assim, `--limit 5` mostra os cinco itens mais prioritarios no momento da execucao.
 
 ## Interpretacao Operacional
 
@@ -318,6 +323,7 @@ Use `health` para sanidade operacional e `operations report` para historico rece
 
 ```bash
 python main.py operations next-actions
+python main.py operations next-actions --limit 10
 ```
 
 Mostra a fila operacional sugerida no momento atual.
@@ -350,6 +356,7 @@ Use `operations report` para visao agregada, `operations next-actions` para prio
 - O resumo da janela depende de timestamps gravados nos eventos.
 - O `next-actions` depende dos status atuais persistidos das candidaturas.
 - O `next-actions` nao executa os comandos recomendados.
+- O limite do `next-actions` corta a lista depois da ordenacao por prioridade.
 - Os comandos nao corrigem dados inconsistentes; eles apenas os mostram.
 
 ## Fluxo Recomendado
@@ -358,14 +365,14 @@ Para uma revisao diaria simples:
 
 ```bash
 python main.py operations report
-python main.py operations next-actions
+python main.py operations next-actions --limit 10
 ```
 
 Para uma revisao semanal:
 
 ```bash
 python main.py operations report --days 7
-python main.py operations next-actions
+python main.py operations next-actions --limit 20
 ```
 
 Quando houver erro ou bloqueio relevante:
