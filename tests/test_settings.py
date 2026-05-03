@@ -1,8 +1,9 @@
 from unittest import TestCase
 from pathlib import Path
 
-from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy, build_matching_criteria
+from job_hunter_agent.core.runtime_matching import RuntimeMatchingPolicy, RuntimeMatchingProfile, build_runtime_matching_profile_from_structured_source
 from job_hunter_agent.core.settings import Settings, load_settings
+from job_hunter_agent.core.structured_matching_config import StructuredCandidateProfile, StructuredMatchingConfig, StructuredMatchingSource
 
 
 class SettingsTests(TestCase):
@@ -156,29 +157,32 @@ class SettingsTests(TestCase):
             telegram_chat_id="chat",
             relaxed_matching_for_testing=True,
         )
+        source = StructuredMatchingSource(
+            profile=StructuredCandidateProfile(summary=settings.profile_text),
+            matching=StructuredMatchingConfig(
+                include_keywords=settings.include_keywords,
+                exclude_keywords=settings.exclude_keywords,
+                accepted_work_modes=settings.accepted_work_modes,
+                minimum_salary_brl=settings.minimum_salary_brl,
+                minimum_relevance=settings.minimum_relevance,
+            ),
+        )
 
-        criteria = build_matching_criteria(
-            profile_text=settings.profile_text,
-            include_keywords=settings.include_keywords,
-            exclude_keywords=settings.exclude_keywords,
-            accepted_work_modes=settings.accepted_work_modes,
-            minimum_salary_brl=settings.minimum_salary_brl,
-            minimum_relevance=settings.minimum_relevance,
+        profile = build_runtime_matching_profile_from_structured_source(
+            structured_matching_source=source,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
             relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
         )
 
-        self.assertNotIn("junior", criteria.exclude_keywords)
-        self.assertIn("junior e pleno", criteria.profile_text)
-        self.assertEqual(criteria.minimum_relevance, 4)
+        self.assertNotIn("junior", profile.exclude_keywords)
+        self.assertIn("junior e pleno", profile.candidate_summary)
+        self.assertEqual(profile.minimum_relevance, 4)
 
-    def test_matching_criteria_exposes_validated_business_inputs(self) -> None:
-        settings = Settings(
-            telegram_token="token",
-            telegram_chat_id="chat",
-            profile_text="Backend engineer",
+    def test_runtime_matching_profile_exposes_validated_business_inputs(self) -> None:
+        profile = RuntimeMatchingProfile(
+            candidate_summary="Backend engineer",
             include_keywords=("java", "kotlin"),
             exclude_keywords=("junior", "php"),
             accepted_work_modes=("remoto", "hibrido"),
@@ -186,30 +190,17 @@ class SettingsTests(TestCase):
             minimum_relevance=7,
         )
 
-        criteria = build_matching_criteria(
-            profile_text=settings.profile_text,
-            include_keywords=settings.include_keywords,
-            exclude_keywords=settings.exclude_keywords,
-            accepted_work_modes=settings.accepted_work_modes,
-            minimum_salary_brl=settings.minimum_salary_brl,
-            minimum_relevance=settings.minimum_relevance,
-            relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
-            relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
-            relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
-            relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
-        )
+        self.assertEqual(profile.candidate_summary, "Backend engineer")
+        self.assertEqual(profile.include_keywords, ("java", "kotlin"))
+        self.assertEqual(profile.exclude_keywords, ("junior", "php"))
+        self.assertEqual(profile.accepted_work_modes, ("remoto", "hibrido"))
+        self.assertEqual(profile.minimum_salary_brl, 12000)
+        self.assertEqual(profile.minimum_relevance, 7)
 
-        self.assertEqual(criteria.profile_text, "Backend engineer")
-        self.assertEqual(criteria.include_keywords, ("java", "kotlin"))
-        self.assertEqual(criteria.exclude_keywords, ("junior", "php"))
-        self.assertEqual(criteria.accepted_work_modes, ("remoto", "hibrido"))
-        self.assertEqual(criteria.minimum_salary_brl, 12000)
-        self.assertEqual(criteria.minimum_relevance, 7)
-
-    def test_matching_policy_centralizes_exclusion_work_mode_salary_and_relevance(self) -> None:
-        policy = MatchingPolicy(
-            MatchingCriteria(
-                profile_text="Backend engineer",
+    def test_runtime_matching_policy_centralizes_exclusion_work_mode_salary_and_relevance(self) -> None:
+        policy = RuntimeMatchingPolicy(
+            RuntimeMatchingProfile(
+                candidate_summary="Backend engineer",
                 include_keywords=("java",),
                 exclude_keywords=("junior", "php"),
                 accepted_work_modes=("remoto", "hibrido"),
@@ -235,24 +226,29 @@ class SettingsTests(TestCase):
             relaxed_testing_remove_exclude_keywords=("junior", "trainee"),
             relaxed_testing_minimum_relevance=5,
         )
+        source = StructuredMatchingSource(
+            profile=StructuredCandidateProfile(summary=settings.profile_text),
+            matching=StructuredMatchingConfig(
+                include_keywords=settings.include_keywords,
+                exclude_keywords=settings.exclude_keywords,
+                accepted_work_modes=settings.accepted_work_modes,
+                minimum_salary_brl=settings.minimum_salary_brl,
+                minimum_relevance=settings.minimum_relevance,
+            ),
+        )
 
-        criteria = build_matching_criteria(
-            profile_text=settings.profile_text,
-            include_keywords=settings.include_keywords,
-            exclude_keywords=settings.exclude_keywords,
-            accepted_work_modes=settings.accepted_work_modes,
-            minimum_salary_brl=settings.minimum_salary_brl,
-            minimum_relevance=settings.minimum_relevance,
+        profile = build_runtime_matching_profile_from_structured_source(
+            structured_matching_source=source,
             relaxed_matching_for_testing=settings.relaxed_matching_for_testing,
             relaxed_testing_profile_hint=settings.relaxed_testing_profile_hint,
             relaxed_testing_remove_exclude_keywords=settings.relaxed_testing_remove_exclude_keywords,
             relaxed_testing_minimum_relevance=settings.relaxed_testing_minimum_relevance,
         )
 
-        self.assertIn("pleno e mid-level", criteria.profile_text)
-        self.assertNotIn("junior", criteria.exclude_keywords)
-        self.assertNotIn("trainee", criteria.exclude_keywords)
-        self.assertEqual(criteria.minimum_relevance, 5)
+        self.assertIn("pleno e mid-level", profile.candidate_summary)
+        self.assertNotIn("junior", profile.exclude_keywords)
+        self.assertNotIn("trainee", profile.exclude_keywords)
+        self.assertEqual(profile.minimum_relevance, 5)
 
     def test_rejects_invalid_linkedin_max_pages_per_cycle(self) -> None:
         with self.assertRaises(ValueError):

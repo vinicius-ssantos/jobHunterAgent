@@ -43,7 +43,6 @@ from job_hunter_agent.collectors.portal_collectors import (
     IndeedCollectorAdapter,
     LinkedInCollectorAdapter,
 )
-from job_hunter_agent.core.matching import MatchingCriteria, build_matching_criteria
 from job_hunter_agent.core.runtime_matching import RuntimeLinkedInPrecisionGate, RuntimeMatchingProfile
 from job_hunter_agent.infrastructure.repository import SqliteJobRepository
 from job_hunter_agent.llm.scoring import HybridJobScorer
@@ -110,21 +109,21 @@ class SlowSiteCollector:
 
 
 class FakeScorer:
-    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
+    def score(self, raw_job: RawJob, runtime_matching_profile: RuntimeMatchingProfile) -> ScoredJob:
         if "PHP" in raw_job.title:
             return ScoredJob(relevance=2, rationale="Tecnologia excluida.", accepted=False)
         return ScoredJob(relevance=8, rationale="Bom fit tecnico.", accepted=True)
 
 
 class FlakyScorer:
-    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
+    def score(self, raw_job: RawJob, runtime_matching_profile: RuntimeMatchingProfile) -> ScoredJob:
         if "Kotlin" in raw_job.title:
             raise RuntimeError("modelo indisponivel")
         return ScoredJob(relevance=7, rationale="Fallback valido.", accepted=True)
 
 
 class FailingIfCalledScorer:
-    def score(self, raw_job: RawJob, criteria: MatchingCriteria) -> ScoredJob:
+    def score(self, raw_job: RawJob, runtime_matching_profile: RuntimeMatchingProfile) -> ScoredJob:
         raise AssertionError("scorer nao deveria ser chamado para vaga duplicada")
 
 
@@ -167,17 +166,13 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
             linkedin_precision_gate_enabled=False,
             sites=(SiteConfig(name="LinkedIn", search_url="https://example.com"),),
         )
-        self.matching_criteria = build_matching_criteria(
-            profile_text=self.settings.profile_text,
+        self.runtime_matching_profile = RuntimeMatchingProfile(
+            candidate_summary=self.settings.profile_text,
             include_keywords=self.settings.include_keywords,
             exclude_keywords=self.settings.exclude_keywords,
             accepted_work_modes=self.settings.accepted_work_modes,
             minimum_salary_brl=self.settings.minimum_salary_brl,
             minimum_relevance=self.settings.minimum_relevance,
-            relaxed_matching_for_testing=self.settings.relaxed_matching_for_testing,
-            relaxed_testing_profile_hint=self.settings.relaxed_testing_profile_hint,
-            relaxed_testing_remove_exclude_keywords=self.settings.relaxed_testing_remove_exclude_keywords,
-            relaxed_testing_minimum_relevance=self.settings.relaxed_testing_minimum_relevance,
         )
 
     async def asyncTearDown(self) -> None:
@@ -186,7 +181,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_filters_and_saves_only_relevant_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -208,17 +203,13 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         )
         service = JobCollectionService(
             settings=filtered_settings,
-            matching_criteria=build_matching_criteria(
-                profile_text=filtered_settings.profile_text,
+            runtime_matching_profile=RuntimeMatchingProfile(
+                candidate_summary=filtered_settings.profile_text,
                 include_keywords=filtered_settings.include_keywords,
                 exclude_keywords=filtered_settings.exclude_keywords,
                 accepted_work_modes=filtered_settings.accepted_work_modes,
                 minimum_salary_brl=filtered_settings.minimum_salary_brl,
                 minimum_relevance=filtered_settings.minimum_relevance,
-                relaxed_matching_for_testing=filtered_settings.relaxed_matching_for_testing,
-                relaxed_testing_profile_hint=filtered_settings.relaxed_testing_profile_hint,
-                relaxed_testing_remove_exclude_keywords=filtered_settings.relaxed_testing_remove_exclude_keywords,
-                relaxed_testing_minimum_relevance=filtered_settings.relaxed_testing_minimum_relevance,
             ),
             repository=self.repository,
             site_collector=FakeSiteCollector(),
@@ -233,7 +224,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_contains_cycle_counts(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -249,7 +240,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_discards_minimally_invalid_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=InvalidFakeSiteCollector(),
             scorer=FakeScorer(),
@@ -262,7 +253,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_tracks_portal_failures(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=FailingSiteCollector(),
             scorer=FakeScorer(),
@@ -284,17 +275,13 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         )
         service = JobCollectionService(
             settings=timeout_settings,
-            matching_criteria=build_matching_criteria(
-                profile_text=timeout_settings.profile_text,
+            runtime_matching_profile=RuntimeMatchingProfile(
+                candidate_summary=timeout_settings.profile_text,
                 include_keywords=timeout_settings.include_keywords,
                 exclude_keywords=timeout_settings.exclude_keywords,
                 accepted_work_modes=timeout_settings.accepted_work_modes,
                 minimum_salary_brl=timeout_settings.minimum_salary_brl,
                 minimum_relevance=timeout_settings.minimum_relevance,
-                relaxed_matching_for_testing=timeout_settings.relaxed_matching_for_testing,
-                relaxed_testing_profile_hint=timeout_settings.relaxed_testing_profile_hint,
-                relaxed_testing_remove_exclude_keywords=timeout_settings.relaxed_testing_remove_exclude_keywords,
-                relaxed_testing_minimum_relevance=timeout_settings.relaxed_testing_minimum_relevance,
             ),
             repository=self.repository,
             site_collector=SlowSiteCollector(),
@@ -316,7 +303,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_skips_scoring_errors_and_keeps_valid_jobs(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=MixedRawSiteCollector(),
             scorer=FlakyScorer(),
@@ -330,7 +317,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_report_logs_duplicates_in_portal_summary(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -379,7 +366,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
         )
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FailingIfCalledScorer(),
@@ -392,7 +379,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
     async def test_collect_new_jobs_remembers_discarded_jobs_to_skip_next_cycle(self) -> None:
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=FakeSiteCollector(),
             scorer=FakeScorer(),
@@ -436,7 +423,7 @@ class JobCollectionServiceTests(IsolatedAsyncioTestCase):
 
         service = JobCollectionService(
             settings=self.settings,
-            matching_criteria=self.matching_criteria,
+            runtime_matching_profile=self.runtime_matching_profile,
             repository=self.repository,
             site_collector=_Collector(),
             scorer=FailingIfCalledScorer(),

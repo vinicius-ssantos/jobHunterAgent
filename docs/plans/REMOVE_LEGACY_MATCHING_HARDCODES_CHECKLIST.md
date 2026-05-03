@@ -105,7 +105,7 @@ Esta fase fecha com os seguintes criterios atendidos:
 
 A proxima fase deve atacar:
 
-- [ ] transicao do caminho principal de matching para depender claramente de fonte estruturada no runtime atual
-- [ ] remocao adicional de termos legados ainda presentes em `MatchingCriteria`, `matching_prompt` e `collector`
-- [ ] politica explicita de senioridade desconhecida ligada ao caminho principal novo, e nao ao legado encapsulado
-- [ ] reducao adicional dos pontos que ainda tratam o legado como quase equivalente ao novo
+- [x] transicao do caminho principal de matching para depender claramente de fonte estruturada no runtime atual
+- [x] remocao adicional de termos legados ainda presentes em `MatchingCriteria`, `matching_prompt` e `collector`
+- [x] politica explicita de senioridade desconhecida ligada ao caminho principal novo, e nao ao legado encapsulado
+- [x] reducao adicional dos pontos que ainda tratam o legado como quase equivalente ao novo

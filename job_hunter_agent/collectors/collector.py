@@ -14,7 +14,6 @@ from job_hunter_agent.core.browser_support import (
     resolve_local_chromium,
 )
 from job_hunter_agent.core.domain import CollectionReport, JobPosting, RawJob, ScoredJob, SiteConfig
-from job_hunter_agent.core.matching import MatchingCriteria
 from job_hunter_agent.core.runtime_matching import RuntimeLinkedInPrecisionGate, RuntimeMatchingPolicy, RuntimeMatchingProfile
 from job_hunter_agent.collectors.linkedin import (
     LinkedInDeterministicCollector,
@@ -71,23 +70,8 @@ class JobCollectionService:
         site_collector: SiteCollector,
         scorer: JobScorer,
         *,
-        runtime_matching_profile: RuntimeMatchingProfile | None = None,
-        matching_criteria: MatchingCriteria | None = None,
+        runtime_matching_profile: RuntimeMatchingProfile,
     ) -> None:
-        if runtime_matching_profile is None and matching_criteria is None:
-            raise ValueError("Informe runtime_matching_profile ou matching_criteria.")
-        if runtime_matching_profile is None:
-            runtime_matching_profile = RuntimeMatchingProfile(
-                candidate_summary=matching_criteria.profile_text,
-                include_keywords=matching_criteria.include_keywords,
-                exclude_keywords=matching_criteria.exclude_keywords,
-                accepted_work_modes=matching_criteria.accepted_work_modes,
-                minimum_salary_brl=matching_criteria.minimum_salary_brl,
-                minimum_relevance=matching_criteria.minimum_relevance,
-                target_seniorities=matching_criteria.target_seniorities,
-                allow_unknown_seniority=matching_criteria.allow_unknown_seniority,
-                linkedin_precision_gate=RuntimeLinkedInPrecisionGate(any_terms=matching_criteria.include_keywords),
-            )
         self.settings = settings
         self.runtime_matching_profile = runtime_matching_profile
         self.repository = repository

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from job_hunter_agent.core.browser_support import extract_json_object
 from job_hunter_agent.core.domain import RawJob, ScoredJob
-from job_hunter_agent.core.matching import MatchingCriteria, MatchingPolicy
 from job_hunter_agent.core.runtime_matching import (
     RuntimeMatchingPolicy,
     RuntimeMatchingProfile,
@@ -42,7 +41,7 @@ class HybridJobScorer:
         return parse_scoring_response(response_text, runtime_matching_profile.minimum_relevance)
 
 
-def parse_scoring_response(response_text: str, policy: MatchingPolicy | int) -> ScoredJob:
+def parse_scoring_response(response_text: str, minimum_relevance: int) -> ScoredJob:
     payload = extract_json_object(response_text)
     if not payload:
         return ScoredJob(relevance=1, rationale="resposta sem JSON valido", accepted=False)
@@ -54,10 +53,7 @@ def parse_scoring_response(response_text: str, policy: MatchingPolicy | int) -> 
 
     relevance = max(1, min(relevance, 10))
     rationale = str(payload.get("rationale", "")).strip() or "sem_justificativa"
-    if isinstance(policy, int):
-        accepted = relevance >= policy
-    else:
-        accepted = policy.accepts_relevance(relevance)
+    accepted = relevance >= minimum_relevance
     return ScoredJob(relevance=relevance, rationale=rationale, accepted=accepted)
 
 

@@ -1,13 +1,13 @@
 from unittest import TestCase
 
 from job_hunter_agent.core.domain import RawJob
-from job_hunter_agent.core.matching_prompt import build_legacy_scoring_prompt
+from job_hunter_agent.core.matching_prompt import build_runtime_scoring_prompt
 from job_hunter_agent.core.runtime_matching import RuntimeMatchingProfile
 
 
 class MatchingPromptStructuredSeniorityTests(TestCase):
     def test_prompt_mentions_target_seniorities_and_unknown_seniority_policy(self) -> None:
-        prompt = build_legacy_scoring_prompt(
+        prompt = build_runtime_scoring_prompt(
             RawJob(
                 title="Senior Backend Engineer",
                 company="Acme",

@@ -40,10 +40,6 @@ def build_runtime_scoring_prompt(raw_job: RawJob, runtime_matching_profile: Runt
         """
 
 
-def build_legacy_scoring_prompt(raw_job: RawJob, runtime_matching_profile: RuntimeMatchingProfile) -> str:
-    return build_runtime_scoring_prompt(raw_job, runtime_matching_profile)
-
-
 def build_scoring_rationale_guidance() -> str:
     return (
         "- Prefira tokens curtos e consistentes na rationale, como: "

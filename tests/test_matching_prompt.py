@@ -1,12 +1,12 @@
 from unittest import TestCase
 
 from job_hunter_agent.core.domain import RawJob
-from job_hunter_agent.core.matching_prompt import build_legacy_scoring_prompt, build_scoring_rationale_guidance
+from job_hunter_agent.core.matching_prompt import build_runtime_scoring_prompt, build_scoring_rationale_guidance
 from job_hunter_agent.core.runtime_matching import RuntimeMatchingProfile
 
 
 class MatchingPromptTests(TestCase):
-    def test_build_legacy_scoring_prompt_includes_guidance_and_runtime_profile(self) -> None:
+    def test_build_runtime_scoring_prompt_includes_guidance_and_profile(self) -> None:
         raw_job = RawJob(
             title="Senior Backend Engineer",
             company="Acme",
@@ -27,7 +27,7 @@ class MatchingPromptTests(TestCase):
             minimum_relevance=6,
         )
 
-        prompt = build_legacy_scoring_prompt(raw_job, profile)
+        prompt = build_runtime_scoring_prompt(raw_job, profile)
 
         self.assertIn("Perfil:", prompt)
         self.assertIn("Engenheiro backend com foco em Java.", prompt)
