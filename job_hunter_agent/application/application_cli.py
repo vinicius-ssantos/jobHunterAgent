@@ -66,9 +66,15 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Data inicial da janela no formato YYYY-MM-DD.",
     )
-    operations_subparsers.add_parser(
+    operations_next_actions_parser = operations_subparsers.add_parser(
         "next-actions",
         help="Lista proximas acoes operacionais sugeridas sem executar nenhuma acao.",
+    )
+    operations_next_actions_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Quantidade maxima de proximas acoes exibidas.",
     )
 
     jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
