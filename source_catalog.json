@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "name": "LinkedIn",
+      "method": "playwright",
+      "priority": "p0",
+      "risk": "high",
+      "requires_login": true,
+      "has_rate_limit_risk": true,
+      "has_captcha_risk": true,
+      "notes": "Use only with human gates for login and external actions."
+    },
+    {
+      "name": "Gupy",
+      "method": "scraping",
+      "priority": "p0",
+      "risk": "medium",
+      "requires_login": false,
+      "has_rate_limit_risk": true,
+      "has_captcha_risk": false,
+      "notes": "Public job pages can be collected without submission automation."
+    },
+    {
+      "name": "Greenhouse",
+      "method": "api",
+      "priority": "p1",
+      "risk": "low",
+      "requires_login": false,
+      "has_rate_limit_risk": false,
+      "has_captcha_risk": false,
+      "notes": "Prefer public board API endpoints when available."
+    },
+    {
+      "name": "Lever",
+      "method": "api",
+      "priority": "p1",
+      "risk": "low",
+      "requires_login": false,
+      "has_rate_limit_risk": false,
+      "has_captcha_risk": false,
+      "notes": "Prefer public postings API endpoints when available."
+    },
+    {
+      "name": "Manual referral/community",
+      "method": "manual",
+      "priority": "p2",
+      "risk": "low",
+      "requires_login": false,
+      "has_rate_limit_risk": false,
+      "has_captcha_risk": false,
+      "notes": "Manual intake keeps unsupported or private sources explicit."
+    }
+  ]
+}
