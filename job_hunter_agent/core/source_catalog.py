@@ -180,7 +180,7 @@ def find_job_source(name: str, sources: Iterable[JobSource] | None = None) -> Jo
 def sources_by_priority(
     priority: SourcePriority,
     sources: Iterable[JobSource] | None = None,
-[]) -> tuple[JobSource, ...]:
+) -> tuple[JobSource, ...]:
     return tuple(source for source in (sources or list_default_job_sources()) if source.priority == priority)
 
 
