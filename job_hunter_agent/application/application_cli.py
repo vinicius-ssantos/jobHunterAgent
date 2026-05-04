@@ -66,9 +66,27 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Data inicial da janela no formato YYYY-MM-DD.",
     )
-    operations_subparsers.add_parser(
+    operations_next_actions_parser = operations_subparsers.add_parser(
         "next-actions",
         help="Lista proximas acoes operacionais sugeridas sem executar nenhuma acao.",
+    )
+    operations_next_actions_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Quantidade maxima de proximas acoes exibidas.",
+    )
+    operations_sources_parser = operations_subparsers.add_parser(
+        "sources",
+        help="Consulta catalogo operacional de fontes de vagas.",
+    )
+    operations_sources_subparsers = operations_sources_parser.add_subparsers(
+        dest="operations_sources_command",
+        required=True,
+    )
+    operations_sources_subparsers.add_parser(
+        "list",
+        help="Lista fontes de vagas com metodo, risco e prioridade.",
     )
 
     jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
