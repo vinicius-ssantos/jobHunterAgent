@@ -87,7 +87,8 @@ def _run_operations_command(args: Namespace) -> None:
         if repository is None:
             print("Nenhuma proxima acao operacional encontrada.")
             return
-        print(render_operations_next_actions(build_operations_next_actions_from_repository(repository)))
+        actions = build_operations_next_actions_from_repository(repository)
+        print(render_operations_next_actions(actions[: args.limit]))
 
 
 def _extract_report_since(report: str) -> str:
