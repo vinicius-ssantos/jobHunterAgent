@@ -27,6 +27,13 @@ class SourcePriority(StrEnum):
     P3 = "p3"
 
 
+DEFAULT_SOURCE_CATALOG_PATH = Path("source_catalog.json")
+
+
+class SourceCatalogError(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class JobSource:
     name: str
