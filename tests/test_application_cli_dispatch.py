@@ -60,7 +60,30 @@ class ApplicationCliDispatchTests(TestCase):
         app_factory.assert_called_once_with()
         print_mock.assert_called_once_with("operations=7|date=2026-05-01")
 
-    def test_execute_cli_command_dispatches_operations_next_actions(self) -> None:
+    def test_execute_cli_command_dispatches_operations_sources_list(self) -> None:
+        args = Namespace(
+            bootstrap_linkedin_session=False,
+            command="operations",
+            operations_command="sources",
+            operations_sources_command="list",
+            sem_telegram=True,
+        )
+
+        with patch(
+            "job_hunter_agent.application.application_cli_dispatch.list_default_job_sources",
+            return_value=["source"],
+        ) as list_sources, patch(
+            "job_hunter_agent.application.application_cli_dispatch.render_job_sources",
+            return_value="rendered sources",
+        ) as render_sources, patch("builtins.print") as print_mock:
+            handled = execute_cli_command(args)
+
+        self.assertTrue(handled)
+        list_sources.assert_called_once_with()
+        render_sources.assert_called_once_with(["source"])
+        print_mock.assert_called_once_with("rendered sources")
+
+    def test_execute_cli_command_dispatches_operations_next_actions_with_limit(self) -> None:
         fake_repository = object()
         fake_app = type(
             "FakeApp",
