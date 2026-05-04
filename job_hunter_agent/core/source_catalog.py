@@ -171,7 +171,7 @@ def list_default_job_sources() -> tuple[JobSource, ...]:
 
 def find_job_source(name: str, sources: Iterable[JobSource] | None = None) -> JobSource | None:
     normalized_name = name.strip().lower()
-    for source in sources or _DEFAULT_SOURCES:
+    for source in sources or list_default_job_sources():
         if source.name.lower() == normalized_name:
             return source
     return None
@@ -180,13 +180,37 @@ def find_job_source(name: str, sources: Iterable[JobSource] | None = None) -> Jo
 def sources_by_priority(
     priority: SourcePriority,
     sources: Iterable[JobSource] | None = None,
-) -> tuple[JobSource, ...]:
-    return tuple(source for source in (sources or _DEFAULT_SOURCES) if source.priority == priority)
+[]) -> tuple[JobSource, ...]:
+    return tuple(source for source in (sources or list_default_job_sources()) if source.priority == priority)
 
 
 def safe_unattended_sources(sources: Iterable[JobSource] | None = None) -> tuple[JobSource, ...]:
     return tuple(
         source
-        for source in (sources or _DEFAULT_SOURCES)
+        for source in (sources or list_default_job_sources())
         if source.safe_for_unattended_collection
     )
+
+
+def render_job_sources(sources: Iterable[JobSource]) -> str:
+    rows = tuple(sources)
+    if not rows:
+        return "Nenhuma fonte de vagas configurada."
+
+    lines = ["Fontes de vagas:"]
+    for source in rows:
+        flags = []
+        if source.requires_login:
+            flags.append("login")
+        if source.has_rate_limit_risk:
+            flags.append("rate-limit")
+        if source.has_captcha_risk:
+            flags.append("captcha")
+        flags_text = ", ".join(flags) if flags else "sem-alertas"
+        lines.append(
+            f"- {source.name}: method={source.method.value}; "
+            f"priority={source.priority.value}; risk={source.risk.value}; flags={flags_text}"
+        )
+        if source.notes:
+            lines.append(f"  notes: {source.notes}")
+    return "\n".join(lines)
