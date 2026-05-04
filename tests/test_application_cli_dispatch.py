@@ -97,6 +97,7 @@ class ApplicationCliDispatchTests(TestCase):
             bootstrap_linkedin_session=False,
             command="operations",
             operations_command="next-actions",
+            limit=20,
             sem_telegram=True,
         )
 
