@@ -28,6 +28,7 @@ from job_hunter_agent.application.cli_bootstrap import (
 )
 from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.core.settings import load_settings
+from job_hunter_agent.core.source_catalog import list_default_job_sources, render_job_sources
 
 
 def execute_cli_command(args: Namespace) -> bool:
