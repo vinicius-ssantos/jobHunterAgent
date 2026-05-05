@@ -90,7 +90,13 @@ class PortalAwareJobIdentityStrategy:
     @staticmethod
     def _extract_linkedin_job_id(url: str) -> str:
         match = re.search(r"linkedin\.com/jobs/view/(\d+)", url, flags=re.IGNORECASE)
-        return match.group(1) if match else ""
+        if match:
+            return match.group(1)
+
+        parsed = urlsplit(url)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        current_job_id = query.get("currentJobId") or query.get("currentjobid")
+        return current_job_id if current_job_id and current_job_id.isdigit() else ""
 
     def url_lookup_patterns(self, url: str) -> list[str]:
         normalized_url = normalize_job_url(url)
