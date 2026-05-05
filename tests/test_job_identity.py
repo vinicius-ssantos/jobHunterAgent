@@ -35,6 +35,16 @@ class JobIdentityTests(TestCase):
         self.assertIn("https://linkedin.com/jobs/view/1234567890", patterns)
         self.assertIn("%/jobs/view/1234567890%", patterns)
 
+    def test_url_lookup_patterns_include_current_job_id_pattern(self) -> None:
+        strategy = PortalAwareJobIdentityStrategy()
+
+        patterns = strategy.url_lookup_patterns(
+            "https://www.linkedin.com/jobs/search/?currentJobId=9876543210&start=25&trk=jobs_jserp"
+        )
+
+        self.assertIn("https://linkedin.com/jobs/search", patterns)
+        self.assertIn("%/jobs/view/9876543210%", patterns)
+
     def test_normalize_identity_text_collapses_spacing_case_and_accents(self) -> None:
         self.assertEqual(normalize_identity_text("  São   PAULO  "), "sao paulo")
 
