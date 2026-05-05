@@ -15,6 +15,18 @@ class StructuredCandidateProfile:
 
 
 @dataclass(frozen=True)
+class StructuredSearchProfile:
+    include_keywords: tuple[str, ...]
+    exclude_keywords: tuple[str, ...]
+    accepted_work_modes: tuple[str, ...]
+    minimum_salary_brl: int
+    minimum_relevance: int
+    allowed_seniority_levels: tuple[str, ...] = ()
+    allow_unknown_seniority: bool = True
+    target_role_families: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class LinkedInPrecisionGateConfig:
     required_terms: tuple[str, ...] = ()
     any_terms: tuple[str, ...] = ()
