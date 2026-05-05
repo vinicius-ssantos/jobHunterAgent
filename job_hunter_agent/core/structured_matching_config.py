@@ -49,6 +49,7 @@ class StructuredMatchingConfig:
 class StructuredMatchingSource:
     profile: StructuredCandidateProfile
     matching: StructuredMatchingConfig
+    search_profile: StructuredSearchProfile | None = None
 
 
 @dataclass(frozen=True)
@@ -83,12 +84,12 @@ def load_structured_matching_source(path: str | Path) -> StructuredMatchingSourc
 
 
 def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatchingSource:
-    profile_payload = _require_dict(payload, "profile")
-    matching_payload = _require_dict(payload, "matching")
-    include_keywords = _require_string_list(matching_payload, "include_keywords", section="matching")
+    profile_payload = _optional_dict(payload, "candidate_profile") or _require_dict(payload, "profile")
+    matching_payload = _optional_dict(payload, "search_profile") or _require_dict(payload, "matching")
+    include_keywords = _require_string_list(matching_payload, "include_keywords", section="search_profile")
     return StructuredMatchingSource(
         profile=StructuredCandidateProfile(
-            summary=_require_non_empty_string(profile_payload, "summary", section="profile"),
+            summary=_require_non_empty_string(profile_payload, "summary", section="candidate_profile"),
         ),
         matching=StructuredMatchingConfig(
             include_keywords=include_keywords,
@@ -97,21 +98,24 @@ def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatch
             minimum_salary_brl=_require_non_negative_int(
                 matching_payload,
                 "minimum_salary_brl",
-                section="matching",
+                section="search_profile",
             ),
             minimum_relevance=_require_int_in_range(
                 matching_payload,
                 "minimum_relevance",
-                section="matching",
+                section="search_profile",
                 minimum=1,
                 maximum=10,
             ),
-            target_seniorities=_optional_seniority_list(matching_payload, "target_seniorities"),
+            target_seniorities=(
+                _optional_seniority_list(matching_payload, "allowed_seniority_levels")
+                or _optional_seniority_list(matching_payload, "target_seniorities")
+            ),
             allow_unknown_seniority=_optional_bool(
                 matching_payload,
                 "allow_unknown_seniority",
                 default=True,
-                section="matching",
+                section="search_profile",
             ),
             linkedin_precision_gate=_optional_linkedin_precision_gate(matching_payload, include_keywords),
         ),
