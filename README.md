@@ -22,6 +22,7 @@ Guias operacionais atuais:
 - `docs/DATA_CONTRACT.md`
 - `docs/V1_HARDENING_CHECKLIST.md`
 - `docs/POST_MVP_SAFETY_BOUNDARIES.md`
+- `docs/SAFETY_GATES_MATRIX.md`
 - `docs/V1_ROADMAP_MAINTENANCE.md`
 - `docs/V1_CRITICAL_VALIDATION_MATRIX.md`
 - `docs/LEGACY_CLEANUP_MAP.md`
