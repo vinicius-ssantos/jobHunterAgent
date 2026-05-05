@@ -51,7 +51,7 @@ def normalize_job_url(url: str) -> str:
         key_lower = key.lower()
         if key_lower.startswith(_TRACKING_QUERY_PREFIXES):
             continue
-        if key in _TRACKING_QUERY_PARAMS or key_lower in {param.lower() for param in _TRACKING_QUERY_PARAMS}:
+        if key in _TRACKING_QUERY_PARAMS or key_lower in _TRACKING_QUERY_PARAMS_LOWER:
             continue
         stable_params.append((key, value))
 
