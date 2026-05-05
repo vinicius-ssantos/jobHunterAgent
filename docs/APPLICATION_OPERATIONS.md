@@ -19,6 +19,8 @@ Use este documento quando precisar responder rapidamente:
 - Use `domain-events` como trilha de auditoria complementar, nao como fonte unica de verdade.
 - SQLite continua sendo a fonte principal para candidatura, vaga e status.
 
+Matriz consolidada de ações externas, categorias e gates: `docs/SAFETY_GATES_MATRIX.md`.
+
 ## Diagnostico Rapido
 
 Para obter uma visao agregada de uma candidatura:
