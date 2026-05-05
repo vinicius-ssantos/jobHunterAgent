@@ -20,6 +20,7 @@ _TRACKING_QUERY_PARAMS = {
     "trackingId",
     "trk",
 }
+_TRACKING_QUERY_PARAMS_LOWER = {param.lower() for param in _TRACKING_QUERY_PARAMS}
 
 
 class JobIdentityStrategy(Protocol):
