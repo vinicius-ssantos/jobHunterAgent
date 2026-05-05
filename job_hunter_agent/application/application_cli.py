@@ -76,6 +76,18 @@ def parse_args() -> argparse.Namespace:
         default=20,
         help="Quantidade maxima de proximas acoes exibidas.",
     )
+    operations_sources_parser = operations_subparsers.add_parser(
+        "sources",
+        help="Consulta catalogo operacional de fontes de vagas.",
+    )
+    operations_sources_subparsers = operations_sources_parser.add_subparsers(
+        dest="operations_sources_command",
+        required=True,
+    )
+    operations_sources_subparsers.add_parser(
+        "list",
+        help="Lista fontes de vagas com metodo, risco e prioridade.",
+    )
 
     jobs_parser = subparsers.add_parser("jobs", help="Operacoes de revisao de vagas.")
     jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", required=True)

@@ -28,6 +28,7 @@ from job_hunter_agent.application.cli_bootstrap import (
 )
 from job_hunter_agent.collectors.linkedin_auth import bootstrap_linkedin_storage_state
 from job_hunter_agent.core.settings import load_settings
+from job_hunter_agent.core.source_catalog import list_default_job_sources, render_job_sources
 
 
 def execute_cli_command(args: Namespace) -> bool:
@@ -65,6 +66,12 @@ def execute_cli_command(args: Namespace) -> bool:
 
 
 def _run_operations_command(args: Namespace) -> None:
+    if args.operations_command == "sources" and args.operations_sources_command == "list":
+        sources = list_default_job_sources()
+        rendered_sources = render_job_sources(sources)
+        print(rendered_sources)
+        return
+
     app = create_query_app()
     if args.operations_command == "report":
         report = app.show_operations_report(days=args.days, date=args.date)
