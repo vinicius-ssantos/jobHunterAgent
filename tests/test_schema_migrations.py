@@ -44,7 +44,23 @@ class SchemaMigrationsTests(TestCase):
 
         row = connection.execute("SELECT id, title FROM jobs").fetchone()
         self.assertEqual((1, "Backend Java"), row)
-        self.assertEqual(1, len(list_schema_migrations(connection)))
+        self.assertEqual(CURRENT_SCHEMA_VERSION, current_schema_version(connection))
+
+    def test_ensure_current_schema_version_creates_application_history_tables(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE job_applications (id INTEGER PRIMARY KEY)")
+
+        ensure_current_schema_version(connection)
+
+        event_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'application_events'"
+        ).fetchone()
+        artifact_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'application_artifacts'"
+        ).fetchone()
+        self.assertEqual(("application_events",), event_table)
+        self.assertEqual(("application_artifacts",), artifact_table)
+        self.assertEqual(CURRENT_SCHEMA_VERSION, current_schema_version(connection))
 
     def test_run_schema_migrations_applies_pending_versions_in_order(self) -> None:
         applied: list[int] = []
