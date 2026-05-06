@@ -65,7 +65,7 @@ def record_application_event(
         (application_id, event_type.strip(), occurred_at, _json_dumps(payload)),
     )
     return ApplicationEventRecord(
-        id=cursor.lastrowid,
+        id=int(cursor.lastrowid),
         application_id=application_id,
         event_type=event_type.strip(),
         occurred_at_utc=occurred_at,
