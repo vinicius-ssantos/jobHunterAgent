@@ -15,6 +15,18 @@ class StructuredCandidateProfile:
 
 
 @dataclass(frozen=True)
+class StructuredSearchProfile:
+    include_keywords: tuple[str, ...]
+    exclude_keywords: tuple[str, ...]
+    accepted_work_modes: tuple[str, ...]
+    minimum_salary_brl: int
+    minimum_relevance: int
+    allowed_seniority_levels: tuple[str, ...] = ()
+    allow_unknown_seniority: bool = True
+    target_role_families: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class LinkedInPrecisionGateConfig:
     required_terms: tuple[str, ...] = ()
     any_terms: tuple[str, ...] = ()
@@ -37,6 +49,7 @@ class StructuredMatchingConfig:
 class StructuredMatchingSource:
     profile: StructuredCandidateProfile
     matching: StructuredMatchingConfig
+    search_profile: StructuredSearchProfile | None = None
 
 
 @dataclass(frozen=True)
@@ -71,37 +84,58 @@ def load_structured_matching_source(path: str | Path) -> StructuredMatchingSourc
 
 
 def parse_structured_matching_source(payload: dict[str, Any]) -> StructuredMatchingSource:
-    profile_payload = _require_dict(payload, "profile")
-    matching_payload = _require_dict(payload, "matching")
-    include_keywords = _require_string_list(matching_payload, "include_keywords", section="matching")
+    profile_payload = _optional_dict(payload, "candidate_profile") or _require_dict(payload, "profile")
+    matching_payload = _optional_dict(payload, "search_profile") or _require_dict(payload, "matching")
+    include_keywords = _require_string_list(matching_payload, "include_keywords", section="search_profile")
+    exclude_keywords = _optional_string_list(matching_payload, "exclude_keywords")
+    accepted_work_modes = _optional_string_list(matching_payload, "accepted_work_modes")
+    minimum_salary_brl = _require_non_negative_int(
+        matching_payload,
+        "minimum_salary_brl",
+        section="search_profile",
+    )
+    minimum_relevance = _require_int_in_range(
+        matching_payload,
+        "minimum_relevance",
+        section="search_profile",
+        minimum=1,
+        maximum=10,
+    )
+    allowed_seniority_levels = (
+        _optional_seniority_list(matching_payload, "allowed_seniority_levels")
+        or _optional_seniority_list(matching_payload, "target_seniorities")
+    )
+    allow_unknown_seniority = _optional_bool(
+        matching_payload,
+        "allow_unknown_seniority",
+        default=True,
+        section="search_profile",
+    )
+    target_role_families = _optional_string_list(matching_payload, "target_role_families")
+
     return StructuredMatchingSource(
         profile=StructuredCandidateProfile(
-            summary=_require_non_empty_string(profile_payload, "summary", section="profile"),
+            summary=_require_non_empty_string(profile_payload, "summary", section="candidate_profile"),
         ),
         matching=StructuredMatchingConfig(
             include_keywords=include_keywords,
-            exclude_keywords=_optional_string_list(matching_payload, "exclude_keywords"),
-            accepted_work_modes=_optional_string_list(matching_payload, "accepted_work_modes"),
-            minimum_salary_brl=_require_non_negative_int(
-                matching_payload,
-                "minimum_salary_brl",
-                section="matching",
-            ),
-            minimum_relevance=_require_int_in_range(
-                matching_payload,
-                "minimum_relevance",
-                section="matching",
-                minimum=1,
-                maximum=10,
-            ),
-            target_seniorities=_optional_seniority_list(matching_payload, "target_seniorities"),
-            allow_unknown_seniority=_optional_bool(
-                matching_payload,
-                "allow_unknown_seniority",
-                default=True,
-                section="matching",
-            ),
+            exclude_keywords=exclude_keywords,
+            accepted_work_modes=accepted_work_modes,
+            minimum_salary_brl=minimum_salary_brl,
+            minimum_relevance=minimum_relevance,
+            target_seniorities=allowed_seniority_levels,
+            allow_unknown_seniority=allow_unknown_seniority,
             linkedin_precision_gate=_optional_linkedin_precision_gate(matching_payload, include_keywords),
+        ),
+        search_profile=StructuredSearchProfile(
+            include_keywords=include_keywords,
+            exclude_keywords=exclude_keywords,
+            accepted_work_modes=accepted_work_modes,
+            minimum_salary_brl=minimum_salary_brl,
+            minimum_relevance=minimum_relevance,
+            allowed_seniority_levels=allowed_seniority_levels,
+            allow_unknown_seniority=allow_unknown_seniority,
+            target_role_families=target_role_families,
         ),
     )
 
@@ -160,6 +194,15 @@ def _require_dict(payload: dict[str, Any], key: str) -> dict[str, Any]:
     value = payload.get(key)
     if not isinstance(value, dict):
         raise ValueError(f"Arquivo de matching estruturado invalido: secao '{key}' ausente ou invalida.")
+    return value
+
+
+def _optional_dict(payload: dict[str, Any], key: str) -> dict[str, Any] | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"Arquivo de matching estruturado invalido: secao '{key}' deve ser um objeto.")
     return value
 
 

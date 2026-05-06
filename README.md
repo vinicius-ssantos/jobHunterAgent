@@ -100,6 +100,17 @@ Comportamento:
 Exemplo versionado:
 
 - `job_target.example.json`
+- `search_profile.example.json`
+
+Contrato atual do arquivo estruturado:
+
+- `candidate_profile`: descreve quem o candidato e.
+- `search_profile`: descreve o que buscar.
+- `search_profile.allowed_seniority_levels`: senioridades alvo aceitas, por exemplo `junior`, `pleno`, `senior` ou combinacoes.
+- `search_profile.allow_unknown_seniority`: define se vagas sem senioridade detectada passam pelo filtro deterministico.
+- `search_profile.target_role_families`: familias de cargo alvo usadas para explicitar a intencao da busca.
+
+O formato antigo `profile` + `matching` continua aceito por compatibilidade, mas configuracoes novas devem usar `candidate_profile` + `search_profile`.
 
 Copia recomendada para uso local:
 
