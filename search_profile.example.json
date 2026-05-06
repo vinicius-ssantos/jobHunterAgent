@@ -1,1 +1,66 @@
-{}
+{
+  "schema_version": 1,
+  "candidate_profile": {
+    "summary": "Engenheiro de software com experiencia em Java, Kotlin, Spring Boot e cloud."
+  },
+  "search_profile": {
+    "include_keywords": [
+      "java",
+      "kotlin",
+      "spring",
+      "backend",
+      "software engineer"
+    ],
+    "exclude_keywords": [
+      "estagio",
+      "trainee",
+      ".net",
+      "c#",
+      "php",
+      "ruby"
+    ],
+    "accepted_work_modes": [
+      "remote",
+      "hybrid"
+    ],
+    "minimum_salary_brl": 10000,
+    "minimum_relevance": 6,
+    "allowed_seniority_levels": [
+      "senior"
+    ],
+    "allow_unknown_seniority": true,
+    "target_role_families": [
+      "engenheiro de software",
+      "desenvolvedor backend"
+    ],
+    "linkedin_precision_gate": {
+      "required_terms": [
+        "java"
+      ],
+      "any_terms": [
+        "backend",
+        "back-end",
+        "engineer",
+        "engenharia de software",
+        "software engineer",
+        "developer",
+        "desenvolvedor",
+        "spring"
+      ],
+      "blocked_terms": [
+        "account executive",
+        "program manager",
+        "operations analyst",
+        "operations",
+        "sales",
+        "bdr",
+        "sdr",
+        "customer success",
+        "marketing",
+        "business development",
+        "gtm",
+        "consultor comercial"
+      ]
+    }
+  }
+}
