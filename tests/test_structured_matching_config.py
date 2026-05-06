@@ -8,6 +8,7 @@ from job_hunter_agent.core.structured_matching_config import (
     LinkedInPrecisionGateConfig,
     StructuredMatchingSource,
     load_structured_matching_source,
+    parse_structured_matching_source,
     resolve_structured_matching_source,
 )
 
@@ -56,7 +57,7 @@ class StructuredMatchingConfigTests(TestCase):
         )
 
     def test_search_profile_supports_single_seniority_level(self) -> None:
-        config = load_structured_matching_source_from_payload_for_test(
+        config = parse_structured_matching_source(
             {
                 "candidate_profile": {"summary": "Backend engineer"},
                 "search_profile": {
@@ -72,7 +73,7 @@ class StructuredMatchingConfigTests(TestCase):
 
     def test_search_profile_rejects_unknown_seniority_token(self) -> None:
         with self.assertRaises(ValueError):
-            load_structured_matching_source_from_payload_for_test(
+            parse_structured_matching_source(
                 {
                     "candidate_profile": {"summary": "Backend engineer"},
                     "search_profile": {
