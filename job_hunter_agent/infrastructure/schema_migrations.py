@@ -86,11 +86,6 @@ def _create_application_operational_history_tables(connection: sqlite3.Connectio
 
 SCHEMA_MIGRATIONS: tuple[SchemaMigrationStep, ...] = (
     SchemaMigrationStep(
-        version=1,
-        name="initial_sqlite_schema",
-        apply=_baseline_current_schema,
-    ),
-    SchemaMigrationStep(
         version=CURRENT_SCHEMA_VERSION,
         name=CURRENT_SCHEMA_NAME,
         apply=_create_application_operational_history_tables,
