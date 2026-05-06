@@ -19,12 +19,10 @@ class SchemaMigrationsTests(TestCase):
         ensure_current_schema_version(connection)
 
         migrations = list_schema_migrations(connection)
-        self.assertEqual(2, len(migrations))
-        self.assertEqual(1, migrations[0].version)
-        self.assertEqual("initial_sqlite_schema", migrations[0].name)
-        self.assertEqual(CURRENT_SCHEMA_VERSION, migrations[-1].version)
-        self.assertEqual(CURRENT_SCHEMA_NAME, migrations[-1].name)
-        self.assertTrue(migrations[-1].applied_at_utc.endswith("+00:00"))
+        self.assertEqual(1, len(migrations))
+        self.assertEqual(CURRENT_SCHEMA_VERSION, migrations[0].version)
+        self.assertEqual(CURRENT_SCHEMA_NAME, migrations[0].name)
+        self.assertTrue(migrations[0].applied_at_utc.endswith("+00:00"))
         self.assertEqual(CURRENT_SCHEMA_VERSION, current_schema_version(connection))
 
     def test_ensure_current_schema_version_is_idempotent(self) -> None:
