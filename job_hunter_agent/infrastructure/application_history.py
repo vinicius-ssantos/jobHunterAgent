@@ -125,7 +125,7 @@ def record_application_artifact(
         (application_id, artifact_type.strip(), path_text, created_at, _json_dumps(metadata)),
     )
     return ApplicationArtifactRecord(
-        id=cursor.lastrowid,
+        id=int(cursor.lastrowid),
         application_id=application_id,
         artifact_type=artifact_type.strip(),
         path=path_text,
