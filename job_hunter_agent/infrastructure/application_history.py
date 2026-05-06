@@ -73,7 +73,10 @@ def record_application_event(
     )
 
 
-def list_application_events(connection: sqlite3.Connection, application_id: int) -> list[ApplicationEventRecord]:
+def list_application_events(
+    connection: sqlite3.Connection,
+    application_id: int,
+) -> list[ApplicationEventRecord]:
     rows = connection.execute(
         """
         SELECT id, application_id, event_type, occurred_at_utc, payload
@@ -131,7 +134,10 @@ def record_application_artifact(
     )
 
 
-def list_application_artifacts(connection: sqlite3.Connection, application_id: int) -> list[ApplicationArtifactRecord]:
+def list_application_artifacts(
+    connection: sqlite3.Connection,
+    application_id: int,
+) -> list[ApplicationArtifactRecord]:
     rows = connection.execute(
         """
         SELECT id, application_id, artifact_type, path, created_at_utc, metadata
