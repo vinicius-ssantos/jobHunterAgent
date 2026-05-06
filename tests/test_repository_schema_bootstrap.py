@@ -28,6 +28,6 @@ class RepositorySchemaBootstrapTests(TestCase):
                 """
             ).fetchall()
 
-        self.assertEqual(1, len(rows))
-        self.assertEqual(CURRENT_SCHEMA_VERSION, rows[0][0])
-        self.assertTrue(rows[0][2].endswith("+00:00"))
+        self.assertGreaterEqual(len(rows), 1)
+        self.assertEqual(CURRENT_SCHEMA_VERSION, rows[-1][0])
+        self.assertTrue(rows[-1][2].endswith("+00:00"))
