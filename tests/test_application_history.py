@@ -31,7 +31,10 @@ class ApplicationHistoryTests(TestCase):
         self.assertEqual(1, event.id)
         self.assertEqual([event], events)
         self.assertEqual("status_changed", events[0].event_type)
-        self.assertEqual({"from_status": "draft", "to_status": "reviewed"}, events[0].payload)
+        self.assertEqual(
+            {"from_status": "draft", "to_status": "reviewed"},
+            events[0].payload,
+        )
 
     def test_record_and_list_application_artifact(self) -> None:
         artifact = record_application_artifact(
