@@ -13,6 +13,77 @@ from job_hunter_agent.core.structured_matching_config import (
 
 
 class StructuredMatchingConfigTests(TestCase):
+    def test_load_structured_matching_source_reads_search_profile_contract(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "job_target.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "candidate_profile": {"summary": "Sou senior em Java, mas quero buscar junior/pleno."},
+                        "search_profile": {
+                            "include_keywords": ["java", "backend"],
+                            "exclude_keywords": ["staff"],
+                            "accepted_work_modes": ["remote"],
+                            "minimum_salary_brl": 7000,
+                            "minimum_relevance": 5,
+                            "allowed_seniority_levels": ["junior", "pleno"],
+                            "allow_unknown_seniority": False,
+                            "target_role_families": ["engenheiro de software", "desenvolvedor backend"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_structured_matching_source(config_path)
+
+        self.assertEqual(config.profile.summary, "Sou senior em Java, mas quero buscar junior/pleno.")
+        self.assertEqual(config.matching.include_keywords, ("java", "backend"))
+        self.assertEqual(config.matching.exclude_keywords, ("staff",))
+        self.assertEqual(config.matching.accepted_work_modes, ("remote",))
+        self.assertEqual(config.matching.minimum_salary_brl, 7000)
+        self.assertEqual(config.matching.minimum_relevance, 5)
+        self.assertEqual(config.matching.target_seniorities, ("junior", "pleno"))
+        self.assertFalse(config.matching.allow_unknown_seniority)
+        self.assertIsNotNone(config.search_profile)
+        assert config.search_profile is not None
+        self.assertEqual(config.search_profile.allowed_seniority_levels, ("junior", "pleno"))
+        self.assertFalse(config.search_profile.allow_unknown_seniority)
+        self.assertEqual(
+            config.search_profile.target_role_families,
+            ("engenheiro de software", "desenvolvedor backend"),
+        )
+
+    def test_search_profile_supports_single_seniority_level(self) -> None:
+        config = load_structured_matching_source_from_payload_for_test(
+            {
+                "candidate_profile": {"summary": "Backend engineer"},
+                "search_profile": {
+                    "include_keywords": ["python"],
+                    "minimum_salary_brl": 0,
+                    "minimum_relevance": 4,
+                    "allowed_seniority_levels": ["junior"],
+                },
+            }
+        )
+
+        self.assertEqual(config.matching.target_seniorities, ("junior",))
+
+    def test_search_profile_rejects_unknown_seniority_token(self) -> None:
+        with self.assertRaises(ValueError):
+            load_structured_matching_source_from_payload_for_test(
+                {
+                    "candidate_profile": {"summary": "Backend engineer"},
+                    "search_profile": {
+                        "include_keywords": ["python"],
+                        "minimum_salary_brl": 0,
+                        "minimum_relevance": 4,
+                        "allowed_seniority_levels": ["desconhecida"],
+                    },
+                }
+            )
+
     def test_load_structured_matching_source_reads_valid_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "job_target.json"
