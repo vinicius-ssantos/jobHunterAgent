@@ -165,7 +165,11 @@ def ensure_current_schema_version(
     version: int = CURRENT_SCHEMA_VERSION,
     name: str = CURRENT_SCHEMA_NAME,
 ) -> None:
-    """Register the current SQLite schema version idempotently."""
+    """Register or migrate the current SQLite schema version idempotently."""
+    if version == CURRENT_SCHEMA_VERSION and name == CURRENT_SCHEMA_NAME:
+        run_schema_migrations(connection)
+        return
+
     run_schema_migrations(
         connection,
         migrations=(
