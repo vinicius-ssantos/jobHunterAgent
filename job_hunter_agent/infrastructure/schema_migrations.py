@@ -5,8 +5,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-CURRENT_SCHEMA_VERSION = 1
-CURRENT_SCHEMA_NAME = "initial_sqlite_schema"
+CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_NAME = "application_operational_history"
 
 
 def utc_now_iso() -> str:
@@ -31,11 +31,64 @@ def _baseline_current_schema(_connection: sqlite3.Connection) -> None:
     """Register the current SQLite schema as the first managed baseline."""
 
 
+def _create_application_operational_history_tables(connection: sqlite3.Connection) -> None:
+    """Create dedicated operational history tables for application events and artifacts."""
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS application_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            application_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            occurred_at_utc TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY(application_id) REFERENCES job_applications(id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_application_events_application_occurred_at
+        ON application_events(application_id, occurred_at_utc)
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_application_events_type_occurred_at
+        ON application_events(event_type, occurred_at_utc)
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS application_artifacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            application_id INTEGER NOT NULL,
+            artifact_type TEXT NOT NULL,
+            path TEXT NOT NULL,
+            created_at_utc TEXT NOT NULL,
+            metadata TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY(application_id) REFERENCES job_applications(id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_application_artifacts_application_created_at
+        ON application_artifacts(application_id, created_at_utc)
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_application_artifacts_type_created_at
+        ON application_artifacts(artifact_type, created_at_utc)
+        """
+    )
+
+
 SCHEMA_MIGRATIONS: tuple[SchemaMigrationStep, ...] = (
     SchemaMigrationStep(
         version=CURRENT_SCHEMA_VERSION,
         name=CURRENT_SCHEMA_NAME,
-        apply=_baseline_current_schema,
+        apply=_create_application_operational_history_tables,
     ),
 )
 
@@ -107,7 +160,11 @@ def ensure_current_schema_version(
     version: int = CURRENT_SCHEMA_VERSION,
     name: str = CURRENT_SCHEMA_NAME,
 ) -> None:
-    """Register the current SQLite schema version idempotently."""
+    """Register or migrate the current SQLite schema version idempotently."""
+    if version == CURRENT_SCHEMA_VERSION and name == CURRENT_SCHEMA_NAME:
+        run_schema_migrations(connection)
+        return
+
     run_schema_migrations(
         connection,
         migrations=(

@@ -138,6 +138,7 @@ class SqliteJobRepositoryTests(unittest.TestCase):
             [
                 "https://www.linkedin.com/jobs/view/123456789/?trackingId=abc",
                 "%/jobs/view/123456789%",
+                "https://linkedin.com/jobs/view/123456789",
             ],
         )
         self.assertEqual(

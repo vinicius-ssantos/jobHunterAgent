@@ -100,12 +100,14 @@ class PortalAwareJobIdentityStrategy:
 
     def url_lookup_patterns(self, url: str) -> list[str]:
         normalized_url = normalize_job_url(url)
+        linkedin_job_id = self._extract_linkedin_job_id(url) or self._extract_linkedin_job_id(normalized_url)
+
         patterns = []
-        for pattern in (url, normalized_url):
+        for pattern in (
+            url,
+            f"%/jobs/view/{linkedin_job_id}%" if linkedin_job_id else "",
+            normalized_url,
+        ):
             if pattern and pattern not in patterns:
                 patterns.append(pattern)
-
-        linkedin_job_id = self._extract_linkedin_job_id(url) or self._extract_linkedin_job_id(normalized_url)
-        if linkedin_job_id:
-            patterns.append(f"%/jobs/view/{linkedin_job_id}%")
         return patterns

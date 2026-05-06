@@ -28,12 +28,14 @@ class JobIdentityTests(TestCase):
             "https://www.linkedin.com/jobs/view/1234567890/?trk=public_jobs&position=2"
         )
 
-        self.assertIn(
-            "https://www.linkedin.com/jobs/view/1234567890/?trk=public_jobs&position=2",
+        self.assertEqual(
             patterns,
+            [
+                "https://www.linkedin.com/jobs/view/1234567890/?trk=public_jobs&position=2",
+                "%/jobs/view/1234567890%",
+                "https://linkedin.com/jobs/view/1234567890",
+            ],
         )
-        self.assertIn("https://linkedin.com/jobs/view/1234567890", patterns)
-        self.assertIn("%/jobs/view/1234567890%", patterns)
 
     def test_url_lookup_patterns_include_current_job_id_pattern(self) -> None:
         strategy = PortalAwareJobIdentityStrategy()
