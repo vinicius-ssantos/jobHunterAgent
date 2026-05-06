@@ -62,6 +62,35 @@ class SchemaMigrationsTests(TestCase):
         self.assertEqual(("application_artifacts",), artifact_table)
         self.assertEqual(CURRENT_SCHEMA_VERSION, current_schema_version(connection))
 
+    def test_ensure_current_schema_version_migrates_legacy_version_one_database(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE job_applications (id INTEGER PRIMARY KEY)")
+        connection.execute(
+            """
+            CREATE TABLE schema_migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                applied_at_utc TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO schema_migrations (version, name, applied_at_utc)
+            VALUES (1, 'initial_sqlite_schema', '2026-01-01T00:00:00+00:00')
+            """
+        )
+
+        ensure_current_schema_version(connection)
+
+        self.assertEqual(CURRENT_SCHEMA_VERSION, current_schema_version(connection))
+        migrations = list_schema_migrations(connection)
+        self.assertEqual([1, CURRENT_SCHEMA_VERSION], [migration.version for migration in migrations])
+        event_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'application_events'"
+        ).fetchone()
+        self.assertEqual(("application_events",), event_table)
+
     def test_run_schema_migrations_applies_pending_versions_in_order(self) -> None:
         applied: list[int] = []
 
