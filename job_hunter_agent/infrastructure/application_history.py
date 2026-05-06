@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-@tataclass(frozen=True)
+@dataclass(frozen=True)
 class ApplicationEventRecord:
     id: int
     application_id: int
