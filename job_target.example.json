@@ -1,8 +1,9 @@
 {
-  "profile": {
+  "schema_version": 1,
+  "candidate_profile": {
     "summary": "Engenheiro de software com experiencia em Java, Kotlin, Spring Boot e cloud."
   },
-  "matching": {
+  "search_profile": {
     "include_keywords": [
       "java",
       "kotlin",
@@ -12,7 +13,6 @@
     ],
     "exclude_keywords": [
       "estagio",
-      "junior",
       "trainee",
       ".net",
       "c#",
@@ -25,10 +25,14 @@
     ],
     "minimum_salary_brl": 10000,
     "minimum_relevance": 6,
-    "target_seniorities": [
+    "allowed_seniority_levels": [
       "senior"
     ],
     "allow_unknown_seniority": true,
+    "target_role_families": [
+      "engenheiro de software",
+      "desenvolvedor backend"
+    ],
     "linkedin_precision_gate": {
       "required_terms": [
         "java"
