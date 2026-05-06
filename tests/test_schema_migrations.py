@@ -31,11 +31,11 @@ class SchemaMigrationsTests(TestCase):
         connection = sqlite3.connect(":memory:")
 
         ensure_current_schema_version(connection)
-        first_migration = list_schema_migrations(connection)[0]
+        first_migrations = list_schema_migrations(connection)
         ensure_current_schema_version(connection)
 
         migrations = list_schema_migrations(connection)
-        self.assertEqual([first_migration], migrations)
+        self.assertEqual(first_migrations, migrations)
 
     def test_ensure_current_schema_version_preserves_existing_legacy_tables(self) -> None:
         connection = sqlite3.connect(":memory:")
