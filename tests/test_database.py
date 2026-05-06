@@ -137,8 +137,8 @@ class SqliteJobRepositoryTests(unittest.TestCase):
             strategy.url_lookup_patterns("https://www.linkedin.com/jobs/view/123456789/?trackingId=abc"),
             [
                 "https://www.linkedin.com/jobs/view/123456789/?trackingId=abc",
-                "https://linkedin.com/jobs/view/123456789",
                 "%/jobs/view/123456789%",
+                "https://linkedin.com/jobs/view/123456789",
             ],
         )
         self.assertEqual(
