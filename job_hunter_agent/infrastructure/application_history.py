@@ -50,7 +50,7 @@ def record_application_event(
     payload: dict[str, Any] | None = None,
     *,
     occurred_at_utc: str | None = None,
-[]) -> ApplicationEventRecord:
+) -> ApplicationEventRecord:
     if application_id <= 0:
         raise ValueError("application_id must be positive")
     if not event_type.strip():
@@ -103,7 +103,7 @@ def record_application_artifact(
     metadata: dict[str, Any] | None = None,
     *,
     created_at_utc: str | None = None,
-[]) -> ApplicationArtifactRecord:
+) -> ApplicationArtifactRecord:
     if application_id <= 0:
         raise ValueError("application_id must be positive")
     if not artifact_type.strip():
