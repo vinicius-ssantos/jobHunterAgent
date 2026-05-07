@@ -27,6 +27,47 @@ class EventBusPort(Protocol):
         raise NotImplementedError
 
 
+class InMemoryEventBus:
+    def __init__(self, events: tuple[DomainEvent, ...] | None = None) -> None:
+        self._events: list[DomainEvent] = list(events or ())
+
+    def publish(self, event: DomainEvent) -> None:
+        self._events.append(event)
+
+    def read_all(self) -> tuple[DomainEvent, ...]:
+        return tuple(self._events)
+
+    def clear(self) -> None:
+        self._events.clear()
+
+    def read_job_collected(self) -> tuple[JobCollectedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, JobCollectedV1))
+
+    def read_job_scored(self) -> tuple[JobScoredV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, JobScoredV1))
+
+    def read_job_review_requested(self) -> tuple[JobReviewRequestedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, JobReviewRequestedV1))
+
+    def read_job_reviewed(self) -> tuple[JobReviewedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, JobReviewedV1))
+
+    def read_application_authorized(self) -> tuple[ApplicationAuthorizedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, ApplicationAuthorizedV1))
+
+    def read_application_draft_created(self) -> tuple[ApplicationDraftCreatedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, ApplicationDraftCreatedV1))
+
+    def read_application_preflight_completed(self) -> tuple[ApplicationPreflightCompletedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, ApplicationPreflightCompletedV1))
+
+    def read_application_submitted(self) -> tuple[ApplicationSubmittedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, ApplicationSubmittedV1))
+
+    def read_application_blocked(self) -> tuple[ApplicationBlockedV1, ...]:
+        return tuple(event for event in self._events if isinstance(event, ApplicationBlockedV1))
+
+
 class LocalNdjsonEventBus:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
