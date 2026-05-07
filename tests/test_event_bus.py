@@ -4,7 +4,7 @@ import shutil
 from unittest import TestCase
 
 from job_hunter_agent.core.domain import JobPosting
-from job_hunter_agent.core.event_bus import LocalNdjsonEventBus
+from job_hunter_agent.core.event_bus import InMemoryEventBus, LocalNdjsonEventBus
 from job_hunter_agent.core.events import (
     ApplicationAuthorizedV1,
     ApplicationBlockedV1,
@@ -31,6 +31,51 @@ def _job() -> JobPosting:
         rationale="fit",
         external_key="job-key-123",
     )
+
+
+class InMemoryEventBusTests(TestCase):
+    def test_publish_and_read_all_preserves_event_order(self) -> None:
+        bus = InMemoryEventBus()
+        collected = JobCollectedV1(
+            run_id=1,
+            jobs=(_job(),),
+            jobs_seen=1,
+            jobs_saved=1,
+            errors=0,
+            event_id="evt-collected",
+            occurred_at="2026-04-24T12:00:00+00:00",
+        )
+        scored = JobScoredV1(
+            run_id=1,
+            external_key="job-key-123",
+            accepted=True,
+            relevance=9,
+            event_id="evt-scored",
+            occurred_at="2026-04-24T12:01:00+00:00",
+        )
+
+        bus.publish(collected)
+        bus.publish(scored)
+
+        self.assertEqual(bus.read_all(), (collected, scored))
+        self.assertEqual(bus.read_job_collected(), (collected,))
+        self.assertEqual(bus.read_job_scored(), (scored,))
+
+    def test_can_be_seeded_and_cleared(self) -> None:
+        collected = JobCollectedV1(
+            run_id=1,
+            jobs=(_job(),),
+            jobs_seen=1,
+            jobs_saved=1,
+            errors=0,
+        )
+        bus = InMemoryEventBus((collected,))
+
+        self.assertEqual(bus.read_job_collected(), (collected,))
+
+        bus.clear()
+
+        self.assertEqual(bus.read_all(), ())
 
 
 class LocalNdjsonEventBusTests(TestCase):
