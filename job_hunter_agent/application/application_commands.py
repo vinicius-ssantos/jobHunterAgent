@@ -92,6 +92,7 @@ class ApplicationTransitionCommandService:
     def __init__(self, repository: JobRepository, event_bus: EventBusPort | None = None) -> None:
         self.repository = repository
         self.event_bus = event_bus
+        self.application_flow = ApplicationFlowCoordinator(repository)
 
     def transition_application(self, application_id: int, action: str) -> str:
         application = self.repository.get_application(application_id)
