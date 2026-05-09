@@ -138,6 +138,16 @@ class JobRepository(Protocol):
     ) -> list[JobApplicationEvent]:
         raise NotImplementedError
 
+    def record_application_history_event(
+        self,
+        application_id: int,
+        *,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        occurred_at_utc: str | None = None,
+    ) -> None:
+        raise NotImplementedError
+
     def list_recent_application_events_since(self, since: str) -> list[JobApplicationEvent]:
         raise NotImplementedError
 
