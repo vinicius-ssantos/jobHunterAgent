@@ -35,6 +35,7 @@ Guias operacionais atuais:
 - `docs/SQLITE_CRITICAL_STATE_AUDIT.md`
 - `docs/SQLITE_SCHEMA_AND_UTC_CHECKLIST.md`
 - `docs/SQLITE_LEGACY_TIMESTAMP_MIGRATION_PLAN.md`
+- `docs/ADMIN_API.md`
 
 Planos e checklists ativos:
 
@@ -78,6 +79,52 @@ $env:PLAYWRIGHT_BROWSERS_PATH=".playwright-browsers"
 ```
 
 3. Configure o `.env` usando `.env.example` como base.
+
+## Admin API local
+
+A Admin API expoe consultas HTTP locais para o cockpit administrativo do Job Hunter Agent. Ela e uma interface local/admin read-only na fatia inicial e consome o mesmo SQLite usado pela CLI e pelo Telegram.
+
+Instale as dependencias e suba a API:
+
+```bash
+pip install -r requirements.txt
+uvicorn job_hunter_agent.api.main:app --reload
+```
+
+Por padrao, a documentacao OpenAPI fica disponivel em:
+
+```text
+http://localhost:8000/docs
+```
+
+Para apontar a API para um banco local especifico, configure `JOB_HUNTER_DATABASE_PATH` antes de iniciar o `uvicorn`.
+
+```bash
+JOB_HUNTER_DATABASE_PATH=jobs.db uvicorn job_hunter_agent.api.main:app --reload
+```
+
+Endpoints iniciais:
+
+- `GET /api/health`
+- `GET /api/status`
+- `GET /api/jobs`
+- `GET /api/jobs/{job_id}`
+- `GET /api/applications`
+- `GET /api/applications/{application_id}`
+- `GET /api/applications/{application_id}/events`
+- `GET /api/operations/next-actions`
+- `GET /api/operations/report`
+
+Limites de seguranca da fatia inicial:
+
+- nao executa Playwright;
+- nao chama MCP;
+- nao executa submit real;
+- nao executa preflight real;
+- nao chama Telegram, LinkedIn ou Ollama;
+- nao deve ser exposta publicamente sem autenticacao e hardening adicionais.
+
+Guia detalhado: `docs/ADMIN_API.md`.
 
 ## Matching estruturado como caminho principal
 
