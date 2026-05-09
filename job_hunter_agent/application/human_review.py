@@ -44,6 +44,21 @@ class HumanReviewDecision:
     def allows_external_action(self) -> bool:
         return self.to_state == AUTHORIZED_FOR_EXTERNAL_ACTION
 
+    @property
+    def event_type(self) -> str:
+        return f"human_review_{self.action}"
+
+    def to_event_payload(self) -> dict[str, str | bool]:
+        return {
+            "from_state": self.from_state,
+            "to_state": self.to_state,
+            "action": self.action,
+            "decided_by": self.decided_by,
+            "reason": self.reason,
+            "decided_at_utc": self.decided_at_utc,
+            "allows_external_action": self.allows_external_action,
+        }
+
 
 def require_explicit_human_actor(decided_by: str) -> str:
     actor = decided_by.strip()

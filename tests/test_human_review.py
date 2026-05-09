@@ -1,3 +1,4 @@
+import sqlite3
 import unittest
 
 from job_hunter_agent.application.human_review import (
@@ -9,6 +10,11 @@ from job_hunter_agent.application.human_review import (
     is_external_action_authorized,
     resolve_human_review_decision,
 )
+from job_hunter_agent.infrastructure.application_history import (
+    list_application_events,
+    record_application_event,
+)
+from job_hunter_agent.infrastructure.schema_migrations import ensure_current_schema_version
 
 
 class HumanReviewDecisionTests(unittest.TestCase):
@@ -80,6 +86,60 @@ class HumanReviewDecisionTests(unittest.TestCase):
         self.assertEqual(decision.to_state, AUTHORIZED_FOR_EXTERNAL_ACTION)
         self.assertTrue(decision.allows_external_action)
         self.assertTrue(is_external_action_authorized(decision.to_state))
+
+    def test_decision_exposes_auditable_event_payload(self) -> None:
+        decision = resolve_human_review_decision(
+            application_id=42,
+            current_state=APPROVED,
+            action="authorize_external_action",
+            decided_by="vinicius",
+            reason="revisado e autorizado para envio",
+            decided_at_utc="2026-05-07T12:30:00+00:00",
+        )
+
+        self.assertEqual(decision.event_type, "human_review_authorize_external_action")
+        self.assertEqual(
+            decision.to_event_payload(),
+            {
+                "from_state": APPROVED,
+                "to_state": AUTHORIZED_FOR_EXTERNAL_ACTION,
+                "action": "authorize_external_action",
+                "decided_by": "vinicius",
+                "reason": "revisado e autorizado para envio",
+                "decided_at_utc": "2026-05-07T12:30:00+00:00",
+                "allows_external_action": True,
+            },
+        )
+
+    def test_decision_payload_can_be_recorded_in_application_history(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        connection.execute("CREATE TABLE job_applications (id INTEGER PRIMARY KEY)")
+        connection.execute("INSERT INTO job_applications (id) VALUES (42)")
+        ensure_current_schema_version(connection)
+        decision = resolve_human_review_decision(
+            application_id=42,
+            current_state=PENDING_REVIEW,
+            action="reject",
+            decided_by="vinicius",
+            reason="fora do alvo atual",
+            decided_at_utc="2026-05-07T12:45:00+00:00",
+        )
+
+        record_application_event(
+            connection,
+            application_id=decision.application_id,
+            event_type=decision.event_type,
+            payload=decision.to_event_payload(),
+            occurred_at_utc=decision.decided_at_utc,
+        )
+
+        events = list_application_events(connection, 42)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].event_type, "human_review_reject")
+        self.assertEqual(events[0].occurred_at_utc, "2026-05-07T12:45:00+00:00")
+        self.assertEqual(events[0].payload["to_state"], REJECTED)
+        self.assertEqual(events[0].payload["reason"], "fora do alvo atual")
+        self.assertFalse(events[0].payload["allows_external_action"])
 
     def test_automation_cannot_decide_human_review(self) -> None:
         with self.assertRaisesRegex(ValueError, "human reviewer, not automation"):
