@@ -75,12 +75,23 @@ class ApplicationTransitionCommandServiceTests(unittest.TestCase):
         class _Repository:
             def __init__(self) -> None:
                 self.marked: list[tuple[int, str, str]] = []
+                self.events: list[tuple[int, dict]] = []
+                self.history_events: list[tuple[int, dict]] = []
 
             def get_application(self, application_id: int):
                 return JobApplication(id=application_id, job_id=5, status="confirmed")
 
+            def get_job(self, job_id: int):
+                return _sample_job(job_id=job_id, status="approved")
+
             def mark_application_status(self, application_id: int, *, status: str, event_detail: str = "", **kwargs):
                 self.marked.append((application_id, status, event_detail))
+
+            def record_application_event(self, application_id: int, **kwargs):
+                self.events.append((application_id, kwargs))
+
+            def record_application_history_event(self, application_id: int, **kwargs):
+                self.history_events.append((application_id, kwargs))
 
         repository = _Repository()
         service = ApplicationTransitionCommandService(repository)
@@ -92,3 +103,6 @@ class ApplicationTransitionCommandServiceTests(unittest.TestCase):
             repository.marked,
             [(9, "authorized_submit", "Candidatura autorizada para envio: id=9")],
         )
+        self.assertEqual(repository.events[0][1]["event_type"], "human_review_authorize_external_action")
+        self.assertEqual(repository.history_events[0][1]["event_type"], "human_review_authorize_external_action")
+        self.assertTrue(repository.history_events[0][1]["payload"]["allows_external_action"])
