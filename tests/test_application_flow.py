@@ -184,6 +184,100 @@ class ApplicationFlowTests(unittest.TestCase):
             ],
         )
 
+    def test_resolve_and_record_human_review_confirm_action(self) -> None:
+        application = JobApplication(id=7, job_id=10, status="ready_for_review")
+        context = ApplicationExecutionContext(application=application, job=_sample_job(job_id=10))
+
+        class _Repository:
+            def __init__(self) -> None:
+                self.event_calls = []
+                self.history_calls = []
+
+            def record_application_event(self, application_id: int, **kwargs):
+                self.event_calls.append((application_id, kwargs))
+
+            def record_application_history_event(self, application_id: int, **kwargs):
+                self.history_calls.append((application_id, kwargs))
+
+        repository = _Repository()
+        flow = ApplicationFlowCoordinator(repository)
+
+        decision = flow.resolve_and_record_human_review_action(
+            context,
+            action="app_confirm",
+            decided_by="vinicius",
+            reason="curriculo revisado e vaga aderente",
+            decided_at_utc="2026-05-08T12:00:00+00:00",
+        )
+
+        self.assertEqual(decision.action, "approve")
+        self.assertEqual(decision.to_state, "approved")
+        self.assertEqual(
+            repository.event_calls,
+            [
+                (
+                    7,
+                    {
+                        "event_type": "human_review_approve",
+                        "detail": "curriculo revisado e vaga aderente",
+                        "from_status": "pending_review",
+                        "to_status": "approved",
+                    },
+                )
+            ],
+        )
+        self.assertEqual(repository.history_calls[0][0], 7)
+        self.assertEqual(repository.history_calls[0][1]["event_type"], "human_review_approve")
+        self.assertEqual(repository.history_calls[0][1]["occurred_at_utc"], "2026-05-08T12:00:00+00:00")
+        self.assertEqual(repository.history_calls[0][1]["payload"]["decided_by"], "vinicius")
+        self.assertFalse(repository.history_calls[0][1]["payload"]["allows_external_action"])
+
+    def test_resolve_and_record_human_review_authorize_action(self) -> None:
+        application = JobApplication(id=8, job_id=11, status="confirmed")
+        context = ApplicationExecutionContext(application=application, job=_sample_job(job_id=11))
+
+        class _Repository:
+            def __init__(self) -> None:
+                self.event_calls = []
+
+            def record_application_event(self, application_id: int, **kwargs):
+                self.event_calls.append((application_id, kwargs))
+
+        repository = _Repository()
+        flow = ApplicationFlowCoordinator(repository)
+
+        decision = flow.resolve_and_record_human_review_action(
+            context,
+            action="app_authorize",
+            decided_by="vinicius",
+            reason="autorizado para acao externa",
+        )
+
+        self.assertEqual(decision.action, "authorize_external_action")
+        self.assertEqual(decision.to_state, "authorized_for_external_action")
+        self.assertTrue(decision.allows_external_action)
+        self.assertEqual(repository.event_calls[0][1]["event_type"], "human_review_authorize_external_action")
+        self.assertEqual(repository.event_calls[0][1]["from_status"], "approved")
+        self.assertEqual(repository.event_calls[0][1]["to_status"], "authorized_for_external_action")
+
+    def test_resolve_and_record_human_review_rejects_unknown_action(self) -> None:
+        application = JobApplication(id=7, job_id=10, status="ready_for_review")
+        context = ApplicationExecutionContext(application=application, job=_sample_job(job_id=10))
+
+        class _Repository:
+            def record_application_event(self, application_id: int, **kwargs):
+                raise AssertionError("should not record unknown actions")
+
+        flow = ApplicationFlowCoordinator(_Repository())
+
+        with self.assertRaisesRegex(ValueError, "unsupported human review application action"):
+            flow.resolve_and_record_human_review_action(
+                context,
+                action="app_prepare",
+                decided_by="vinicius",
+                reason="not a human review decision",
+            )
+
     def test_resolve_submitted_at_uses_current_timestamp_when_missing(self) -> None:
         resolved = ApplicationFlowCoordinator.resolve_submitted_at(None)
 
