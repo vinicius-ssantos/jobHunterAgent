@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from job_hunter_agent.application.application_flow import ApplicationExecutionContext, ApplicationFlowCoordinator
 from job_hunter_agent.application.application_messages import (
     format_created_application_draft,
     format_existing_application_for_job,
@@ -91,6 +92,7 @@ class ApplicationTransitionCommandService:
     def __init__(self, repository: JobRepository, event_bus: EventBusPort | None = None) -> None:
         self.repository = repository
         self.event_bus = event_bus
+        self.application_flow = ApplicationFlowCoordinator(repository)
 
     def transition_application(self, application_id: int, action: str) -> str:
         application = self.repository.get_application(application_id)
@@ -100,6 +102,7 @@ class ApplicationTransitionCommandService:
         if next_status is None:
             return detail
         self.repository.mark_application_status(application_id, status=next_status, event_detail=detail)
+        self._record_human_review_if_applicable(application, action, detail)
         if self.event_bus is not None and next_status == "authorized_submit":
             self.event_bus.publish(
                 ApplicationAuthorizedV1(
@@ -112,6 +115,22 @@ class ApplicationTransitionCommandService:
                 )
             )
         return detail
+
+    def _record_human_review_if_applicable(self, application: JobApplication, action: str, detail: str) -> None:
+        if action not in {"app_confirm", "app_authorize"}:
+            return
+        get_job = getattr(self.repository, "get_job", None)
+        if get_job is None:
+            return
+        job = get_job(application.job_id)
+        if job is None:
+            return
+        self.application_flow.resolve_and_record_human_review_action(
+            ApplicationExecutionContext(application=application, job=job),
+            action=action,
+            decided_by="command",
+            reason=detail,
+        )
 
     def authorize_application(self, application_id: int) -> str:
         return self.transition_application(application_id, "app_authorize")

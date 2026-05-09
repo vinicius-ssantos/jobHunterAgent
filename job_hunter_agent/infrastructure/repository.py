@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Any, Optional, Protocol
 
 from job_hunter_agent.core.domain import (
     CollectionRun,
@@ -17,6 +17,7 @@ from job_hunter_agent.core.domain import (
     VALID_STATUSES,
 )
 from job_hunter_agent.core.job_identity import JobIdentityStrategy, PortalAwareJobIdentityStrategy
+from job_hunter_agent.infrastructure.application_history import record_application_event as record_operational_application_event
 
 
 class JobRepository(Protocol):
@@ -135,6 +136,16 @@ class JobRepository(Protocol):
         *,
         limit: Optional[int] = None,
     ) -> list[JobApplicationEvent]:
+        raise NotImplementedError
+
+    def record_application_history_event(
+        self,
+        application_id: int,
+        *,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        occurred_at_utc: str | None = None,
+    ) -> None:
         raise NotImplementedError
 
     def list_recent_application_events_since(self, since: str) -> list[JobApplicationEvent]:
@@ -833,6 +844,24 @@ class SqliteJobRepository:
         with self._connect() as connection:
             rows = connection.execute(query, params).fetchall()
         return [self._row_to_application_event(row) for row in rows]
+
+    def record_application_history_event(
+        self,
+        application_id: int,
+        *,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        occurred_at_utc: str | None = None,
+    ) -> None:
+        with self._connect() as connection:
+            record_operational_application_event(
+                connection,
+                application_id,
+                event_type,
+                payload,
+                occurred_at_utc=occurred_at_utc,
+            )
+            connection.commit()
 
     def list_recent_application_events_since(self, since: str) -> list[JobApplicationEvent]:
         with self._connect() as connection:
