@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Any, Optional, Protocol
 
 from job_hunter_agent.core.domain import (
     CollectionRun,
@@ -17,6 +17,7 @@ from job_hunter_agent.core.domain import (
     VALID_STATUSES,
 )
 from job_hunter_agent.core.job_identity import JobIdentityStrategy, PortalAwareJobIdentityStrategy
+from job_hunter_agent.infrastructure.application_history import record_application_event as record_operational_application_event
 
 
 class JobRepository(Protocol):
