@@ -119,7 +119,10 @@ class ApplicationTransitionCommandService:
     def _record_human_review_if_applicable(self, application: JobApplication, action: str, detail: str) -> None:
         if action not in {"app_confirm", "app_authorize"}:
             return
-        job = self.repository.get_job(application.job_id)
+        get_job = getattr(self.repository, "get_job", None)
+        if get_job is None:
+            return
+        job = get_job(application.job_id)
         if job is None:
             return
         self.application_flow.resolve_and_record_human_review_action(
