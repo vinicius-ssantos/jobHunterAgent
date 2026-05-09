@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from job_hunter_agent.application.application_flow import ApplicationExecutionContext, ApplicationFlowCoordinator
 from job_hunter_agent.application.application_messages import (
     format_created_application_draft,
     format_existing_application_for_job,
