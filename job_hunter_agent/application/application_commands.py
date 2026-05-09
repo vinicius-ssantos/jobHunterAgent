@@ -102,6 +102,7 @@ class ApplicationTransitionCommandService:
         if next_status is None:
             return detail
         self.repository.mark_application_status(application_id, status=next_status, event_detail=detail)
+        self._record_human_review_if_applicable(application, action, detail)
         if self.event_bus is not None and next_status == "authorized_submit":
             self.event_bus.publish(
                 ApplicationAuthorizedV1(
