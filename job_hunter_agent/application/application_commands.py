@@ -116,5 +116,18 @@ class ApplicationTransitionCommandService:
             )
         return detail
 
+    def _record_human_review_if_applicable(self, application: JobApplication, action: str, detail: str) -> None:
+        if action not in {"app_confirm", "app_authorize"}:
+            return
+        job = self.repository.get_job(application.job_id)
+        if job is None:
+            return
+        self.application_flow.resolve_and_record_human_review_action(
+            ApplicationExecutionContext(application=application, job=job),
+            action=action,
+            decided_by="command",
+            reason=detail,
+        )
+
     def authorize_application(self, application_id: int) -> str:
         return self.transition_application(application_id, "app_authorize")
