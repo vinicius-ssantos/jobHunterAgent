@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from job_hunter_agent.application.human_review import (
+    APPROVED,
+    PENDING_REVIEW,
+    HumanReviewDecision,
+    resolve_human_review_decision,
+)
 from job_hunter_agent.core.domain import JobApplication, JobPosting
 from job_hunter_agent.infrastructure.repository import JobRepository
 
@@ -96,6 +102,52 @@ class ApplicationFlowCoordinator:
             from_status=from_status,
             to_status=to_status,
         )
+
+    def record_human_review_decision(self, decision: HumanReviewDecision) -> None:
+        self.repository.record_application_event(
+            decision.application_id,
+            event_type=decision.event_type,
+            detail=decision.reason,
+            from_status=decision.from_state,
+            to_status=decision.to_state,
+        )
+        history_recorder = getattr(self.repository, "record_application_history_event", None)
+        if history_recorder:
+            history_recorder(
+                decision.application_id,
+                event_type=decision.event_type,
+                payload=decision.to_event_payload(),
+                occurred_at_utc=decision.decided_at_utc,
+            )
+
+    def resolve_and_record_human_review_action(
+        self,
+        context: ApplicationExecutionContext,
+        *,
+        action: str,
+        decided_by: str,
+        reason: str,
+        decided_at_utc: str | None = None,
+    ) -> HumanReviewDecision:
+        if action == "app_confirm":
+            current_state = PENDING_REVIEW
+            review_action = "approve"
+        elif action == "app_authorize":
+            current_state = APPROVED
+            review_action = "authorize_external_action"
+        else:
+            raise ValueError(f"unsupported human review application action: {action}")
+
+        decision = resolve_human_review_decision(
+            application_id=context.application.id,
+            current_state=current_state,
+            action=review_action,
+            decided_by=decided_by,
+            reason=reason,
+            decided_at_utc=decided_at_utc,
+        )
+        self.record_human_review_decision(decision)
+        return decision
 
     @staticmethod
     def resolve_submitted_at(submitted_at: str | None) -> str:
