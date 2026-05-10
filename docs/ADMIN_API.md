@@ -174,6 +174,23 @@ Ela não:
 
 Mesmo em futuras expansões, qualquer ação de alto impacto deve preservar os gates humanos documentados no projeto. Submit real continua dependendo de autorização explícita e estado compatível, nunca apenas de uma chamada do frontend.
 
+## Decisão sobre preflight real e submit real
+
+Preflight real e submit real ficam fora do MVP inicial da Admin API.
+
+A API não deve expor rotas HTTP para acionar preflight real ou submit real enquanto não houver política dedicada, revisão humana explícita e proteções próprias no backend. Isso significa que o cockpit local não deve renderizar botão de submit real nem tentar chamar serviços internos diretamente para contornar a API.
+
+Qualquer endpoint futuro que execute submit real deve exigir, no mínimo:
+
+- candidatura no estado `authorized_submit`;
+- confirmação humana explícita no momento da ação;
+- readiness check antes da execução;
+- auditoria persistida da decisão e do resultado;
+- bloqueio seguro para captcha, login inesperado, prompts de credencial, paywall, consent screen ou qualquer prompt inesperado;
+- modo dry-run ou preview quando aplicável.
+
+Até que esses critérios sejam implementados e aprovados, tentativas de `POST` para rotas como `/api/applications/{application_id}/preflight` ou `/api/applications/{application_id}/submit` devem permanecer inexistentes e retornar 404.
+
 ## Exposição de rede
 
 Execute a API como serviço local/admin.
