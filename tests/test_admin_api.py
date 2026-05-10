@@ -94,3 +94,20 @@ def test_applications_list_detail_events_and_next_actions(tmp_path):
     assert actions_response.status_code == 200
     assert actions_response.json()[0]["application_id"] == application.id
     assert missing_response.status_code == 404
+
+
+def test_admin_api_does_not_expose_real_preflight_or_submit_routes(tmp_path):
+    repository = SqliteJobRepository(tmp_path / "jobs.db")
+    settings = Settings(database_path=tmp_path / "jobs.db", resume_path=tmp_path / "cv.pdf")
+    client = _make_client(repository, settings)
+    try:
+        openapi_paths = set(client.get("/openapi.json").json()["paths"])
+        preflight_response = client.post("/api/applications/1/preflight")
+        submit_response = client.post("/api/applications/1/submit")
+    finally:
+        _clear_overrides()
+
+    assert not any("preflight" in path for path in openapi_paths)
+    assert not any("submit" in path for path in openapi_paths)
+    assert preflight_response.status_code == 404
+    assert submit_response.status_code == 404
