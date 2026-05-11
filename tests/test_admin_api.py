@@ -111,3 +111,35 @@ def test_admin_api_does_not_expose_real_preflight_or_submit_routes(tmp_path):
     assert not any("submit" in path for path in openapi_paths)
     assert preflight_response.status_code == 404
     assert submit_response.status_code == 404
+
+
+def test_health_endpoint_uses_isolated_settings(tmp_path):
+    repository = SqliteJobRepository(tmp_path / "jobs.db")
+    settings = Settings(database_path=tmp_path / "jobs.db", resume_path=tmp_path / "missing-cv.pdf")
+    client = _make_client(repository, settings)
+    try:
+        response = client.get("/api/health")
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload["ok"], bool)
+    item_names = {item["name"] for item in payload["items"]}
+    assert "database" in item_names
+    assert "resume" in item_names
+
+
+def test_operations_report_uses_isolated_repository(tmp_path):
+    repository = SqliteJobRepository(tmp_path / "jobs.db")
+    settings = Settings(database_path=tmp_path / "jobs.db", resume_path=tmp_path / "cv.pdf")
+    client = _make_client(repository, settings)
+    try:
+        response = client.get("/api/operations/report?days=7")
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["collection"]["run_summary"]["total_runs"] == 0
+    assert payload["collection"]["log_summary"]["by_source"] == {}
