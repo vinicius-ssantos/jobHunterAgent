@@ -9,6 +9,12 @@ class ApiError(BaseModel):
     detail: str
 
 
+class ActionResponse(BaseModel):
+    detail: str
+    job: Optional[JobResponse] = None
+    application: Optional[ApplicationResponse] = None
+
+
 class JobEventResponse(BaseModel):
     id: Optional[int] = None
     job_id: int
